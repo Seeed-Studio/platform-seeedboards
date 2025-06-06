@@ -402,8 +402,7 @@ elif upload_protocol in debug_tools:
             ["-c", "adapter speed %s" % env.GetProjectOption("debug_speed")]
         )
     openocd_args.extend([
-        "-c", "program {$SOURCE} %s verify reset; shutdown;" %
-        board.get("upload.offset_address", "")
+        "-c", "init; mww 0x5004b500 0x101; load_image {$SOURCE}; reset run; exit"
     ])
     openocd_args = [
         f.replace("$PACKAGE_DIR",

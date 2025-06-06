@@ -4,37 +4,41 @@ IS_WINDOWS = sys.platform.startswith("win")
 def configure_nrf_default_packages(self, variables, targets):
     upload_protocol = ""
     board = variables.get("board")
+    frameworks = variables.get("pioframework", [])
     
     if board:
         upload_protocol = variables.get(
             "upload_protocol",
             self.board_config(board).get("upload.protocol", ""))
 
-
+        self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
         # if board in ("seeed-xiao-afruitnrf52-nrf52840", "seeed-xiao-ble-nrf52840-sense"):
-        if "afruitnrf52-nrf52840" in board:
+        if "arduino" in frameworks:
             self.frameworks["arduino"][
                 "package"] = "framework-arduinoadafruitnrf52"
-
-        self.packages["framework-cmsis"]["optional"] = False
-        self.packages["tool-adafruit-nrfutil"]["optional"] = False
-        self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-        
-
-
-
-        if "mbed-nrf52840" in board:
-            self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
-            self.packages["tool-openocd"]["optional"] = False
-            self.packages["tool-bossac-nordicnrf52"]["optional"] = False
-            self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
-                # needed to build the ZIP file
+            self.packages["framework-cmsis"]["optional"] = False
             self.packages["tool-adafruit-nrfutil"]["optional"] = False
 
-            self.frameworks["arduino"][
-                "script"
-            ] = "builder/board_build/nrf/arduino-core-mbed.py"
+        if "mbed" in frameworks:
+            # self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
+            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.90201.0"
+            # self.packages["tool-openocd"]["optional"] = False
+            # self.packages["tool-bossac-nordicnrf52"]["optional"] = False
+            # self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
+            #     # needed to build the ZIP file
+            # self.packages["tool-adafruit-nrfutil"]["optional"] = False
+
+            # self.frameworks["arduino"][
+            #     "script"
+            # ] = "builder/board_build/nrf/arduino-core-mbed.py"
+            
+        if "zephyr" in frameworks:
+            for p in self.packages:
+                if p in ("tool-cmake", "tool-dtc", "tool-ninja"):
+                    self.packages[p]["optional"] = False
+            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
+            if not IS_WINDOWS:
+                self.packages["tool-gperf"]["optional"] = False
 
     if set(["bootloader", "erase"]) & set(targets):
         self.packages["tool-nrfjprog"]["optional"] = False
@@ -56,8 +60,6 @@ def configure_nrf_default_packages(self, variables, targets):
     jlink_pkgname = "tool-jlink"
     if not any(jlink_conds) and jlink_pkgname in self.packages:
         del self.packages[jlink_pkgname]
-
-
 
 
 def _add_nrf_default_debug_tools(self, board):
@@ -98,16 +100,19 @@ def _add_nrf_default_debug_tools(self, board):
             }
 
         else:
+            openocd_target = debug.get("openocd_target")
+            assert openocd_target, ("Missing target configuration for %s" %
+                                    board.id)
             server_args = [
                 "-s", "$PACKAGE_DIR/openocd/scripts",
-                "-f", "interface/%s.cfg" % link
+                "-f", "interface/%s.cfg" % link,
+                "-f", "%s" % openocd_target
             ]
             if link == "stlink":
                 server_args.extend([
                     "-c",
                     "transport select hla_swd; set WORKAREASIZE 0x4000"
                 ])
-            server_args.extend(["-f", "target/nrf52.cfg"])
             debug["tools"][link] = {
                 "server": {
                     "package": "tool-openocd",

@@ -24,6 +24,10 @@
     "espidf": {
       "package": "framework-espidf",
       "script": "builder/frameworks/espidf.py"
+    },
+    "zephyr": {
+      "package": "framework-zephyr",
+      "script": "builder/frameworks/zephyr.py"
     }
   },
   "packages": {
@@ -76,7 +80,7 @@
       "version": "14.2.0+20240403"
     },
     "tool-esptoolpy": {
-      "optional": false,
+      "optional": true,
       "owner": "tasmota",
       "version": "https://github.com/Jason2866/esptool/releases/download/v4.8.7/esptool.zip"
     },
@@ -122,6 +126,11 @@
       "owner": "platformio",
       "version": "~3.30.2"
     },
+    "tool-dtc": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "~1.4.7"
+    },
     "tool-ninja": {
       "optional": true,
       "owner": "platformio",
@@ -136,7 +145,7 @@
       "type": "toolchain",
       "optional": true,
       "owner": "platformio",
-      "version": "~1.120301.0",
+      "version": ">=1.60301.0,<1.80000.0",
       "optionalVersions": [
         "~1.70201.0",
         "~1.80201.0",
@@ -186,19 +195,16 @@
       "version": "https://github.com/maxgerhardt/pico-sdk.git"
     },
     "tool-picotool-rp2040-earlephilhower": {
-      "type": "uploader",
       "optional": true,
       "owner": "platformio",
       "version": "https://github.com/maxgerhardt/picotool-dummy/archive/refs/heads/main.zip"
     },
     "tool-openocd-rp2040-earlephilhower": {
-      "type": "uploader",
       "optional": true,
       "owner": "earlephilhower",
       "version": "~5.100300.0"
     },
     "tool-mklittlefs-rp2040-earlephilhower": {
-      "type": "uploader",
       "optional": true,
       "owner": "earlephilhower",
       "version": "~5.100300.0"
@@ -220,6 +226,12 @@
       "optionalVersions": [
         "~2.50400.0"
       ]
+    },
+    "framework-zephyr": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "~3.40100.0"
     },
     "tool-adafruit-nrfutil": {
       "owner": "platformio",

@@ -30,8 +30,8 @@ if board.id == "seeed-xiao-rp2040" or board.id == "seeed-xiao-rp2350":
     print("board id is seeed-xiao-rpi,will call board_build/rpi/rpi_build.py")
     env.SConscript("board_build/rpi/rpi_build.py", exports="env")
 
-if "52840" in board.id:
-    print("board id is 52840,will call board_build/nrf/nrf_build.py")
+if "nrf" in board.id:
+    print("board id is nrf,will call board_build/nrf/nrf_build.py")
     env.SConscript("board_build/nrf/nrf_build.py", exports="env")
 
 if "samd" in board.id:

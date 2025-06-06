@@ -1,0 +1,36 @@
+{
+    "build": {
+      "cpu": "cortex-m33",
+      "f_cpu": "128000000L",
+      "mcu": "nRF54L15",
+      "zephyr": {
+        "variant": "xiao_nrf54l15/nrf54l15/cpuapp"
+     }
+    },
+    "connectivity": [
+      "bluetooth"
+    ],
+    "debug": {
+      "default_tools": [
+        "cmsis-dap"
+      ],
+      "jlink_device": "nRF54L15",
+      "openocd_target": "$PROJECT_CORE_DIR/platforms/\"$PIOPLATFORM\"/builder/board_build/nrf/nrf54l.cfg",
+      "svd_path": "nrf54l15.svd"
+    },
+    "frameworks": [
+      "zephyr"
+    ],
+    "name": "Seeed Studio XIAO nRF54L15",
+    "upload": {
+      "maximum_ram_size": 262144,
+      "maximum_size": 1572864,
+      "protocol": "cmsis-dap",
+      "protocols": [
+        "cmsis-dap",
+        "jlink"
+      ]
+    },
+    "url": "https://wiki.seeedstudio.com/XIAO_BLE",
+    "vendor": "Seeed Studio"
+  }

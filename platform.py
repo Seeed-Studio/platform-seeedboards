@@ -46,15 +46,13 @@ class SeeedstudioPlatform(PlatformBase):
             Architecture = "renesas"
         if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
             Architecture = "rpi"
-        if "52840" in board_name:
+        if "nrf" in board_name:
             Architecture = "nrf"
-
         if "samd" in board_name:
             Architecture = "samd"
         if "mg24" in board_name:
             Architecture = "siliconlab"
 
-        print("Architecture =: ",Architecture)
         if Architecture:
             try:
                 board_module = import_module(f"platform_cfg.{Architecture}_cfg")
@@ -68,7 +66,6 @@ class SeeedstudioPlatform(PlatformBase):
     
 
     def get_boards(self, id_=None):
-        print("in get boards")
         result = super().get_boards(id_)
         if not result:
             return result
@@ -91,9 +88,8 @@ class SeeedstudioPlatform(PlatformBase):
         if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
             Architecture = "rpi"
         
-        if "52840" in board_name:
+        if "nrf" in board_name:
             Architecture = "nrf"
-        
         if "samd" in board_name:
             Architecture = "samd"
         if "mg24" in board_name:
@@ -124,7 +120,7 @@ class SeeedstudioPlatform(PlatformBase):
         if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
             Architecture = "rpi"
         
-        if "52840" in board_name:
+        if "nrf" in board_name:
             Architecture = "nrf"
         if "samd" in board_name:
             Architecture = "samd"
