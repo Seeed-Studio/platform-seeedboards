@@ -8,12 +8,12 @@ The [Seeed Studio XIAO Series](https://wiki.seeedstudio.com/SeeedStudio_XIAO_Ser
 * [Home](http://platformio.org/platforms/seeedxiao) (home page in PlatformIO Platform Registry)
 * [Documentation](http://docs.platformio.org/page/platforms/seeedxiao.html) (advanced usage, packages, boards, frameworks, etc.)
 
-# Usage
+## Usage
 
 1. [Install PlatformIO](http://platformio.org)
 2. Create PlatformIO project and configure a platform option in [platformio.ini](http://docs.platformio.org/page/projectconf.html) file:
 
-## Stable version
+### Stable version
 
 ```ini
 [env:stable]
@@ -23,7 +23,7 @@ framework = arduino
 ...
 ```
 
-## Development version
+### Development version
 
 ```ini
 [env:development]
@@ -33,6 +33,6 @@ framework = arduino
 ...
 ```
 
-# Configuration
+## Configuration
 
 Please navigate to [documentation](http://docs.platformio.org/page/platforms/seeedxiao.html).
