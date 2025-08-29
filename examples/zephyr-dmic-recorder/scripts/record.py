@@ -12,7 +12,13 @@ import argparse
 import sys
 import time
 import wave
-import serial
+
+import subprocess
+try:
+    import serial
+except ImportError:
+    subprocess.run([sys.executable, "-m", "pip", "install", "pyserial"], check=True)
+    import serial
 
 SAMPLE_RATE = 16000              # Audio sample rate (Hz)
 SAMPLE_WIDTH_BYTES = 2           # Sample width in bytes (16-bit PCM)
