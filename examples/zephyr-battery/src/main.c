@@ -6,7 +6,8 @@
 #include <zephyr/drivers/regulator.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/kernel.h>
-
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(battery, CONFIG_LOG_DEFAULT_LEVEL);
 
 #if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
 	!DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
