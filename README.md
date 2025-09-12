@@ -52,7 +52,7 @@ The script will automatically create and manage a local Python virtual environme
 *   **For Windows:**
     Navigate to the `scripts/factory_reset` directory and run:
     ```shell
-    factory_reset.bat
+    .\factory_reset.bat
     ```
 
 *   **For Linux and macOS:**
