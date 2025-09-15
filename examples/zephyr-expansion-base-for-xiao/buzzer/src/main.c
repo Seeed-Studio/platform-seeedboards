@@ -8,9 +8,9 @@
 /*
  * Get button and buzzer device nodes via devicetree alias
  */
-#define SW0_NODE    DT_ALIAS(sw0)
-#if !DT_NODE_HAS_STATUS(SW0_NODE, okay)
-#error "Unsupported board: sw0 devicetree alias is not defined"
+#define SW1_NODE    DT_ALIAS(sw1)
+#if !DT_NODE_HAS_STATUS(SW1_NODE, okay)
+#error "Unsupported board: sw1 devicetree alias is not defined"
 #endif
 
 #define BUZZER_NODE DT_ALIAS(buzzer)
@@ -24,7 +24,7 @@
 #define BUZZER_DUTY_CYCLE_PERCENT 50 // 50% duty cycle
 #define BUZZER_PULSE_NSEC   (BUZZER_PERIOD_NSEC * BUZZER_DUTY_CYCLE_PERCENT / 100) // Pulse width (nanoseconds)
 
-static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(SW0_NODE, gpios);
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(SW1_NODE, gpios);
 static const struct pwm_dt_spec buzzer = PWM_DT_SPEC_GET(BUZZER_NODE);
 
 int main(void)
