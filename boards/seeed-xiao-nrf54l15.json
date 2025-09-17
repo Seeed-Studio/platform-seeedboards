@@ -14,7 +14,7 @@
       "default_tools": [
         "cmsis-dap"
       ],
-      "jlink_device": "nRF54L15",
+      "jlink_device": "nRF54L15_M33",
       "openocd_target": "$PROJECT_CORE_DIR/platforms/\"$PIOPLATFORM\"/builder/board_build/nrf/nrf54l.cfg",
       "svd_path": "nrf54l15.svd"
     },
