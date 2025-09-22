@@ -14,5 +14,5 @@ dmic_dev: &pdm20 {
 };
 
 &nfct {
-	status = “okay”;
+    status = "okay";
 };
