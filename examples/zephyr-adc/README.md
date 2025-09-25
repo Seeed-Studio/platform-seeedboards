@@ -25,3 +25,8 @@ $ pio run -e seeed-xiao-nrf54l15 --target upload
 # Clean build files
 $ pio run --target clean
 ```
+
+Pinout
+------
+
+This example uses the `ADC1` input, which corresponds to pin `D1` on the Seeed XIAO board. Connect your analog sensor or potentiometer to this pin.
