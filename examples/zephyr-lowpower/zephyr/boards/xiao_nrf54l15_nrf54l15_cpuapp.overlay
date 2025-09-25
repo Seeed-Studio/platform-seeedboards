@@ -1,3 +1,11 @@
 &pdm_imu_pwr{
     /delete-property/ regulator-boot-on;
 };
+
+&rfsw_pwr{
+    /delete-property/ regulator-boot-on;
+};
+
+&vbat_pwr{
+    /delete-property/ regulator-boot-on;
+};
