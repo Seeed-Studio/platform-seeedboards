@@ -1,5 +1,15 @@
-How to build PlatformIO based project
-=====================================
+# Zephyr RF Switch Example
+
+This example demonstrates how to control the RF switch on the Seeed Studio XIAO nRF54L15 to toggle between the onboard ceramic antenna and an external antenna.
+
+## Features
+
+- Press the user button (SW0) to switch between the ceramic and external antennas.
+- The user LED indicates the current antenna selection (LED ON for external, LED OFF for ceramic).
+- A Bluetooth LE GATT service is implemented for basic interaction.
+- The default antenna at startup can be configured via prj.conf.
+
+## How to build PlatformIO based project
 
 1. [Install PlatformIO Core](https://docs.platformio.org/page/core.html)
 2. Download [development platform with examples](https://github.com/Seeed-Studio/platform-seeedboards/archive/refs/heads/main.zip)
