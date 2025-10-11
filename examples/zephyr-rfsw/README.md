@@ -6,7 +6,6 @@ This example demonstrates how to control the RF switch on the Seeed Studio XIAO 
 
 - Press the user button (SW0) to switch between the ceramic and external antennas.
 - The user LED indicates the current antenna selection (LED ON for external, LED OFF for ceramic).
-- A Bluetooth LE GATT service is implemented for basic interaction.
 - The default antenna at startup can be configured via prj.conf.
 
 ## How to build PlatformIO based project
