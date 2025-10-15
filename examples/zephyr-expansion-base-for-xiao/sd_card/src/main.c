@@ -27,6 +27,10 @@
 #include <zephyr/drivers/flash.h>
 #include <zephyr/storage/flash_map.h>
 
+#ifdef CONFIG_NRFX_POWER
+#include <nrfx_power.h>
+#endif
+
 #if defined(CONFIG_FAT_FILESYSTEM_ELM)
 
 #include <ff.h>
@@ -244,6 +248,12 @@ int main(void)
 	LOG_INF("========================================");
 	LOG_INF("XIAO nRF54L15 SD Card + ZMS Sample");
 	LOG_INF("========================================");
+
+#ifdef CONFIG_NRFX_POWER
+	/* Enable constant-latency mode for stable high-speed SPI operation */
+	nrfx_power_constlat_mode_request();
+	LOG_INF("Constant-latency mode enabled for stable SPI operation");
+#endif
 
 #ifdef CONFIG_ZMS
 	/* Initialize ZMS for persistent storage */

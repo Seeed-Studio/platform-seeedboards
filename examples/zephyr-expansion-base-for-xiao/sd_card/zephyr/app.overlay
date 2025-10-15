@@ -1,36 +1,17 @@
-/* SD Card configuration for XIAO Expansion Base
- * Using SPI bit-bang instead of hardware SPI
- * Pins: D8=SCK, D9=MISO, D10=MOSI, D2=CS
- */
-/ {
-	spibb0: spibb0 {
-		compatible = "zephyr,spi-bitbang";
-		status = "okay";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		clk-gpios = <&gpio2 1 GPIO_ACTIVE_HIGH>;
-		mosi-gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;
-		miso-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
-		cs-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
-
-		sdhc0: sdhc@0 {
-			compatible = "zephyr,sdhc-spi-slot";
-			reg = <0>;
-			status = "okay";
-			mmc {
-				compatible = "zephyr,sdmmc-disk";
-				disk-name = "SD";
-				status = "okay";
-			};
-			spi-max-frequency = <24000000>;
-		};
-	};
-
-	aliases {
-		sdhc0 = &sdhc0;
-	};
-};
 
 &xiao_spi {
-	status = "disabled";
+	status = "okay";
+	cs-gpios = <&xiao_d 2 GPIO_ACTIVE_LOW>;
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+		spi-max-frequency = <24000000>;
+	};
 };
