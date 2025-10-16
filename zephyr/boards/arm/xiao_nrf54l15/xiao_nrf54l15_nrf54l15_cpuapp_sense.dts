@@ -8,8 +8,16 @@
 #include "xiao_nrf54l15_common.dtsi"
 
 / {
-	model = "Seeed XIAO nRF54L15";
-	compatible = "seeed,xiao-nrf54l15-cpuapp";
+	model = "Seeed XIAO nRF54L15 Sense";
+	compatible = "seeed,xiao-nrf54l15-cpuapp-sense";
+
+	pdm_imu_pwr: pdm-imu-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "pdm-imu-pwr";
+		enable-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+		regulator-boot-on;
+		startup-delay-us = <5000>;
+	};
 
 	rfsw_ctl: rfsw-ctl {
 		compatible = "regulator-fixed";
@@ -42,6 +50,10 @@
 		nordic,rpc-uart = &uart20;
 		zephyr,ieee802154 = &ieee802154;
 	};
+
+	aliases {
+		imu0 = &lsm6dso;
+	};
 };
 
 &cpuapp_sram {
@@ -73,6 +85,15 @@
 
 &i2c30 {
 	status = "okay";
+
+	lsm6dso: lsm6dso@6a {
+		compatible = "st,lsm6dso";
+		reg = <0x6a>;
+		irq-gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+		accel-pm = <LSM6DSO_DT_XL_ULP_MODE>;
+		gyro-pm = <LSM6DSO_DT_GY_NORMAL_MODE>;
+		status = "okay";
+	};
 };
 
 &spi00 {
@@ -89,6 +110,12 @@
 
 &gpio0 {
 	status = "okay";
+
+	imu_power_default_on: imu_power_default_on {
+		gpio-hog;
+		gpios = <1 GPIO_ACTIVE_HIGH>;
+		line-name = "imu-power-enable";
+	};
 };
 
 &gpio1 {
@@ -149,5 +176,31 @@
 	status = "okay";
 };
 
-/* Include default memory partition configuration file */
-#include <nordic/nrf54l15_partition.dtsi>
+
+&cpuapp_rram {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x0 DT_SIZE_K(64)>;
+		};
+
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x10000 DT_SIZE_K(664)>;
+		};
+
+		slot1_partition: partition@b6000 {
+			label = "image-1";
+			reg = <0xb6000 DT_SIZE_K(664)>;
+		};
+
+		storage_partition: partition@15c000 {
+			label = "storage";
+			reg = <0x15c000 DT_SIZE_K(36)>;
+		};
+	};
+};

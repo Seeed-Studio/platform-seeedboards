@@ -1,9 +1,11 @@
 board:
   name: xiao_nrf54l15
-  full_name: XIAO NRF54L15
+  full_name: XIAO NRF54L15 (Sense)
   vendor: seeed
   socs:
   - name: nrf54l15
     variants:
+    - name: 'sense'
+      cpucluster: cpuapp
     - name: xip
       cpucluster: cpuflpr
