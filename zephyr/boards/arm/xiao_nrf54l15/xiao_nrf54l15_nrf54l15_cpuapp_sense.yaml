@@ -1,8 +1,8 @@
 # Copyright (c) 2025 Seeed Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-identifier: xiao_nrf54l15/nrf54l15/cpuapp
-name: XIAO nRF54L15
+identifier: xiao_nrf54l15/nrf54l15/cpuapp/sense
+name: XIAO nRF54L15 Sense
 vendor: seeed
 arch: arm
 toolchain:
@@ -13,6 +13,7 @@ flash: 1428
 supported:
   - adc
   - counter
+  - dmic
   - gpio
   - i2c
   - pwm
