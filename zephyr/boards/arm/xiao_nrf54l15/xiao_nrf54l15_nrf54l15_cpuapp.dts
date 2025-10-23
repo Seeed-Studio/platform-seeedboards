@@ -49,6 +49,9 @@
 		zephyr,shell-uart = &uart20;
 		nordic,rpc-uart = &uart20;
 		zephyr,ieee802154 = &ieee802154;
+		zephyr,uart-mcumgr = &uart20;
+		zephyr,bt-mon-uart = &uart20;
+		zephyr,bt-c2h-uart = &uart20;
 	};
 
 	aliases {
