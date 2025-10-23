@@ -1,0 +1,55 @@
+app:
+  address: 0x010200
+  region: flash_primary
+  size: 0x063E00
+mcuboot:
+  address: 0x000000
+  region: flash_primary
+  size: 0x010000
+mcuboot_pad:
+  address: 0x010000
+  region: flash_primary
+  size: 0x000200
+mcuboot_primary:
+  address: 0x010000
+  region: flash_primary
+  size: 0x064000
+  orig_span: &primary_span
+    - mcuboot_pad
+    - app
+  span: *primary_span
+mcuboot_primary_app:
+  address: 0x010200
+  region: flash_primary
+  size: 0x063E00
+  orig_span: &primary_app_span
+    - app
+  span: *primary_app_span
+mcuboot_secondary_pad:
+  address: 0x074000
+  region: flash_primary
+  size: 0x000200
+mcuboot_secondary_app:
+  address: 0x074200
+  region: flash_primary
+  size: 0x063E00
+mcuboot_secondary:
+  address: 0x074000
+  region: flash_primary
+  size: 0x064000
+  orig_span: &secondary_span
+    - mcuboot_secondary_pad
+    - mcuboot_secondary_app
+  span: *secondary_span
+settings_storage:
+  address: 0x0D8000
+  region: flash_primary
+  size: 0x008000
+external_flash:
+  address: 0x0E0000
+  region: flash_primary
+  size: 0x0A0000 
+pcd_sram:
+  address: 0x20000000
+  size: 0x2000
+  region: sram_primary
