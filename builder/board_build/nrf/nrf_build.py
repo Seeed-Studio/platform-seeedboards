@@ -494,6 +494,10 @@ elif upload_protocol in debug_tools:
         openocd_args.extend([
             "-c", "init; mww 0x5004b500 0x101; load_image {$SOURCE}; reset run; exit"
         ])
+    elif board.get("build.mcu") == "nrf54lm20a":
+        openocd_args.extend([
+            "-c", "init; mww 0x5004b500 0x101; load_image {$SOURCE}; reset run; exit"
+        ])
     else:
        print("Warning! Uploading via OpenOCD is not yet supported for this MCU.")
 
