@@ -1,29 +1,46 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-# Get the directory of the script
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-VENV_DIR="$DIR/.venv"
-DEP_MARKER="$VENV_DIR/.dependencies_installed"
+# ==============================================
+# Factory reset wrapper (Linux/macOS)
+# ==============================================
 
-if [ ! -d "$VENV_DIR" ]; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv "$VENV_DIR"
-else
-    echo "Reusing existing virtual environment."
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+FIRMWARE="${DIR}/firmware.hex"
+VENV_DIR="$DIR/.venv"
+DEP_MARKER="$VENV_DIR/.deps_installed"
+REQ_PROBE="$1"
+EXTRA_ARGS=""
+if [ -n "$REQ_PROBE" ]; then
+    EXTRA_ARGS="--probe $REQ_PROBE"
 fi
 
-echo "Activating virtual environment..."
+echo "[INFO] Using virtual environment: $VENV_DIR"
+if [ ! -d "$VENV_DIR" ]; then
+    echo "[INFO] Creating Python virtual environment..."
+    python3 -m venv "$VENV_DIR"
+fi
+
+# shellcheck disable=SC1090
 source "$VENV_DIR/bin/activate"
 
 if [ ! -f "$DEP_MARKER" ]; then
-    echo "Installing dependencies..."
-    pip install git+https://github.com/pyocd/pyOCD.git libusb intelhex && touch "$DEP_MARKER"
+    echo "[INFO] Installing dependencies into venv (pyocd libusb)..."
+    pip install pyocd libusb >/dev/null
+    touch "$DEP_MARKER"
 else
-    echo "Dependencies are already installed."
+    echo "[INFO] Dependencies already installed in venv."
 fi
 
-echo "Running recovery script..."
-python "$DIR/xiao_nrf54l15_recover_flash.py" --hex "$DIR/firmware.hex" --mass-erase
+if [ ! -f "$FIRMWARE" ]; then
+    echo "[ERROR] Firmware file not found: $FIRMWARE"
+    exit 2
+fi
 
-echo "Done. The virtual environment is kept at $VENV_DIR"
+python "$DIR/reset_tool.py" --mode factory --firmware "$FIRMWARE" $EXTRA_ARGS
+RC=$?
+if [ $RC -ne 0 ]; then
+    echo "[ERROR] Factory reset failed (exit code $RC)."
+    exit $RC
+fi
+echo "[SUCCESS] Factory reset completed."

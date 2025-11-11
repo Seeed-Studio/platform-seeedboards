@@ -51,7 +51,7 @@ The script will automatically create and manage a local Python virtual environme
 
 *   **For Windows:**
     Navigate to the `scripts/factory_reset` directory and run:
-    ```shell
+    ```powershell
     .\factory_reset.bat
     ```
 
@@ -60,3 +60,22 @@ The script will automatically create and manage a local Python virtual environme
     ```shell
     bash factory_reset.sh
     ```
+
+### Mass Erase Only (Recover Mode)
+
+If you only need to remove APPROTECT and wipe the device (without programming factory firmware), use the "Recover Only" scripts.
+
+#### Usage Examples
+
+Windows:
+```powershell
+cd scripts\factory_reset
+./recover_only.bat
+```
+
+Linux / macOS:
+```bash
+cd scripts/factory_reset
+bash recover_only.sh
+```
+
