@@ -110,7 +110,8 @@ def _add_nrf_default_debug_tools(self, board):
                 "-s", "$PACKAGE_DIR/openocd/scripts",
                 "-f", "interface/%s.cfg" % link
             ]
-            if "54l15" in board.id:
+            # Keep custom cfg paths unchanged; only prepend target/ for built-in script names.
+            if openocd_target.startswith("$") or "/" in openocd_target or "\\" in openocd_target:
                 server_args.append("-f")
                 server_args.append(openocd_target)
             else:

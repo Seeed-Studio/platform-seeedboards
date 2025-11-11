@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""
-Unified reset/recover tool for Seeed XIAO nRF54L15.
+""" 
+Unified reset/recover tool for Seeed XIAO nRF54L15 / nRF54LM20A.
 
 Features:
   * Probe selection (auto, specified via --probe, interactive if multiple)
   * Mass erase with fallback to standard erase (configurable)
-  * Optional firmware flashing for factory reset mode
+    * Optional firmware flashing for factory reset mode
   * Optional virtual environment usage by wrappers (this script assumes deps present)
   * Logging to file (optional) and structured exit codes
 
@@ -59,11 +59,16 @@ def configure_logging():
     LOG.addHandler(ch)
 
 def parse_args(argv: List[str]):
-    p = argparse.ArgumentParser(description='Unified recover/factory reset tool for nRF54L15.')
+    p = argparse.ArgumentParser(description='Unified recover/factory reset tool for nRF54L15 / nRF54LM20A.')
     p.add_argument('--mode', choices=['recover', 'factory'], required=True, help='Operation mode.')
     p.add_argument('--probe', help='Unique probe ID to use (skip auto/interactive).')
     p.add_argument('--firmware', help='Path to firmware .hex (required for factory mode).')
     p.add_argument('--frequency', type=int, default=4_000_000, help='Flash frequency Hz (default 4000000).')
+    p.add_argument(
+        '--target',
+        default='nrf54l',
+        help='pyOCD target name (default: nrf54l). For nRF54LM20A use: nrf54lm20a'
+    )
     return p.parse_args(argv)
 
 def list_probes():
@@ -100,28 +105,29 @@ def select_probe(args) -> str:
                 return sel
         LOG.warning(f'Probe {sel} not found. Retry.')
 
-def run_pyocd_cmd(cmd: List[str]) -> int:
+def run_pyocd_cmd(args: List[str]) -> int:
+    cmd = [sys.executable, '-m', 'pyocd'] + args
     LOG.debug('Running: %s', ' '.join(cmd))
     proc = subprocess.run(cmd)
     return proc.returncode
 
-def perform_erase(probe_id: str) -> None:
+def perform_erase(probe_id: str, target: str) -> None:
     # Try mass then fallback
     LOG.info('Attempting mass erase (will unlock if protected)...')
-    rc = run_pyocd_cmd(['pyocd', 'erase', '--mass', '--target', 'nrf54l', '--chip', '--probe', probe_id])
+    rc = run_pyocd_cmd(['erase', '--mass', '--target', target, '--chip', '--probe', probe_id])
     if rc == 0:
         LOG.info('Mass erase succeeded.')
         return
     LOG.warning('Mass erase failed, try standard erase...')
-    rc2 = run_pyocd_cmd(['pyocd', 'erase', '--target', 'nrf54l', '--chip', '--probe', probe_id])
+    rc2 = run_pyocd_cmd(['erase', '--target', target, '--chip', '--probe', probe_id])
     if rc2 != 0:
         LOG.error('Standard erase after mass failure also failed.')
         sys.exit(3)
     LOG.info('Standard erase succeeded.')
 
-def perform_flash(probe_id: str, firmware: str, freq: int) -> None:
+def perform_flash(probe_id: str, firmware: str, freq: int, target: str) -> None:
     LOG.info(f'Flashing firmware: {firmware} (frequency {freq} Hz)...')
-    rc = run_pyocd_cmd(['pyocd', 'flash', '--target', 'nrf54l', '--frequency', str(freq), firmware, '--probe', probe_id])
+    rc = run_pyocd_cmd(['flash', '--target', target, '--frequency', str(freq), firmware, '--probe', probe_id])
     if rc != 0:
         LOG.error('Flash failed.')
         sys.exit(4)
@@ -140,10 +146,10 @@ def main(argv: List[str]):
             return 5
 
     probe_id = select_probe(args)
-    perform_erase(probe_id)
+    perform_erase(probe_id, args.target)
 
     if args.mode == 'factory':
-        perform_flash(probe_id, args.firmware, args.frequency)
+        perform_flash(probe_id, args.firmware, args.frequency, args.target)
 
     LOG.info('Operation completed successfully.')
     return 0
