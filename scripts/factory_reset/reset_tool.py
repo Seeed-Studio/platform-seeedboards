@@ -49,33 +49,21 @@ except ImportError:  # Defer install to wrapper; keep lightweight here.
 
 LOG = logging.getLogger('reset_tool')
 
-def configure_logging(log_path: Optional[str], quiet: bool):
-    level = logging.INFO if not quiet else logging.WARNING
+def configure_logging():
+    level = logging.INFO
     LOG.setLevel(level)
     fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
     ch.setLevel(level)
     LOG.addHandler(ch)
-    if log_path:
-        fh = logging.FileHandler(log_path, mode='a', encoding='utf-8')
-        fh.setFormatter(fmt)
-        fh.setLevel(level)
-        LOG.addHandler(fh)
-        LOG.info(f'Logging to {log_path}')
 
 def parse_args(argv: List[str]):
     p = argparse.ArgumentParser(description='Unified recover/factory reset tool for nRF54L15.')
     p.add_argument('--mode', choices=['recover', 'factory'], required=True, help='Operation mode.')
     p.add_argument('--probe', help='Unique probe ID to use (skip auto/interactive).')
-    p.add_argument('--firmware', help='Path to firmware .hex (required for factory unless --skip-flash).')
+    p.add_argument('--firmware', help='Path to firmware .hex (required for factory mode).')
     p.add_argument('--frequency', type=int, default=4_000_000, help='Flash frequency Hz (default 4000000).')
-    p.add_argument('--skip-flash', action='store_true', help='Skip flashing even in factory mode.')
-    p.add_argument('--force-mass', action='store_true', help='Only perform mass erase; fail if it fails.')
-    p.add_argument('--standard-only', action='store_true', help='Only perform standard erase; do not mass erase.')
-    p.add_argument('--log', help='Log file path.')
-    p.add_argument('--quiet', action='store_true', help='Reduce output verbosity.')
-    p.add_argument('--no-interactive', action='store_true', help='Fail instead of prompting when multiple probes and none specified.')
     return p.parse_args(argv)
 
 def list_probes():
@@ -100,9 +88,6 @@ def select_probe(args) -> str:
     LOG.info('Multiple probes detected:')
     for p in probes:
         LOG.info(f'  - {p.unique_id} : {p.description}')
-    if args.no_interactive:
-        LOG.error('Multiple probes present and --no-interactive given without --probe.')
-        sys.exit(2)
     # Interactive selection
     while True:
         sel = input('Enter probe unique ID: ').strip()
@@ -120,29 +105,14 @@ def run_pyocd_cmd(cmd: List[str]) -> int:
     proc = subprocess.run(cmd)
     return proc.returncode
 
-def perform_erase(probe_id: str, args) -> None:
-    # Standard vs mass decision
-    if args.standard_only and args.force_mass:
-        LOG.error('Cannot specify both --standard-only and --force-mass.')
-        sys.exit(5)
-    if args.standard_only:
-        LOG.info('Performing standard chip erase...')
-        rc = run_pyocd_cmd(['pyocd', 'erase', '--target', 'nrf54l', '--chip', '--probe', probe_id])
-        if rc != 0:
-            LOG.error('Standard erase failed.')
-            sys.exit(3)
-        LOG.info('Standard erase succeeded.')
-        return
+def perform_erase(probe_id: str) -> None:
     # Try mass then fallback
     LOG.info('Attempting mass erase (will unlock if protected)...')
     rc = run_pyocd_cmd(['pyocd', 'erase', '--mass', '--target', 'nrf54l', '--chip', '--probe', probe_id])
     if rc == 0:
         LOG.info('Mass erase succeeded.')
         return
-    if args.force_mass:
-        LOG.error('Mass erase failed and --force-mass specified; aborting.')
-        sys.exit(3)
-    LOG.warning('Mass erase failed, falling back to standard erase...')
+    LOG.warning('Mass erase failed, try standard erase...')
     rc2 = run_pyocd_cmd(['pyocd', 'erase', '--target', 'nrf54l', '--chip', '--probe', probe_id])
     if rc2 != 0:
         LOG.error('Standard erase after mass failure also failed.')
@@ -159,20 +129,20 @@ def perform_flash(probe_id: str, firmware: str, freq: int) -> None:
 
 def main(argv: List[str]):
     args = parse_args(argv)
-    configure_logging(args.log, args.quiet)
+    configure_logging()
 
-    if args.mode == 'factory' and not args.skip_flash:
+    if args.mode == 'factory':
         if not args.firmware:
-            LOG.error('Firmware path required for factory mode (use --firmware or add --skip-flash).')
+            LOG.error('Firmware path required for factory mode (use --firmware).')
             return 5
         if not os.path.isfile(args.firmware):
             LOG.error(f'Firmware file not found: {args.firmware}')
             return 5
 
     probe_id = select_probe(args)
-    perform_erase(probe_id, args)
+    perform_erase(probe_id)
 
-    if args.mode == 'factory' and not args.skip_flash:
+    if args.mode == 'factory':
         perform_flash(probe_id, args.firmware, args.frequency)
 
     LOG.info('Operation completed successfully.')
