@@ -24,6 +24,8 @@ static const struct adc_dt_spec adc_channels[] = {
 
 static const struct device *const vbat_reg = DEVICE_DT_GET(DT_NODELABEL(vbat_pwr));
 
+#define ADC_CHANNEL_ID 7
+
 int main(void)
 {
 	int err;
@@ -39,22 +41,21 @@ int main(void)
 	k_sleep(K_MSEC(100));
 
 	/* Configure channels individually prior to sampling. */
-	if (!adc_is_ready_dt(&adc_channels[7]))
+	if (!adc_is_ready_dt(&adc_channels[ADC_CHANNEL_ID]))
 	{
-		printf("ADC controller device %s not ready\n", adc_channels[7].dev->name);
+		printf("ADC controller device %s not ready\n", adc_channels[ADC_CHANNEL_ID].dev->name);
 		return 0;
 	}
 
-	err = adc_channel_setup_dt(&adc_channels[7]);
+	err = adc_channel_setup_dt(&adc_channels[ADC_CHANNEL_ID]);
 	if (err < 0)
 	{
-		printf("Could not setup channel #7 (%d)\n", err);
+		printf("Could not setup channel #%d (%d)\n", ADC_CHANNEL_ID, err);
 		return 0;
 	}
 
-	(void)adc_sequence_init_dt(&adc_channels[7], &sequence);
-
-	err = adc_read_dt(&adc_channels[7], &sequence);
+	(void)adc_sequence_init_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
+	err = adc_read_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
 	if (err < 0)
 	{
 		printf("Could not read (%d)\n", err);
@@ -66,7 +67,7 @@ int main(void)
 	 * in the ADC sample buffer should be a signed 2's
 	 * complement value.
 	 */
-	if (adc_channels[7].channel_cfg.differential)
+	if (adc_channels[ADC_CHANNEL_ID].channel_cfg.differential)
 	{
 		val_mv = (int32_t)((int16_t)buf);
 	}
@@ -74,7 +75,7 @@ int main(void)
 	{
 		val_mv = (int32_t)buf;
 	}
-	err = adc_raw_to_millivolts_dt(&adc_channels[7],
+	err = adc_raw_to_millivolts_dt(&adc_channels[ADC_CHANNEL_ID],
 								   &val_mv);
 	/* conversion to mV may not be supported, skip if not */
 	if (err < 0)
