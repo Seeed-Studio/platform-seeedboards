@@ -10,7 +10,7 @@ Example for a 7.5 inch black-white e-ink display with 800x480 resolution, 4 Gray
 
 ```shell
 # Change directory to example
-$ cd platform-seeedboards/examples/zephyr-epaper
+$ cd platform-seeedboards/examples/zephyr-epaper/7inch5
 
 # Build project
 $ pio run

@@ -5,7 +5,7 @@
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(epaper_simple);
+LOG_MODULE_REGISTER(epaper);
 
 int main(void)
 {
