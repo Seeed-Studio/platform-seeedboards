@@ -2,7 +2,7 @@
     "build": {
       "cpu": "cortex-m33",
       "f_cpu": "128000000L",
-      "mcu": "nRF54L15",
+      "mcu": "nrf54l15",
       "zephyr": {
         "variant": "xiao_nrf54l15/nrf54l15/cpuapp"
      }
