@@ -410,11 +410,14 @@ elif upload_protocol in debug_tools:
         openocd_args.extend([
             "-c", "init; targets; halt; program {$SOURCE} verify reset; shutdown"
         ])
-    # 54l15 use bin to upload
-    else :
+    # 54l15 use hex to upload
+    elif board.get("build.mcu") == "nrf54l15":
         openocd_args.extend([
             "-c", "init; mww 0x5004b500 0x101; load_image {$SOURCE}; reset run; exit"
         ])
+    else:
+       print("Warning! Uploading via OpenOCD is not yet supported for this MCU.")
+
     openocd_args = [
         f.replace("$PACKAGE_DIR",
                   platform.get_package_dir("tool-openocd") or "")
