@@ -1,0 +1,101 @@
+/*
+ * SPI configuration for XIAO nRF54L15 with epaper base board.
+ *
+ * NOTE: The default `xiao_spi` (spi00) is a high-speed channel and may not be suitable for some peripherals
+ * that require a lower frequency for initialization.
+ * This method uses the `spi20` peripheral.
+ * - Pro: Uses hardware SPI for better performance.
+ * - Con: `spi20` conflicts with `uart20`. To maintain serial logging, `uart20` is disabled,
+  *   and the console is redirected to `uart21` (xiao_serial), which is mapped to the USB serial pins.
+  */
+
+ / {
+	 chosen {
+		 zephyr,display = &ssd16xx_2in13_epaper_gdey0213b74;
+		zephyr,console = &uart21;
+		nordic,rpc-uart = &uart21;
+		zephyr,shell-uart = &uart21;
+	};
+
+	mipi_dbi_2in13_epaper_gdey0213b74 {
+		compatible = "zephyr,mipi-dbi-spi";
+		spi-dev = <&spi20>;
+		dc-gpios = <&xiao_d 3 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&xiao_d 0 GPIO_ACTIVE_LOW>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ssd16xx_2in13_epaper_gdey0213b74: ssd16xxfb@0 {
+			compatible = "gooddisplay,gdey0213b74", "solomon,ssd1680";
+			mipi-max-frequency = <4000000>;
+			reg = <0>;
+			/* Adjust to an integer multiple of 8, the actual resolution is 250x122.*/
+			width = <256>;
+			height = <122>;
+			busy-gpios = <&xiao_d 2 GPIO_ACTIVE_HIGH>;
+
+			tssv = <0x80>;
+
+			full {
+				border-waveform = <0x05>;
+			};
+
+			partial {
+				border-waveform = <0x3c>;
+			};
+		};
+	};
+};
+
+
+&spi20 {
+	compatible = "nordic,nrf-spim";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&spi20_default>;
+	pinctrl-1 = <&spi20_sleep>;
+	status = "okay";
+	cs-gpios = <&xiao_d 1 GPIO_ACTIVE_LOW>;
+};
+
+&uart20 {
+	status = "disabled";
+};
+
+&pinctrl {
+	spi20_default: spi20_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 2, 1)>,
+			        <NRF_PSEL(SPIM_MOSI, 2, 2)>,
+			        <NRF_PSEL(SPIM_MISO, 2, 4)>;
+		};
+	};
+
+	spi20_sleep: spi20_sleep {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 2, 1)>,
+			        <NRF_PSEL(SPIM_MOSI, 2, 2)>,
+			        <NRF_PSEL(SPIM_MISO, 2, 4)>;
+			low-power-enable;
+		};
+	};
+};
+
+&uart21_default {
+	group1 {
+		psels = <NRF_PSEL(UART_TX, 1, 9)>;
+	};
+
+	group2 {
+		psels = <NRF_PSEL(UART_RX, 1, 8)>;
+		bias-pull-up;
+	};
+};
+
+&uart21_sleep {
+	group1 {
+		psels = <NRF_PSEL(UART_TX, 1, 9)>,
+				<NRF_PSEL(UART_RX, 1, 8)>;
+		low-power-enable;
+	};
+};
+
