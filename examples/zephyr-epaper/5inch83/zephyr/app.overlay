@@ -1,0 +1,37 @@
+/ {
+	chosen {
+		zephyr,display = &uc8179_5inch83_epaper_gdey0583t81;
+	};
+
+	mipi_dbi_xiao_epaper {
+		compatible = "zephyr,mipi-dbi-spi";
+		spi-dev = <&xiao_spi>;
+		dc-gpios = <&xiao_d 3 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&xiao_d 0 GPIO_ACTIVE_LOW>;	
+		write-only;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		uc8179_5inch83_epaper_gdey0583t81: uc8179@0 {
+			compatible = "gooddisplay,gdey0583t81", "ultrachip,uc8179";
+			mipi-max-frequency = <4000000>;
+			reg = <0>;
+			width = <648>;
+			height = <480>;
+			busy-gpios = <&xiao_d 2 GPIO_ACTIVE_LOW>; 
+
+			softstart = [17 17 17 17];
+
+			full {
+				pwr = [07 07 3f 3f];
+				cdi = <07>;
+				tcon = <0x22>;
+			};
+		};
+	};
+};
+
+&xiao_spi {
+    status = "okay";
+	cs-gpios = <&xiao_d 1 GPIO_ACTIVE_LOW>;
+};
