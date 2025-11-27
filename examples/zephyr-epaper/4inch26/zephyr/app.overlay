@@ -1,0 +1,87 @@
+/ {
+	chosen {
+		zephyr,display = &ssd16xx_4inch26_epaper_gdeq0426t82;
+	};
+
+	mipi_dbi_xiao_epaper {
+		compatible = "zephyr,mipi-dbi-spi";
+		spi-dev = <&xiao_spi>;
+		dc-gpios = <&xiao_d 3 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&xiao_d 0 GPIO_ACTIVE_LOW>;
+		write-only;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ssd16xx_4inch26_epaper_gdeq0426t82: ssd16xx@0 {
+			compatible = "gooddisplay,gdeq0426t82", "solomon,ssd1677";
+			mipi-max-frequency = <4000000>;
+			reg = <0>;
+			width = <480>;
+			height = <800>;
+			busy-gpios = <&xiao_d 2 GPIO_ACTIVE_HIGH>;
+
+			tssv = <0x80>; // Internal temp sensor
+			softstart = [AE C7 C3 C0 80];
+
+			gdo-flags = <0x02>;
+			scan-y-reverse;
+
+			full {
+				gdv = [17];
+				sdv = [41 A8 32];
+				vcom = <0x48>;
+				border-waveform = <0x01>;
+
+				lut = [
+					A0 48 54 00 00 00 00 00 00 00
+					50 48 A8 00 00 00 00 00 00 00
+					A0 48 54 00 00 00 00 00 00 00
+					50 48 A8 00 00 00 00 00 00 00
+					00 00 00 00 00 00 00 00 00 00
+					1A 14 00 00 00
+					0D 01 0D 01 02
+					0A 0A 03 00 01
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 01
+					22 22 22 22 22
+				];
+			};
+
+			partial {
+				gdv = [17];
+				sdv = [41 A8 32];
+				vcom = <0x30>;
+				border-waveform = <0x80>;
+
+				lut = [
+					A8 00 55 00 00 00 00 00 00 00
+					54 00 AA 00 00 00 00 00 00 00
+					A8 00 55 00 00 00 00 00 00 00
+					54 00 AA 00 00 00 00 00 00 00
+					00 00 00 00 00 00 00 00 00 00
+					0C 0D 0B 01 00
+					00 00 00 00 00
+					0A 0A 05 0B 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 00 00
+					00 00 00 01 01
+					22 22 22 22 22
+				];
+			};
+		};
+	};
+};
+
+&xiao_spi {
+    status = "okay";
+	cs-gpios = <&xiao_d 1 GPIO_ACTIVE_LOW>;
+};
