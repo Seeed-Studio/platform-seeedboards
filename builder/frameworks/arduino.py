@@ -29,7 +29,7 @@ from SCons.Script import  DefaultEnvironment
 env = DefaultEnvironment()
 board = env.BoardConfig()
 if "esp32" in board.id:
-    print("board id is seeed-xiao-esp32-c6,will call /board_build/esp/esp_arduino.py")
+    print(f"board id is {board.id}, will call board_build/esp/esp_build.py")
     env.SConscript("../board_build/esp/esp_arduino.py", exports="env")
 
 if board.id == "seeed-xiao-ra4m1":

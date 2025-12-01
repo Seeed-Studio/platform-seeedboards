@@ -253,7 +253,7 @@ board = env.BoardConfig()
 mcu = board.get("build.mcu", "esp32")
 toolchain_arch = "xtensa-%s" % mcu
 filesystem = board.get("build.filesystem", "littlefs")
-if mcu in ("esp32c2", "esp32c3", "esp32c6", "esp32h2", "esp32p4"):
+if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
     toolchain_arch = "riscv32-esp"
 
 if "INTEGRATION_EXTRA_DATA" not in env:
@@ -274,7 +274,7 @@ env.Replace(
     GDB=join(
         platform.get_package_dir(
             "tool-riscv32-esp-elf-gdb"
-            if mcu in ("esp32c2", "esp32c3", "esp32c6", "esp32h2", "esp32p4")
+            if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4")
             else "tool-xtensa-esp-elf-gdb"
         )
         or "",
@@ -624,3 +624,22 @@ env.SConscript("../../sizedata.py", exports="env")
 #
 
 Default([target_buildprog, target_size])
+
+# ESP32C5 specific upload 
+def esp32c5_upload(source, target, env):
+    board = env.BoardConfig()
+    mcu = board.get("build.mcu", "esp32")
+    
+    if mcu == "esp32c5":
+        upload_flags = env.get("UPLOADERFLAGS", [])
+        for i, flag in enumerate(upload_flags):
+            if i > 0 and "bootloader.bin" in str(flag):
+                prev_flag = upload_flags[i-1]
+                if prev_flag in ("0x0", "0x00000000", "0x0000"):
+                    print(f"ESP32C5: Fixing bootloader offset from {prev_flag} to 0x2000")
+                    upload_flags[i-1] = "0x2000"
+                    env.Replace(UPLOADERFLAGS=upload_flags)
+                    break
+
+if env.BoardConfig().get("build.mcu", "") == "esp32c5":
+    env.AddPreAction("upload", esp32c5_upload)
