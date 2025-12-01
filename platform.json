@@ -35,7 +35,7 @@
       "type": "framework",
       "optional": true,
       "owner": "seeed",
-      "version": "https://files.seeedstudio.com/arduino/platformio/framework-arduinoespressif32.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/framework-arduinoespressif32-v1.0.zip"
     },
     "esp32-arduino-libs": {
       "type": "framework",
@@ -82,7 +82,7 @@
     "tool-esptoolpy": {
       "optional": true,
       "owner": "tasmota",
-      "version": "https://github.com/Jason2866/esptool/releases/download/v4.8.7/esptool.zip"
+      "version": "https://github.com/Jason2866/esptool/releases/download/v5.1.0/esptool.zip"
     },
     "tool-dfuutil-arduino": {
       "optional": true,
