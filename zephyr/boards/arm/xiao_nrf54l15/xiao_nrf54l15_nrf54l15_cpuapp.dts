@@ -6,17 +6,18 @@
 #include <nordic/nrf54l15_cpuapp.dtsi>
 #include "seeed_xiao_connector.dtsi"
 #include "xiao_nrf54l15_common.dtsi"
+#include <zephyr/dt-bindings/gpio/nordic-nrf-gpio.h>
 
 / {
 	model = "Seeed XIAO nRF54L15";
 	compatible = "seeed,xiao-nrf54l15-cpuapp";
 
 	pdm_imu_pwr: pdm-imu-pwr {
-		compatible = "regulator-fixed";
+		compatible = "regulator-fixed-sync","regulator-fixed";
 		regulator-name = "pdm-imu-pwr";
-		enable-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio0 1 (NRF_GPIO_DRIVE_S0H1 | GPIO_ACTIVE_HIGH)>;
 		regulator-boot-on;
-		startup-delay-us = <5000>;
+		startup-delay-us = <3000>;
 	};
 
 	rfsw_ctl: rfsw-ctl {
