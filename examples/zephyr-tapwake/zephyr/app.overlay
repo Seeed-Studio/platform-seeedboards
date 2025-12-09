@@ -1,0 +1,11 @@
+&lsm6ds3tr_c{
+    wakeup-source;
+};
+
+&rfsw_pwr{
+    /delete-property/ regulator-boot-on;
+};
+
+&vbat_pwr{
+    /delete-property/ regulator-boot-on;
+};
