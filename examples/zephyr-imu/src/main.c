@@ -1,7 +1,9 @@
-#include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(zephyr_imu, LOG_LEVEL_INF);
 
 static inline float out_ev(struct sensor_value *val)
 {
@@ -21,7 +23,7 @@ static void fetch_and_display(const struct device *dev)
 	sensor_channel_get(dev, SENSOR_CHAN_ACCEL_Y, &y);
 	sensor_channel_get(dev, SENSOR_CHAN_ACCEL_Z, &z);
 
-	printf("accel x:%f ms/2 y:%f ms/2 z:%f ms/2\n",
+	LOG_INF("accel x:%f m/s^2 y:%f m/s^2 z:%f m/s^2",
 			(double)out_ev(&x), (double)out_ev(&y), (double)out_ev(&z));
 
 	/* lsm6dsl gyro */
@@ -30,10 +32,10 @@ static void fetch_and_display(const struct device *dev)
 	sensor_channel_get(dev, SENSOR_CHAN_GYRO_Y, &y);
 	sensor_channel_get(dev, SENSOR_CHAN_GYRO_Z, &z);
 
-	printf("gyro x:%f rad/s y:%f rad/s z:%f rad/s\n",
+	LOG_INF("gyro x:%f rad/s y:%f rad/s z:%f rad/s",
 			(double)out_ev(&x), (double)out_ev(&y), (double)out_ev(&z));
 
-	printf("trig_cnt:%d\n\n", trig_cnt);
+	LOG_INF("trig_cnt:%d", trig_cnt);
 }
 
 static int set_sampling_freq(const struct device *dev)
@@ -48,14 +50,14 @@ static int set_sampling_freq(const struct device *dev)
 	ret = sensor_attr_set(dev, SENSOR_CHAN_ACCEL_XYZ,
 			SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr);
 	if (ret != 0) {
-		printf("Cannot set sampling frequency for accelerometer.\n");
+		LOG_ERR("Cannot set sampling frequency for accelerometer.");
 		return ret;
 	}
 
 	ret = sensor_attr_set(dev, SENSOR_CHAN_GYRO_XYZ,
 			SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr);
 	if (ret != 0) {
-		printf("Cannot set sampling frequency for gyro.\n");
+		LOG_ERR("Cannot set sampling frequency for gyro.");
 		return ret;
 	}
 
@@ -81,7 +83,7 @@ static void test_trigger_mode(const struct device *dev)
 	trig.chan = SENSOR_CHAN_ACCEL_XYZ;
 
 	if (sensor_trigger_set(dev, &trig, trigger_handler) != 0) {
-		printf("Could not set sensor type and channel\n");
+		LOG_ERR("Could not set sensor type and channel");
 		return;
 	}
 }
@@ -105,15 +107,15 @@ int main(void)
 	const struct device *const dev = DEVICE_DT_GET(DT_ALIAS(imu0));
 
 	if (!device_is_ready(dev)) {
-		printk("%s: device not ready.\n", dev->name);
+		LOG_ERR("%s: device not ready.", dev->name);
 		return 0;
 	}
 
 #ifdef CONFIG_LSM6DSL_TRIGGER
-	printf("Testing LSM6DSL sensor in trigger mode.\n\n");
+	LOG_INF("Testing LSM6DSL sensor in trigger mode.");
 	test_trigger_mode(dev);
 #else
-	printf("Testing LSM6DSL sensor in polling mode.\n\n");
+	LOG_INF("Testing LSM6DSL sensor in polling mode.");
 	test_polling_mode(dev);
 #endif
 	return 0;
