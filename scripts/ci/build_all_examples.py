@@ -31,7 +31,13 @@ def main(argv: list[str]) -> int:
             print(str(project_dir.relative_to(repo_root())))
         return 0
 
-    return build_projects(projects, verbose=args.verbose)
+    return build_projects(
+        projects,
+        verbose=args.verbose,
+        log_dir=args.log_dir,
+        tail_lines=args.tail,
+        quiet=args.quiet,
+    )
 
 
 if __name__ == "__main__":

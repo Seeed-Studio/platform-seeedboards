@@ -43,7 +43,15 @@ jobs:
         run: python -m pip install --upgrade pip platformio rich-click intelhex
 
       - name: Build Arduino examples (all envs)
-        run: python scripts/ci/build_arduino_examples.py
+        run: python scripts/ci/build_arduino_examples.py --log-dir .pio-ci-logs/arduino --quiet
+
+      - name: Upload Arduino build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pio-logs-arduino
+          path: .pio-ci-logs/arduino
+          if-no-files-found: ignore
 
   build-zephyr-examples:
     name: PlatformIO Build (examples / zephyr)
@@ -81,4 +89,12 @@ jobs:
         run: python -m pip install --upgrade pip platformio rich-click intelhex
 
       - name: Build Zephyr examples (all envs)
-        run: python scripts/ci/build_zephyr_examples.py
+        run: python scripts/ci/build_zephyr_examples.py --log-dir .pio-ci-logs/zephyr --quiet
+
+      - name: Upload Zephyr build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pio-logs-zephyr
+          path: .pio-ci-logs/zephyr
+          if-no-files-found: ignore
