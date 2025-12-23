@@ -1,0 +1,78 @@
+name: Build Zephyr Examples
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-zephyr-examples.yml'
+      - 'platform.json'
+      - 'platform.py'
+      - 'boards/**'
+      - 'builder/**'
+      - 'frameworks/zephyr.py'
+      - 'platform_cfg/**'
+      - 'scripts/ci/_examples_build_lib.py'
+      - 'scripts/ci/build_zephyr_examples.py'
+      - 'zephyr/**'
+      - 'examples/zephyr-*/**'
+  pull_request:
+    paths:
+      - '.github/workflows/build-zephyr-examples.yml'
+      - 'platform.json'
+      - 'platform.py'
+      - 'boards/**'
+      - 'builder/**'
+      - 'frameworks/zephyr.py'
+      - 'platform_cfg/**'
+      - 'scripts/ci/_examples_build_lib.py'
+      - 'scripts/ci/build_zephyr_examples.py'
+      - 'zephyr/**'
+      - 'examples/zephyr-*/**'
+  workflow_dispatch:
+
+jobs:
+  build-zephyr-examples:
+    name: PlatformIO Build (examples / zephyr)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('.github/workflows/build-zephyr-examples.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+          key: ${{ runner.os }}-platformio-${{ hashFiles('examples/zephyr-*/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-platformio-
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade pip platformio rich-click intelhex
+
+      - name: Build Zephyr examples (all envs)
+        run: python scripts/ci/build_zephyr_examples.py --log-dir .pio-ci-logs/zephyr --quiet
+
+      - name: Upload Zephyr build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pio-logs-zephyr
+          path: .pio-ci-logs/zephyr
+          if-no-files-found: ignore
