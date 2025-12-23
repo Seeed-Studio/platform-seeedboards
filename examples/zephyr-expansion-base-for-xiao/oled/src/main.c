@@ -124,7 +124,7 @@ int main(void) {
     }
 
     x_res = cfb_get_display_parameter(dev, CFB_DISPLAY_WIDTH);
-    y_res = cfb_get_display_parameter(dev, CFB_DISPLAY_HEIGH);
+    y_res = cfb_get_display_parameter(dev, CFB_DISPLAY_HEIGHT);
     LOG_INF("Display resolution: %dx%d", x_res, y_res);
     cfb_set_kerning(dev, 0);
 
