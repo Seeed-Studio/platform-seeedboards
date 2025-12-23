@@ -1,7 +1,6 @@
 # Seeed Xiao Series: development platform for [PlatformIO](http://platformio.org)
 
-[![Build Status](https://travis-ci.org/platformio/platform-atmelsam.svg?branch=develop)](https://travis-ci.org/platformio/platform-atmelsam)
-[![Build status](https://ci.appveyor.com/api/projects/status/dj1c3b2d6fyxkoxq/branch/develop?svg=true)](https://ci.appveyor.com/project/ivankravets/platform-atmelsam/branch/develop)
+[![Build Examples](https://github.com/Seeed-Studio/platform-seeedboards/actions/workflows/build-examples.yml/badge.svg)](https://github.com/Seeed-Studio/platform-seeedboards/actions/workflows/build-examples.yml)
 
 The [Seeed Studio XIAO Series](https://wiki.seeedstudio.com/SeeedStudio_XIAO_Series_Introduction/) is a collection of thumb-sized, powerful microcontroller units (MCUs) tailor-made for space-conscious projects requiring high performance and wireless connectivity.
 

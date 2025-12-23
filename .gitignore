@@ -2,3 +2,4 @@
 **/.pio
 **/.vscode
 **/.venv
+**/.pio-ci.platformio.ini
