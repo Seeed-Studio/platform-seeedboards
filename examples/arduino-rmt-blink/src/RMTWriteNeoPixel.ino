@@ -19,6 +19,34 @@
  * Parameters can be changed by the user. In a single LED circuit, it will just blink.
  */
 
+#include <Arduino.h>
+
+// Keep the example working across Arduino-ESP32 versions without redefining
+// SDK macros (which can cause warnings).
+#if defined(PIN_NEOPIXEL)
+static constexpr int kBuiltinRgbLedPin = PIN_NEOPIXEL;
+#else
+static constexpr int kBuiltinRgbLedPin = 48;
+#endif
+
+#if defined(RMT_WAIT_FOR_EVER)
+static constexpr auto kRmtWaitForever = RMT_WAIT_FOR_EVER;
+#elif __has_include("freertos/FreeRTOS.h")
+#include "freertos/FreeRTOS.h"
+static constexpr auto kRmtWaitForever = portMAX_DELAY;
+#else
+static constexpr uint32_t kRmtWaitForever = 0;
+#endif
+
+// `rmtInit` expects `rmt_reserve_memsize_t` (enum) in newer Arduino-ESP32.
+// Cast explicitly to avoid invalid int->enum conversion.
+static constexpr rmt_reserve_memsize_t kRmtMemSize =
+#if defined(RMT_MEM_NUM_BLOCKS_1)
+    static_cast<rmt_reserve_memsize_t>(RMT_MEM_NUM_BLOCKS_1);
+#else
+    static_cast<rmt_reserve_memsize_t>(1);
+#endif
+
 // The effect seen in ESP32C3, ESP32S2 and ESP32S3 is like a Blink of RGB LED
 //#if CONFIG_IDF_TARGET_ESP32S2
 //#define BUILTIN_RGBLED_PIN   18
@@ -62,7 +90,7 @@ rmt_data_t led_data[NR_OF_ALL_BITS];
 
 void setup() {
     Serial.begin(115200);
-    if (!rmtInit(BUILTIN_RGBLED_PIN, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) {
+    if (!rmtInit(kBuiltinRgbLedPin, RMT_TX_MODE, kRmtMemSize, 10000000)) {
         Serial.println("init sender failed\n");
     }
     Serial.println("real tick set to: 100ns");
@@ -98,6 +126,6 @@ void loop() {
         led_index = 0;
     }
     // Send the data and wait until it is done
-    rmtWrite(BUILTIN_RGBLED_PIN, led_data, NR_OF_ALL_BITS, RMT_WAIT_FOR_EVER);
+    rmtWrite(kBuiltinRgbLedPin, led_data, NR_OF_ALL_BITS, kRmtWaitForever);
     delay(100);
 }
