@@ -2,7 +2,7 @@ name: Build Zephyr Examples
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - '.github/workflows/build-zephyr-examples.yml'
       - 'platform.json'

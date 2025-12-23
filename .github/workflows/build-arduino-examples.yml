@@ -2,7 +2,7 @@ name: Build Arduino Examples
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - '.github/workflows/build-arduino-examples.yml'
       - 'platform.json'
