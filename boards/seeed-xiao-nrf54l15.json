@@ -26,8 +26,11 @@
       "maximum_ram_size": 262144,
       "maximum_size": 1572864,
       "protocol": "cmsis-dap",
+      "pyocd_target": "nrf54l",
+      "pyocd_frequency": 4000000,
       "protocols": [
         "cmsis-dap",
+        "pyocd",
         "jlink"
       ]
     },

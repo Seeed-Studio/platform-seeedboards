@@ -13,6 +13,11 @@
 # limitations under the License.
 
 import sys
+import subprocess
+import json
+import os
+import shutil
+import site
 from platform import system
 from os import makedirs
 from os.path import isdir, join, basename
@@ -51,6 +56,37 @@ env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
 variant = board.get("build.variant", "")
+
+
+def _ensure_pyocd_installed():
+    # Always use the forked pyOCD with nRF54LM20A support, regardless of MCU.
+    pyocd_spec = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@nrf54lm20a"
+    expected_url_substring = "github.com/StarSphere-1024/pyOCD"
+
+    def _installed_pyocd_is_expected() -> bool:
+        try:
+            import subprocess
+            python_exe = sys.executable  # Use the current Python executable
+            output = subprocess.check_output([python_exe, "-m", "pyocd", "list", "--targets"]).decode("utf-8")
+            return "nrf54lm20a" in output.lower()
+        except (ImportError, subprocess.CalledProcessError, Exception):
+            return False
+
+    if _installed_pyocd_is_expected():
+        return
+
+    python_exe = env.subst("$PYTHONEXE")
+    print("[INFO] Installing pyOCD from fork...")
+    subprocess.check_call([python_exe, "-m", "pip", "install", "--upgrade", "pip"])
+    subprocess.check_call([
+        python_exe,
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        pyocd_spec,
+        "libusb",
+    ])
 
 env.Replace(
     AR="arm-none-eabi-ar",
@@ -392,6 +428,49 @@ elif upload_protocol.startswith("jlink"):
             "-NoGui", "1"
         ],
         UPLOADCMD='$UPLOADER $UPLOADERFLAGS -CommanderScript "${__jlink_cmd_script(__env__, SOURCE)}"'
+    )
+    upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
+
+elif upload_protocol == "pyocd":
+    _ensure_pyocd_installed()
+
+    pyocd_target = board.get("upload.pyocd_target")
+    if not pyocd_target:
+        mcu = (board.get("build.mcu") or "").strip()
+
+        # Best-effort mapping from board MCU name to pyOCD target name.
+        # Boards can override this via `upload.pyocd_target`.
+        mcu_to_pyocd_target = {
+            "nrf54lm20a": "nrf54lm20a",
+            # nRF54L15 uses the generic nRF54L family target in pyOCD.
+            "nrf54l15": "nrf54l",
+            # Most nRF52 boards use the generic nRF52 family target.
+            "nrf52840": "nrf52",
+        }
+
+        if mcu in mcu_to_pyocd_target:
+            pyocd_target = mcu_to_pyocd_target[mcu]
+        else:
+            pyocd_target = "nrf54l"
+            print(
+                "Warning! Unknown MCU '%s' for pyOCD; defaulting to '%s'. "
+                "Set 'upload.pyocd_target' in the board JSON if needed." % (mcu, pyocd_target)
+            )
+
+    pyocd_frequency = str(board.get("upload.pyocd_frequency", 4_000_000))
+
+    env.Replace(
+        UPLOADER="$PYTHONEXE",
+        UPLOADERFLAGS=[
+            "-m",
+            "pyocd",
+            "flash",
+            "--target",
+            pyocd_target,
+            "--frequency",
+            pyocd_frequency,
+        ],
+        UPLOADCMD='"$UPLOADER" $UPLOADERFLAGS "$SOURCE"',
     )
     upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
 
