@@ -89,7 +89,7 @@ Reset the board and you should see the following message in the terminal:
 
 
 .. _XIAO nRF54L15 Wiki:
-   https://wiki.seeedstudio.com/getting_started_with_xiao_nrf54l15/
+   https://wiki.seeedstudio.com/xiao_nrf54l15_sense_getting_started
 
 .. _nRF54L15 Website:
    https://www.nordicsemi.com/Products/nRF54L15
