@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 if BOARD_XIAO_NRF54L15_NRF54L15_CPUAPP
 
-config HAS_BT_CTLR
+# Note: BT_CTLR has been deprecated in newer versions of Zephyr. 
+# Use HAS_BT_CTLR instead.
+config BT_CTLR 
 	default BT
 
 config ROM_START_OFFSET
