@@ -183,10 +183,14 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
 
 def generate_uf2(target, source, env):
     elf_file = target[0].get_path()
+    platform = env.PioPlatform()
+    picotool_dir = platform.get_package_dir("tool-picotool-rp2040-earlephilhower") or ""
+    picotool_cmd = join(picotool_dir, "picotool")
+    
     env.Execute(
         " ".join(
             [
-                "picotool",
+                '"%s"' % picotool_cmd,
                 "uf2",
                 "convert",
                 "-t",
