@@ -83,6 +83,7 @@ def configure_rpi_default_packages(self, variables, targets):
         frameworks = variables.get("pioframework", [])
         # Configure OpenOCD package if used
         openocd_pkg = "tool-openocd-rp2040-earlephilhower"
+        self.packages[openocd_pkg]["optional"] = False
         if openocd_pkg in self.packages:
             self.packages[openocd_pkg]["version"] = earle_openocd[sys_type]
         picotool_pkg = "tool-picotool-rp2040-earlephilhower"
