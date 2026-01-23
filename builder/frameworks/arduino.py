@@ -46,7 +46,7 @@ if "52840" in board.id:
     env.SConscript("../board_build/nrf/nrf_arduino.py", exports="env")
 
 if "samd" in board.id:
-    print("board id is samd,will call ../board_build/nrf/nrf_arduino.py")
+    print("board id is samd,will call ../board_build/samd/samd_arduino.py")
     env.SConscript("../board_build/samd/samd_arduino.py", exports="env")
 
 if "mg24" in board.id:
