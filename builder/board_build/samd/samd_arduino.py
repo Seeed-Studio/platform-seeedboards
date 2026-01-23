@@ -209,6 +209,11 @@ env.Append(
 
 libs = []
 
+libs.append(env.BuildLibrary(
+    os.path.join("$BUILD_DIR", "FrameworkArduino"),
+    os.path.join(FRAMEWORK_DIR, "cores", BUILD_CORE)
+))
+
 if "build.variant" in board:
     variants_dir = get_variants_dir()
 
@@ -219,10 +224,5 @@ if "build.variant" in board:
         os.path.join("$BUILD_DIR", "FrameworkArduinoVariant"),
         os.path.join(variants_dir, board.get("build.variant"))
     ))
-
-libs.append(env.BuildLibrary(
-    os.path.join("$BUILD_DIR", "FrameworkArduino"),
-    os.path.join(FRAMEWORK_DIR, "cores", BUILD_CORE)
-))
 
 env.Prepend(LIBS=libs)
