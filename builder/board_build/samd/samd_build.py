@@ -197,15 +197,18 @@ elif upload_protocol.startswith("jlink"):
     upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
 
 elif upload_protocol == "sam-ba":
+    bossac = join(platform.get_package_dir("tool-bossac") or "", "bossac")
+    if system() == "Windows":
+        bossac += ".exe"
     env.Replace(
-        UPLOADER="bossac",
+        UPLOADER=bossac,
         UPLOADERFLAGS=[
             "--port", '"$UPLOAD_PORT"',
             "--write",
             "--verify",
             "--reset"
         ],
-        UPLOADCMD="$UPLOADER $UPLOADERFLAGS $SOURCES"
+        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "${SOURCE.get_abspath()}"'
     )
     if board.get("build.core") in ("adafruit", "seeed", "sparkfun") and board.get(
             "build.mcu").startswith(("samd51", "same51")):
@@ -215,11 +218,13 @@ elif upload_protocol == "sam-ba":
             "-U", "--offset", board.get("upload.offset_address")])
 
     else:
-        env.Append(UPLOADERFLAGS=[
-            "--erase",
-            "-U", "true"
-            if env.BoardConfig().get("upload.native_usb", False) else "false"
-        ])
+        env.Append(UPLOADERFLAGS=["--erase"])
+        if env.BoardConfig().get("upload.native_usb", False):
+            env.Append(UPLOADERFLAGS=["-U"])
+        
+        upload_offset = board.get("upload.offset_address")
+        if upload_offset:
+            env.Append(UPLOADERFLAGS=["--offset", upload_offset])
     if "sam3x8e" in build_mcu:
         env.Append(UPLOADERFLAGS=["--boot"])
     if int(ARGUMENTS.get("PIOVERBOSE", 0)):

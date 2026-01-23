@@ -379,13 +379,28 @@ elif upload_protocol == "nrfutil":
     ]
 
 elif upload_protocol == "sam-ba":
+    bossac = join(platform.get_package_dir("tool-bossac") or "", "bossac")
+    if system() == "Windows":
+        bossac += ".exe"
     env.Replace(
-        UPLOADER="bossac",
+        UPLOADER=bossac,
         UPLOADERFLAGS=[
-            "--port", '"$UPLOAD_PORT"', "--write", "--erase", "-U", "--reset"
+            "--port", '"$UPLOAD_PORT"',
+            "--write",
+            "--verify",
+            "--reset"
         ],
-        UPLOADCMD="$UPLOADER $UPLOADERFLAGS $SOURCES"
+        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "${SOURCE.get_abspath()}"'
     )
+
+    env.Append(UPLOADERFLAGS=["--erase"])
+    if env.BoardConfig().get("upload.native_usb", False):
+        env.Append(UPLOADERFLAGS=["-U"])
+
+    upload_offset = board.get("upload.offset_address")
+    if upload_offset:
+        env.Append(UPLOADERFLAGS=["--offset", upload_offset])
+
     if int(ARGUMENTS.get("PIOVERBOSE", 0)):
         env.Prepend(UPLOADERFLAGS=["--info", "--debug"])
 
