@@ -281,7 +281,7 @@ env.Replace(
         "bin",
         "%s-elf-gdb" % toolchain_arch,
     ),
-    OBJCOPY=join(platform.get_package_dir("tool-esptoolpy") or "", "esptool.py"),
+    OBJCOPY=join(platform.get_package_dir("tool-esptoolpy") or "", "esptool"),
     RANLIB="%s-elf-gcc-ranlib" % toolchain_arch,
     SIZETOOL="%s-elf-size" % toolchain_arch,
 
@@ -296,7 +296,7 @@ env.Replace(
         "--chip", mcu,
         "--port", '"$UPLOAD_PORT"'
     ],
-    ERASECMD='"$PYTHONEXE" "$OBJCOPY" $ERASEFLAGS erase_flash',
+    ERASECMD='"$PYTHONEXE" "$OBJCOPY" $ERASEFLAGS erase-flash',
 
     MKFSTOOL="mk%s" % filesystem,
 
@@ -322,9 +322,9 @@ env.Append(
             action=env.VerboseAction(" ".join([
                 '"$PYTHONEXE" "$OBJCOPY"',
                 "--chip", mcu, "elf2image",
-                "--flash_mode", "${__get_board_flash_mode(__env__)}",
-                "--flash_freq", "${__get_board_f_image(__env__)}",
-                "--flash_size", board.get("upload.flash_size", "4MB"),
+                "--flash-mode", "${__get_board_flash_mode(__env__)}",
+                "--flash-freq", "${__get_board_f_image(__env__)}",
+                "--flash-size", board.get("upload.flash_size", "4MB"),
                 "-o", "$TARGET", "$SOURCES"
             ]), "Building $TARGET"),
             suffix=".bin"
@@ -445,17 +445,17 @@ if upload_protocol == "espota":
 elif upload_protocol == "esptool":
     env.Replace(
         UPLOADER=join(
-            platform.get_package_dir("tool-esptoolpy") or "", "esptool.py"),
+            platform.get_package_dir("tool-esptoolpy") or "", "esptool"),
         UPLOADERFLAGS=[
             "--chip", mcu,
             "--port", '"$UPLOAD_PORT"',
             "--baud", "$UPLOAD_SPEED",
             "--before", board.get("upload.before_reset", "default_reset"),
             "--after", board.get("upload.after_reset", "hard_reset"),
-            "write_flash", "-z",
-            "--flash_mode", "${__get_board_flash_mode(__env__)}",
-            "--flash_freq", "${__get_board_f_image(__env__)}",
-            "--flash_size", "detect"
+            "write-flash", "-z",
+            "--flash-mode", "${__get_board_flash_mode(__env__)}",
+            "--flash-freq", "${__get_board_f_image(__env__)}",
+            "--flash-size", "detect"
         ],
         UPLOADCMD='"$PYTHONEXE" "$UPLOADER" $UPLOADERFLAGS $ESP32_APP_OFFSET $SOURCE'
     )
@@ -470,10 +470,10 @@ elif upload_protocol == "esptool":
                 "--baud", "$UPLOAD_SPEED",
                 "--before", board.get("upload.before_reset", "default_reset"),
                 "--after", board.get("upload.after_reset", "hard_reset"),
-                "write_flash", "-z",
-                "--flash_mode", "${__get_board_flash_mode(__env__)}",
-                "--flash_freq", "${__get_board_f_image(__env__)}",
-                "--flash_size", "detect",
+                "write-flash", "-z",
+                "--flash-mode", "${__get_board_flash_mode(__env__)}",
+                "--flash-freq", "${__get_board_f_image(__env__)}",
+                "--flash-size", "detect",
                 "$FS_START"
             ],
             UPLOADCMD='"$PYTHONEXE" "$UPLOADER" $UPLOADERFLAGS $SOURCE',
