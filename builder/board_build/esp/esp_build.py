@@ -36,6 +36,24 @@ config = env.GetProjectConfig()
 FRAMEWORK_DIR = platform.get_package_dir("framework-arduinoespressif32")
 print("franwork_dir = ",FRAMEWORK_DIR)
 
+
+def _get_esptool_program(platform):
+    tool_dir = platform.get_package_dir("tool-esptoolpy") or ""
+
+    # Prefer a standalone launcher named "esptool" (usually no deprecation
+    # warning). In some package layouts (notably in CI), "esptool" is a
+    # directory containing __main__.py and requires external installation of
+    # the Python module, so we must fall back to "esptool.py".
+    candidate = join(tool_dir, "esptool")
+    if isfile(candidate):
+        return candidate
+
+    candidate = join(tool_dir, "esptool.py")
+    if isfile(candidate):
+        return candidate
+
+    return "esptool.py"
+
 def BeforeUpload(target, source, env):
     # print("in main py BeforeUpload")
     upload_options = {}
@@ -259,6 +277,8 @@ if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
 if "INTEGRATION_EXTRA_DATA" not in env:
     env["INTEGRATION_EXTRA_DATA"] = {}
 
+ESPTOOLPROG = _get_esptool_program(platform)
+
 env.Replace(
     __get_board_boot_mode=_get_board_boot_mode,
     __get_board_f_flash=_get_board_f_flash,
@@ -281,7 +301,7 @@ env.Replace(
         "bin",
         "%s-elf-gdb" % toolchain_arch,
     ),
-    OBJCOPY=join(platform.get_package_dir("tool-esptoolpy") or "", "esptool"),
+    OBJCOPY=ESPTOOLPROG,
     RANLIB="%s-elf-gcc-ranlib" % toolchain_arch,
     SIZETOOL="%s-elf-size" % toolchain_arch,
 
@@ -444,8 +464,7 @@ if upload_protocol == "espota":
 
 elif upload_protocol == "esptool":
     env.Replace(
-        UPLOADER=join(
-            platform.get_package_dir("tool-esptoolpy") or "", "esptool"),
+        UPLOADER=ESPTOOLPROG,
         UPLOADERFLAGS=[
             "--chip", mcu,
             "--port", '"$UPLOAD_PORT"',
