@@ -34,6 +34,14 @@ framework = arduino
 
 Please navigate to [documentation](http://docs.platformio.org/page/platforms/seeedxiao.html).
 
+## Attribution (ESP32)
+
+The ESP32-related platform/build integration in this repository is based in part on work from the pioarduino project:
+
+- https://github.com/pioarduino/platform-espressif32
+
+We acknowledge and thank the pioarduino maintainers and contributors.
+
 ## Factory Reset for XIAO nRF54L15
 
 For XIAO nRF54L15 boards, a factory reset script is provided to recover the board from a bad state (e.g., when it's can not upload due to the internal NVM write protection). This script will perform a mass erase of the flash and program a factory firmware.

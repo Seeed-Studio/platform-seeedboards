@@ -1,5 +1,11 @@
 
 
+# Attribution:
+# ESP32-related package/debug tool configuration in this file is based in part
+# on pioarduino project work:
+# https://github.com/pioarduino/platform-espressif32
+# Modified by Seeed Studio.
+
 def configure_esp_default_packages(self, variables, targets):
     print("esp configure_default_packages")
 

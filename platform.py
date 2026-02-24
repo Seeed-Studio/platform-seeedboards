@@ -11,6 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Attribution:
+# ESP32-related package/toolchain selection logic in this repository is
+# based in part on pioarduino project work:
+# https://github.com/pioarduino/platform-espressif32
+# Modified by Seeed Studio.
 
 import os
 import sys
