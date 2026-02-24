@@ -283,7 +283,7 @@
     "framework-arduino-silabs": {
       "type": "framework",
       "optional": true,
-      "version": "https://files.seeedstudio.com/arduino/platformio/framework-arduino-silabs.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/framework-arduino-silabs-3.0.0.zip"
     }
   }
 }
