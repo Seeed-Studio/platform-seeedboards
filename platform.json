@@ -67,7 +67,7 @@
       "owner": "platformio",
       "version": "~1.23800.0"
     },
-      "tool-xtensa-esp-elf-gdb": {
+    "tool-xtensa-esp-elf-gdb": {
       "type": "debugger",
       "optional": true,
       "owner": "platformio",
@@ -96,12 +96,11 @@
       "version": "~2.1100.0"
     },
     "tool-mklittlefs": {
-      "optional":true,
+      "optional": true,
       "owner": "tasmota",
       "version": "^3.2.0"
     },
     "tool-mkfatfs": {
- 
       "optional": true,
       "owner": "platformio",
       "version": "~2.0.0"
@@ -153,25 +152,23 @@
       ]
     },
     "framework-arduinorenesas-uno": {
-        "type": "framework",
-        "optional": true,
-        "owner": "platformio",
-        "version": "https://files.seeedstudio.com/arduino/core/renesas/ArduinoCore-renesas-1.2.2.tar.bz2"
-      },
-      "tool-bossac": {
-   
-        "optional": true,
-        "owner": "platformio",
-        "version": "~1.10901.0"
-      },
-      "tool-jlink": {
-   
-        "optional": true,
-        "owner": "platformio",
-        "version": "^1.72000.0"
-      },
-      "toolchain-rp2040-earlephilhower": {
-      "type": "toolchain", 
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://files.seeedstudio.com/arduino/core/renesas/ArduinoCore-renesas-1.2.2.tar.bz2"
+    },
+    "tool-bossac": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "~1.10901.0"
+    },
+    "tool-jlink": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "^1.72000.0"
+    },
+    "toolchain-rp2040-earlephilhower": {
+      "type": "toolchain",
       "optional": true,
       "owner": "earlephilhower",
       "version": "https://github.com/maxgerhardt/toolchain-dummy/archive/refs/heads/main.zip"
@@ -255,7 +252,6 @@
       "version": "~1.10901.0"
     },
     "tool-nrfjprog": {
- 
       "optional": true,
       "owner": "platformio",
       "version": "~1.90702.0"
