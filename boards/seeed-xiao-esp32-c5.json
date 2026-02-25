@@ -1,10 +1,6 @@
 {
   "build": {
-    "arduino": {
-        "ldscript": "esp32c5_out.ld",
-        "partitions": "default_8MB.csv",
-        "memory_type": "qio_qspi"
-    },
+    "partitions": "default_8MB.csv",
     "core": "esp32",
     "extra_flags": [
       "-DARDUINO_XIAO_ESP32C5",
@@ -15,7 +11,6 @@
     "f_cpu": "240000000L",
     "f_flash": "80000000L",
     "flash_mode": "qio",
-    "psram_type": "qio",
     "hwids": [
       [
         "0x303a",
@@ -46,6 +41,6 @@
     "require_upload_port": true,
     "speed": 460800
   },
-  "url": "https://wiki.seeedstudio.com/SeeedStudio_XIAO_Series_Introduction/",
+  "url": "https://wiki.seeedstudio.com/xiao_esp32c5_getting_started/",
   "vendor": "Seeed Studio"
 }
