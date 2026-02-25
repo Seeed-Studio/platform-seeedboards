@@ -31,12 +31,25 @@ platform = env.PioPlatform()
 board = env.BoardConfig()
 variant = board.get("build.variant")
 
+env.ProcessUnFlags("-flto")
+env.Append(
+    CCFLAGS=["-fno-lto"],
+    LINKFLAGS=["-fno-lto"]
+)
+
 FRAMEWORK_DIR = platform.get_package_dir("framework-arduino-silabs")
 print("FRAMEWORK_DIR=:",FRAMEWORK_DIR)
 assert isdir(FRAMEWORK_DIR)
 
 
-CORE_DIR = join(FRAMEWORK_DIR, "cores", board.get("build.core"))
+board_core = board.get("build.core")
+core_candidates = [board_core, "gecko", "silabs"]
+CORE_DIR = None
+for core_name in core_candidates:
+    candidate = join(FRAMEWORK_DIR, "cores", core_name)
+    if isdir(candidate):
+        CORE_DIR = candidate
+        break
 print("CORE_DIR=:",CORE_DIR)
 assert isdir(CORE_DIR)
 
@@ -116,6 +129,7 @@ env.Append(
     CXXFLAGS=[
         "-std=c++11",
         "-std=gnu++17",
+        "-fno-rtti",
 
     ],
 
@@ -191,15 +205,6 @@ env.Append(
     LINKFLAGS=machine_flags + [
         "--specs=nano.specs",
         '-Wl,-Map="%s"' % os.path.join("${BUILD_DIR}", "${PROGNAME}.map"),
-        "-Wl,--wrap=malloc",
-        "-Wl,--wrap=free",
-        "-Wl,--wrap=realloc",
-        "-Wl,--wrap=calloc",
-        "-Wl,--wrap=MemoryAlloc",
-        "-Wl,--wrap=_malloc_r",
-        "-Wl,--wrap=_realloc_r",
-        "-Wl,--wrap=_free_r",
-        "-Wl,--wrap=_calloc_r",
         "-Wl,--gc-sections",
         "-Wl,--no-warn-rwx-segments"
     ],
@@ -227,16 +232,9 @@ env.Append(
 # Framework requires all symbols from mbed libraries
 gsdk_path = join(VARIANT_DIR,"matter","gsdk.a")
 env.Prepend(_LIBFLAGS="-Wl,--whole-archive ")
-env.Append(_LIBFLAGS=f" {gsdk_path} -Wl,--end-group -Wl,--start-group -Wl,--no-whole-archive -lstdc++ -lgcc -lc -lm -lnosys -lbgcommon_efr32xg24_gcc_release -lbluetooth_controller_efr32xg24_gcc_release -lbluetooth_host_efr32xg24_gcc_release -lnvm3_CM33_gcc -lrail_multiprotocol_efr32xg24_gcc_release -lsl_openthread_efr32mg2x_gcc")
+env.Append(_LIBFLAGS=f" {gsdk_path} -Wl,--end-group -Wl,--start-group -Wl,--no-whole-archive -lbgapi_core -lbgcommon -lble_bgapi -lble_bgapi_gatt_server -lble_bgapi_stub_gatt_client -lble_host -lble_host_accept_list_stub -lble_host_hal_series2 -lble_host_hci -lble_system -lbondingdb_stub -llinklayer -lProvision_efr32mg24 -lrail_multiprotocol_efr32xg24_gcc_release -lsl_openthread_cm33_gcc -lstdc++ -lgcc -lc -lm -lnosys")
 
 
-
-TOOL_CHAIN_DIR = platform.get_package_dir("toolchain-gccarmnoneeabi")
-env.Append(
-    CPPPATH=[
-        join(TOOL_CHAIN_DIR,"arm-none-eabi","include")
-    ]
-)
 
 hex_path = join(FRAMEWORK_DIR, "bootloaders", "seeed-studio-xiao-mg24-bootloader-storage-internal-single-512k.hex")
 env.Append(DFUBOOTHEX=join(hex_path))
@@ -263,18 +261,16 @@ env.Append(
 
     CCFLAGS=[
         "-iprefix" + os.path.join(VARIANT_DIR, "matter"),
-        "@%s" % os.path.join(VARIANT_DIR, "matter", "includes.txt")
+        "@%s" % os.path.join(VARIANT_DIR, "matter", "includes.txt"),
+        "-idirafter",
+        os.path.join(CORE_DIR, "api")
 
     ],
 
     CPPPATH=[
         os.path.join(CORE_DIR),
-        os.path.join(FRAMEWORK_DIR, "cores", board.get(
-            "build.core"), "api"),
-        os.path.join(FRAMEWORK_DIR, "cores", board.get(
-            "build.core"), "api", "deprecated"),
-        os.path.join(FRAMEWORK_DIR, "cores", board.get(
-            "build.core"), "api", "deprecated-avr-comp","avr")
+        os.path.join(CORE_DIR, "api", "deprecated"),
+        os.path.join(CORE_DIR, "api", "deprecated-avr-comp","avr")
     ],
 
 )
