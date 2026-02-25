@@ -19,10 +19,15 @@
 # Modified by Seeed Studio.
 
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 from platformio.public import PlatformBase, to_unix_path
 from importlib import import_module
+from platformio.package.manager.tool import ToolPackageManager
+from platformio.proc import get_pythonexe_path
+from platformio.project.config import ProjectConfig
 
 
 
@@ -38,6 +43,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 Architecture = ""
 
 class SeeedstudioPlatform(PlatformBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._esp_tools_prepared = False
+
     def configure_default_packages(self, variables, targets):
 
         global Architecture
@@ -68,7 +77,135 @@ class SeeedstudioPlatform(PlatformBase):
 
                 print(f"Error: {e} for board {board_name}")
 
-        return super().configure_default_packages(variables, targets)
+        if Architecture == "esp":
+            self._prefer_local_esp_tools()
+
+        result = super().configure_default_packages(variables, targets)
+
+        if Architecture == "esp" and self._prepare_esp_tools():
+            result = super().configure_default_packages(variables, targets)
+
+        return result
+
+    def _iter_required_esp_tools(self):
+        return [
+            name
+            for name, options in self.packages.items()
+            if name != "tool-esp_install"
+            and name.startswith(("tool-", "toolchain-"))
+            and not options.get("optional", True)
+        ]
+
+    def _prefer_local_esp_tools(self):
+        packages_dir = Path(self._get_packages_dir())
+        if not packages_dir.exists():
+            return
+
+        for tool_name in self._iter_required_esp_tools():
+            pkg_meta = packages_dir / tool_name / "package.json"
+            if pkg_meta.exists() and tool_name in self.packages:
+                self.packages[tool_name]["version"] = str(packages_dir / tool_name)
+                self.packages[tool_name]["optional"] = False
+
+    def _prepare_esp_tools(self):
+        if self._esp_tools_prepared:
+            return False
+
+        packages_dir = Path(self._get_packages_dir())
+        core_dir = Path(self._get_core_dir())
+        if not packages_dir.exists() or not core_dir.exists():
+            return False
+
+        self._ensure_esp_installer(packages_dir)
+
+        changed = False
+        for tool_name in self._iter_required_esp_tools():
+            if self._expand_and_link_esp_tool(tool_name, packages_dir, core_dir):
+                changed = True
+
+        self._esp_tools_prepared = True
+        return changed
+
+    def _get_packages_dir(self):
+        config = ProjectConfig.get_instance()
+        return config.get("platformio", "packages_dir")
+
+    def _get_core_dir(self):
+        config = ProjectConfig.get_instance()
+        return config.get("platformio", "core_dir")
+
+    def _ensure_esp_installer(self, packages_dir):
+        installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
+        if installer.exists():
+            return
+
+        package_data = self.packages.get("tool-esp_install", {})
+        version = package_data.get("version")
+        if not version:
+            return
+
+        try:
+            ToolPackageManager().install(version)
+        except Exception as e:
+            print(f"Warning: failed to install tool-esp_install: {e}")
+
+    def _expand_and_link_esp_tool(self, tool_name, packages_dir, core_dir):
+        pkg_dir = packages_dir / tool_name
+        tools_json = pkg_dir / "tools.json"
+        if not tools_json.exists():
+            return False
+
+        installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
+        core_tool_dir = core_dir / "tools" / tool_name
+
+        if not (core_tool_dir / "package.json").exists():
+            if not installer.exists():
+                print(f"Warning: idf_tools.py not found, cannot expand {tool_name}")
+                return False
+
+            cmd = [
+                get_pythonexe_path(),
+                str(installer),
+                "--quiet",
+                "--non-interactive",
+                "--tools-json",
+                str(tools_json),
+                "install",
+            ]
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                tail = (result.stderr or result.stdout or "").strip()[-1000:]
+                print(f"Warning: failed to expand {tool_name} via idf_tools.py: {tail}")
+                return False
+
+        if not (core_tool_dir / "package.json").exists():
+            return False
+
+        changed = False
+        try:
+            pkg_meta = pkg_dir / "package.json"
+            if not pkg_meta.exists():
+                ToolPackageManager().install(f"file://{core_tool_dir}")
+                changed = True
+
+            if tool_name in self.packages:
+                linked_version = str(packages_dir / tool_name)
+                if self.packages[tool_name].get("version") != linked_version:
+                    changed = True
+                self.packages[tool_name]["version"] = str(packages_dir / tool_name)
+                self.packages[tool_name]["optional"] = False
+        except Exception as e:
+            print(f"Warning: failed to link expanded tool {tool_name}: {e}")
+            return False
+
+        return changed
 
 
     def get_boards(self, id_=None):

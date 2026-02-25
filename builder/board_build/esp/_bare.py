@@ -24,7 +24,7 @@
 from SCons.Script import Import
 
 Import("env")
-print("in _bare py")
+
 env.Append(
     ASFLAGS=[
         "-mlongcalls",

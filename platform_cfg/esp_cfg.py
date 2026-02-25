@@ -1,3 +1,6 @@
+import os
+
+from platformio.public import to_unix_path
 
 
 # Attribution:
@@ -12,9 +15,14 @@ def configure_esp_default_packages(self, variables, targets):
     board_config = self.board_config(variables.get("board"))
     mcu = variables.get("board_build.mcu", board_config.get("build.mcu", "esp32"))
     
-    self.packages["framework-arduinoespressif32"]["optional"] = False
-    self.packages["esp32-arduino-libs"]["optional"] = False
-    self.packages["tool-esptoolpy"]["optional"] = False
+    def _mark_required(package_name):
+        if package_name in self.packages:
+            self.packages[package_name]["optional"] = False
+
+    _mark_required("framework-arduinoespressif32")
+    _mark_required("framework-arduinoespressif32-libs")
+    _mark_required("esp32-arduino-libs")
+    _mark_required("tool-esptoolpy")
     
     # Enable check tools only when "check_tool" is enabled
     # self.packages里就是json文件中的所有 packages 项
@@ -25,7 +33,7 @@ def configure_esp_default_packages(self, variables, targets):
 
     #设置 tool-xtensa-esp-elf-gdb 与 tool-riscv32-esp-elf-gdb 两个工具链为必选项
     for gdb_package in ("tool-xtensa-esp-elf-gdb", "tool-riscv32-esp-elf-gdb"):
-        self.packages[gdb_package]["optional"] = False
+        _mark_required(gdb_package)
         # if IS_WINDOWS:
             # Note: On Windows GDB v12 is not able to
             # launch a GDB server in pipe mode while v11 works fine
@@ -33,7 +41,7 @@ def configure_esp_default_packages(self, variables, targets):
 
     # 如果是 "esp32", "esp32s2", "esp32s3" 则必须使用 toolchain-xtensa-esp-elf 工具链，不是这几款就不用 toolchain-xtensa-esp-elf，把toolchain-xtensa-esp-elf删除
     if mcu in ("esp32", "esp32s2", "esp32s3"):
-        self.packages["toolchain-xtensa-esp-elf"]["optional"] = False
+        _mark_required("toolchain-xtensa-esp-elf")
     else:
         print("pop toolchain-xtensa-esp-elf")
         self.packages.pop("toolchain-xtensa-esp-elf", None)
@@ -42,7 +50,7 @@ def configure_esp_default_packages(self, variables, targets):
         if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
             self.packages.pop("toolchain-esp32ulp", None)
         # RISC-V based toolchain for ESP32C3, ESP32C6 ESP32S2, ESP32S3 ULP
-        self.packages["toolchain-riscv32-esp"]["optional"] = False
+        _mark_required("toolchain-riscv32-esp")
 
 
 
