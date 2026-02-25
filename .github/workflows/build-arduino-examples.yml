@@ -57,9 +57,7 @@ jobs:
         with:
           path: |
             ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('examples/arduino-*/platformio.ini') }}
-          restore-keys: |
-            ${{ runner.os }}-platformio-
+          key: ${{ runner.os }}-platformio-${{ hashFiles('examples/arduino-*/platformio.ini', 'platform.json', 'platform.py', 'builder/**', 'boards/**', 'platform_cfg/**', 'scripts/ci/build_arduino_examples.py', 'scripts/ci/_examples_build_lib.py') }}
 
       - name: Install PlatformIO
         run: python -m pip install --upgrade pip platformio rich-click intelhex

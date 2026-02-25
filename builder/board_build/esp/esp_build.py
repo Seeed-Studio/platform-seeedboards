@@ -58,11 +58,14 @@ env.Replace(PYTHONEXE=_get_python_executable(env))
 
 
 FRAMEWORK_DIR = platform.get_package_dir("framework-arduinoespressif32")
-print("franwork_dir = ",FRAMEWORK_DIR)
 
 
 def _get_core_dir(config):
     return config.get("platformio", "core_dir")
+
+
+def _get_packages_dir(config):
+    return config.get("platformio", "packages_dir")
 
 
 def _get_tool_dir(platform, package_name):
@@ -96,19 +99,34 @@ def _get_toolchain_bin_dir(platform, mcu):
 
 
 def _get_esptool_program(platform):
+    search_dirs = []
     tool_dir = _get_tool_dir(platform, "tool-esptoolpy") or ""
+    if tool_dir:
+        search_dirs.append(tool_dir)
 
-    # Prefer a standalone launcher named "esptool" (usually no deprecation
-    # warning). In some package layouts (notably in CI), "esptool" is a
-    # directory containing __main__.py and requires external installation of
-    # the Python module, so we must fall back to "esptool.py".
-    candidate = join(tool_dir, "esptool")
-    if isfile(candidate):
-        return candidate
+    packages_fallback = join(_get_packages_dir(config), "tool-esptoolpy")
+    if packages_fallback not in search_dirs:
+        search_dirs.append(packages_fallback)
 
-    candidate = join(tool_dir, "esptool.py")
-    if isfile(candidate):
-        return candidate
+    core_tools_fallback = join(_get_core_dir(config), "tools", "tool-esptoolpy")
+    if core_tools_fallback not in search_dirs:
+        search_dirs.append(core_tools_fallback)
+
+    for base in search_dirs:
+        if not isdir(base):
+            continue
+
+        candidate = join(base, "esptool.py")
+        if isfile(candidate):
+            return candidate
+
+        candidate = join(base, "esptool")
+        if isfile(candidate):
+            return candidate
+
+        candidate = join(base, "bin", "esptool.py")
+        if isfile(candidate):
+            return candidate
 
     return "esptool.py"
 
@@ -354,10 +372,9 @@ OBJCOPY_PROG = ESPTOOLPROG
 if ESPTOOLPROG.endswith("esptool.py"):
     if ESPTOOL_DIR:
         env.PrependENVPath("PYTHONPATH", ESPTOOL_DIR)
-        ESPTOOLCMD = '"$PYTHONEXE" -m esptool'
-        OBJCOPY_PROG = '"$PYTHONEXE" -m esptool'
-    else:
-        ESPTOOLCMD = '"$PYTHONEXE" "$OBJCOPY"'
+    python_exe = env.subst("$PYTHONEXE") or _get_python_executable(env)
+    OBJCOPY_PROG = '"%s" "%s"' % (python_exe, ESPTOOLPROG)
+    ESPTOOLCMD = OBJCOPY_PROG
 
 env.Replace(
     __get_board_boot_mode=_get_board_boot_mode,
