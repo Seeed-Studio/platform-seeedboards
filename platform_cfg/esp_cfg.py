@@ -10,8 +10,6 @@ from platformio.public import to_unix_path
 # Modified by Seeed Studio.
 
 def configure_esp_default_packages(self, variables, targets):
-    print("esp configure_default_packages")
-
     board_config = self.board_config(variables.get("board"))
     mcu = variables.get("board_build.mcu", board_config.get("build.mcu", "esp32"))
     
@@ -29,7 +27,6 @@ def configure_esp_default_packages(self, variables, targets):
     for p in self.packages:
         if p in ("tool-cppcheck", "tool-clangtidy", "tool-pvs-studio"):
             self.packages[p]["optional"] = False if str(variables.get("check_tool")).strip("['']") in p else True
-            print(self.packages[p]["optional"])
 
     #设置 tool-xtensa-esp-elf-gdb 与 tool-riscv32-esp-elf-gdb 两个工具链为必选项
     for gdb_package in ("tool-xtensa-esp-elf-gdb", "tool-riscv32-esp-elf-gdb"):
@@ -43,7 +40,6 @@ def configure_esp_default_packages(self, variables, targets):
     if mcu in ("esp32", "esp32s2", "esp32s3"):
         _mark_required("toolchain-xtensa-esp-elf")
     else:
-        print("pop toolchain-xtensa-esp-elf")
         self.packages.pop("toolchain-xtensa-esp-elf", None)
 
     if mcu in ("esp32s2", "esp32s3", "esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
@@ -158,7 +154,6 @@ def _add_esp_default_debug_tools(self, board):
 
 
 def configure_esp_debug_session(self, debug_config):
-    print("in configure_esp_debug_session")
     build_extra_data = debug_config.build_data.get("extra", {})
     flash_images = build_extra_data.get("flash_images", [])
 
