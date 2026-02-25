@@ -25,7 +25,11 @@
       "flash_size": "5767168",
       "maximum_ram_size": 262144,
       "maximum_size": 5767168,
-      "protocol": "openocd"
+      "protocol": "cmsis-dap",
+      "protocols": [
+        "cmsis-dap",
+        "jlink"
+      ]
     },
     "url": "https://wiki.seeedstudio.com/xiao_mg24_getting_started/",
     "vendor": "Seeed Studio"
