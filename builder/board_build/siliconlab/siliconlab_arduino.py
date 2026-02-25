@@ -55,16 +55,10 @@ assert isdir(CORE_DIR)
 
 VARIANT_DIR = join(FRAMEWORK_DIR, "variants", "xiao_mg24")
 
-
-
-
-
-
 machine_flags = [
     "-mthumb",
     "-mcpu=%s" % board.get("build.mcu"),
 ]
-
 
 env.Append(
     ASFLAGS=[
@@ -200,8 +194,6 @@ env.Append(
         join(VARIANT_DIR, "matter")
     ],
 
-
-
     LINKFLAGS=machine_flags + [
         "--specs=nano.specs",
         '-Wl,-Map="%s"' % os.path.join("${BUILD_DIR}", "${PROGNAME}.map"),
@@ -247,9 +239,6 @@ if not board.get("build.ldscript", ""):
     # ldscript_name = "linkerfile.ld"
     # env.Append(LIBPATH=[ldscript_dir])
     env.Replace(LDSCRIPT_PATH=ldscript_dir)
-
-
-
 
 env.Append(
     # Due to long path names "-iprefix" hook is required to avoid toolchain crashes
@@ -299,7 +288,5 @@ libs.append(
     env.BuildLibrary(
         join("$BUILD_DIR", "FrameworkArduino"),
         join(CORE_DIR)))
-
-
 
 env.Prepend(LIBS=libs)

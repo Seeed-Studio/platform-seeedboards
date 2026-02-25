@@ -39,7 +39,6 @@ def configure_siliconlab_default_packages(self, variables, targets):
     self.packages["tool-openocd"]["optional"] = False
 
     sys_type = util.get_systype()
-    print("sys_type is:",sys_type)
     if "darwin" in sys_type:
         self.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz"
     elif "linux" in sys_type:

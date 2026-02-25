@@ -67,12 +67,10 @@ def set_case_sensitivity(directory):
             ["fsutil", "file", "setCaseSensitiveInfo", directory, "enable"],
             capture_output=True, text=True, shell=True
         )
-        if result.returncode == 0:
-            print(f"成功启用 {directory} 的大小写敏感模式")
-        else:
-            print(f"设置失败: {result.stderr}")
+        if result.returncode != 0:
+            print(f"Warning: failed to enable case sensitivity for {directory}: {result.stderr}")
     except Exception as e:
-        print(f"发生错误: {e}")
+        print(f"Warning: exception while enabling case sensitivity for {directory}: {e}")
 
 if IS_WINDOWS and isdir(join(CORE_DIR, "api")):
     set_case_sensitivity(join(CORE_DIR,"api"))
