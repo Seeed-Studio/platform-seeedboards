@@ -2,9 +2,9 @@ name: Update Zephyr Version
 
 on:
   workflow_dispatch:
-  schedule:
-    # Weekly (Monday 09:00 UTC+8 / 01:00 UTC)
-    - cron: '0 1 * * 1'
+  # schedule:
+  #   # Weekly (Monday 09:00 UTC+8 / 01:00 UTC)
+  #   - cron: '0 1 * * 1'
 
 permissions:
   contents: write
