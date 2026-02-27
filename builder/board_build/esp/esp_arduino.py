@@ -1,4 +1,3 @@
-
 # Copyright 2014-present PlatformIO <contact@platformio.org>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,19 +27,19 @@ kinds of creative coding, interactive objects, spaces or physical experiences.
 http://arduino.cc/en/Reference/HomePage
 """
 
-import subprocess
 import json
-import semantic_version
 import os
-import sys
 import shutil
+import subprocess
+import sys
 from os.path import join
 
-from SCons.Script import COMMAND_LINE_TARGETS, DefaultEnvironment, SConscript
+import semantic_version
 from platformio import fs
+from platformio.package.manager.tool import ToolPackageManager
 from platformio.package.version import pepver_to_semver
 from platformio.project.config import ProjectConfig
-from platformio.package.manager.tool import ToolPackageManager
+from SCons.Script import COMMAND_LINE_TARGETS, DefaultEnvironment, SConscript
 
 # env = DefaultEnvironment()
 Import("env")
@@ -55,16 +54,19 @@ flag_custom_sdkconfig = False
 IS_WINDOWS = sys.platform.startswith("win")
 
 
-
-if config.has_option("env:"+env["PIOENV"], "custom_sdkconfig"):
+if config.has_option("env:" + env["PIOENV"], "custom_sdkconfig"):
     entry_custom_sdkconfig = env.GetProjectOption("custom_sdkconfig")
     flag_custom_sdkconfig = True
 
 if len(str(board_sdkconfig)) > 2:
     flag_custom_sdkconfig = True
 
-extra_flags = (''.join([element for element in board.get("build.extra_flags", "")])).replace("-D", " ")
-build_flags = ''.join([element.replace("-D", " ") for element in env.GetProjectOption("build_flags")])
+extra_flags = (
+    "".join([element for element in board.get("build.extra_flags", "")])
+).replace("-D", " ")
+build_flags = "".join(
+    [element.replace("-D", " ") for element in env.GetProjectOption("build_flags")]
+)
 framework_reinstall = False
 flag_any_custom_sdkconfig = False
 
@@ -73,10 +75,33 @@ FRAMEWORK_DIR = platform.get_package_dir("framework-arduinoespressif32")
 SConscript("_embed_files.py", exports="env")
 
 if "framework-arduinoespressif32" in FRAMEWORK_DIR:
-    flag_any_custom_sdkconfig = os.path.exists(join(platform.get_package_dir("framework-arduinoespressif32"),"tools","esp32-arduino-libs","sdkconfig"))
+    flag_any_custom_sdkconfig = os.path.exists(
+        join(
+            platform.get_package_dir("framework-arduinoespressif32"),
+            "tools",
+            "esp32-arduino-libs",
+            "sdkconfig",
+        )
+    )
 
 
 def install_python_deps():
+    import tempfile
+
+    try:
+        subprocess.check_output(
+            [env.subst("$PYTHONEXE"), "-m", "pip", "--version"],
+            stderr=subprocess.STDOUT,
+        )
+    except subprocess.CalledProcessError:
+        print("pip not found, installing...")
+        try:
+            subprocess.check_call(
+                [env.subst("$PYTHONEXE"), "-m", "ensurepip"], cwd=tempfile.gettempdir()
+            )
+        except Exception as e:
+            print("Warning! Failed to install pip: %s" % e)
+
     def _get_installed_pip_packages():
         result = {}
         packages = {}
@@ -100,11 +125,7 @@ def install_python_deps():
 
         return result
 
-    deps = {
-        "wheel": ">=0.35.1",
-        "zopfli": ">=0.2.2",
-        "tasmota-metrics": ">=0.4.3"
-    }
+    deps = {"wheel": ">=0.35.1", "zopfli": ">=0.2.2", "tasmota-metrics": ">=0.4.3"}
 
     installed_packages = _get_installed_pip_packages()
     packages_to_install = []
@@ -121,30 +142,28 @@ def install_python_deps():
             env.VerboseAction(
                 (
                     '"$PYTHONEXE" -m pip install -U '
-                    + " ".join(
-                        [
-                            '"%s%s"' % (p, deps[p])
-                            for p in packages_to_install
-                        ]
-                    )
+                    + " ".join(['"%s%s"' % (p, deps[p]) for p in packages_to_install])
                 ),
                 "Installing Arduino Python dependencies",
             )
         )
     return
 
+
 install_python_deps()
+
 
 def get_MD5_hash(phrase):
     import hashlib
-    return hashlib.md5((phrase).encode('utf-8')).hexdigest()[:16]
+
+    return hashlib.md5((phrase).encode("utf-8")).hexdigest()[:16]
 
 
 def matching_custom_sdkconfig():
     # check if current env is matching to existing sdkconfig
     cust_sdk_is_present = False
     matching_sdkconfig = False
-    last_sdkconfig_path = join(env.subst("$PROJECT_DIR"),"sdkconfig.defaults")
+    last_sdkconfig_path = join(env.subst("$PROJECT_DIR"), "sdkconfig.defaults")
     if flag_any_custom_sdkconfig == False:
         matching_sdkconfig = True
         return matching_sdkconfig, cust_sdk_is_present
@@ -156,12 +175,15 @@ def matching_custom_sdkconfig():
     with open(last_sdkconfig_path) as src:
         line = src.readline()
         if line.startswith("# TASMOTA__"):
-            cust_sdk_is_present = True;
+            cust_sdk_is_present = True
             costum_options = entry_custom_sdkconfig
-            if (line.split("__")[1]).strip() == get_MD5_hash((costum_options).strip() + mcu):
+            if (line.split("__")[1]).strip() == get_MD5_hash(
+                (costum_options).strip() + mcu
+            ):
                 matching_sdkconfig = True
 
     return matching_sdkconfig, cust_sdk_is_present
+
 
 def check_reinstall_frwrk():
     framework_reinstall = False
@@ -172,19 +194,23 @@ def check_reinstall_frwrk():
     if flag_custom_sdkconfig == False and flag_any_custom_sdkconfig == True:
         # case custom sdkconfig exists and a env without "custom_sdkconfig"
         framework_reinstall = True
-    if flag_custom_sdkconfig == True  and matching_sdkconfig == False:
+    if flag_custom_sdkconfig == True and matching_sdkconfig == False:
         # check if current custom sdkconfig is different from existing
         framework_reinstall = True
     return framework_reinstall
+
 
 def call_compile_libs():
     print("*** Compile Arduino IDF libs for %s ***" % env["PIOENV"])
     SConscript("espidf.py")
 
+
 if check_reinstall_frwrk() == True:
     print("*** Reinstall Arduino framework ***")
     shutil.rmtree(platform.get_package_dir("framework-arduinoespressif32"))
-    ARDUINO_FRMWRK_URL = str(platform.get_package_spec("framework-arduinoespressif32")).split("uri=",1)[1][:-1]
+    ARDUINO_FRMWRK_URL = str(
+        platform.get_package_spec("framework-arduinoespressif32")
+    ).split("uri=", 1)[1][:-1]
     pm.install(ARDUINO_FRMWRK_URL)
     if flag_custom_sdkconfig == True:
         call_compile_libs()
@@ -237,18 +263,19 @@ def shorthen_includes(env, node):
     return env.Object(
         node,
         CPPPATH=generic_includes,
-        CCFLAGS=env["CCFLAGS"]
-        + ["-iprefix", FRAMEWORK_SDK_DIR]
-        + shortened_includes,
-        ASFLAGS=env["ASFLAGS"]
-        + ["-iprefix", FRAMEWORK_SDK_DIR]
-        + shortened_includes,
+        CCFLAGS=env["CCFLAGS"] + ["-iprefix", FRAMEWORK_SDK_DIR] + shortened_includes,
+        ASFLAGS=env["ASFLAGS"] + ["-iprefix", FRAMEWORK_SDK_DIR] + shortened_includes,
     )
+
 
 if flag_custom_sdkconfig == True and flag_any_custom_sdkconfig == False:
     call_compile_libs()
 
-if "arduino" in env.subst("$PIOFRAMEWORK") and "espidf" not in env.subst("$PIOFRAMEWORK") and env.subst("$ARDUINO_LIB_COMPILE_FLAG") in ("Inactive", "True"):
+if (
+    "arduino" in env.subst("$PIOFRAMEWORK")
+    and "espidf" not in env.subst("$PIOFRAMEWORK")
+    and env.subst("$ARDUINO_LIB_COMPILE_FLAG") in ("Inactive", "True")
+):
     if IS_WINDOWS:
         env.AddBuildMiddleware(shorthen_includes)
     if os.path.exists(join(FRAMEWORK_DIR, "tools", "platformio-build.py")):
@@ -256,7 +283,3 @@ if "arduino" in env.subst("$PIOFRAMEWORK") and "espidf" not in env.subst("$PIOFR
     else:
         PIO_BUILD = "pioarduino-build.py"
     SConscript(join(FRAMEWORK_DIR, "tools", PIO_BUILD))
-
-
-
-
