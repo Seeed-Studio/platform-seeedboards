@@ -46,6 +46,7 @@ class SeeedstudioPlatform(PlatformBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._esp_tools_prepared = False
+        self._esp_python_deps_prepared = False
 
     def configure_default_packages(self, variables, targets):
 
@@ -79,6 +80,7 @@ class SeeedstudioPlatform(PlatformBase):
 
         if Architecture == "esp":
             self._prefer_local_esp_tools()
+            self._ensure_esptoolpy_runtime_dependencies()
 
         result = super().configure_default_packages(variables, targets)
 
@@ -125,6 +127,34 @@ class SeeedstudioPlatform(PlatformBase):
 
         self._esp_tools_prepared = True
         return changed
+
+    def _ensure_esptoolpy_runtime_dependencies(self):
+        if self._esp_python_deps_prepared:
+            return
+
+        self._esp_python_deps_prepared = True
+
+        python_exe = get_pythonexe_path()
+        if not python_exe:
+            return
+        try:
+            import rich_click  # pylint: disable=unused-import,import-outside-toplevel
+        except ImportError:
+            try:
+                subprocess.run(
+                    [
+                        python_exe,
+                        "-m",
+                        "pip",
+                        "install",
+                        "rich_click<2",
+                        "--disable-pip-version-check",
+                        "--no-input",
+                    ],
+                    check=True,
+                )
+            except Exception as e:
+                print(f"Warning: failed to install rich_click for esptoolpy: {e}")
 
     def _get_packages_dir(self):
         config = ProjectConfig.get_instance()
