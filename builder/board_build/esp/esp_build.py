@@ -19,7 +19,7 @@
 
 import re
 import sys
-from os.path import isdir, isfile, join
+from os.path import dirname, isdir, isfile, join
 
 from SCons.Script import (
     ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild, Builder, Default,
@@ -370,10 +370,13 @@ def _tool(name):
 ESPTOOLCMD = '"$OBJCOPY"'
 OBJCOPY_PROG = ESPTOOLPROG
 if ESPTOOLPROG.endswith("esptool.py"):
+    module_base = dirname(ESPTOOLPROG)
+    if module_base:
+        env.PrependENVPath("PYTHONPATH", module_base)
     if ESPTOOL_DIR:
         env.PrependENVPath("PYTHONPATH", ESPTOOL_DIR)
     python_exe = env.subst("$PYTHONEXE") or _get_python_executable(env)
-    OBJCOPY_PROG = '"%s" "%s"' % (python_exe, ESPTOOLPROG)
+    OBJCOPY_PROG = '"%s" -m esptool' % python_exe
     ESPTOOLCMD = OBJCOPY_PROG
 
 env.Replace(
