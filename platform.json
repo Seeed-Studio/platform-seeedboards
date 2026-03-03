@@ -43,92 +43,68 @@
       "owner": "espressif",
       "version": "https://github.com/espressif/arduino-esp32/releases/download/3.3.7/esp32-core-3.3.7-libs.tar.xz"
     },
-    "framework-arduino-c2-skeleton-lib": {
-      "type": "framework",
-      "optional": true,
-      "owner": "espressif",
-      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c2-skeleton/c2_87912cd291_compile_skeleton.zip"
-    },
-    "framework-arduino-c61-skeleton-lib": {
-      "type": "framework",
-      "optional": true,
-      "owner": "espressif",
-      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c61-skeleton/c61_87912cd291_compile_skeleton.zip"
-    },
     "framework-espidf": {
       "type": "framework",
       "optional": true,
-      "owner": "pioarduino",
-      "version": "https://github.com/pioarduino/esp-idf/releases/download/v5.5.2.260206/esp-idf-v5.5.2.tar.xz"
+      "owner": "platformio",
+      "version": "~3.50503.0"
     },
     "toolchain-xtensa-esp-elf": {
       "type": "toolchain",
       "optional": true,
-      "owner": "pioarduino",
-      "package-version": "14.2.0+20251107",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/xtensa-esp-elf-14.2.0_20251107.zip"
+      "owner": "platformio",
+      "version": "14.2.0+20251107"
     },
     "toolchain-riscv32-esp": {
       "type": "toolchain",
       "optional": true,
-      "owner": "pioarduino",
-      "package-version": "14.2.0+20251107",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/riscv32-esp-elf-14.2.0_20251107.zip"
+      "owner": "platformio",
+      "version": "14.2.0+20251107"
     },
     "toolchain-esp32ulp": {
       "type": "toolchain",
       "optional": true,
-      "owner": "pioarduino",
+      "owner": "seeedstudio",
       "package-version": "2.38.0+20240113",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/esp32ulp-elf-2.38_20240113.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/esp32ulp-elf-2.38_20240113.zip"
     },
     "tool-xtensa-esp-elf-gdb": {
       "type": "debugger",
       "optional": true,
-      "owner": "pioarduino",
-      "package-version": "16.3.0+20250913",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/xtensa-esp-gdb-16.3_20250913.zip"
+      "owner": "platformio",
+      "version": "14.2.0+20240403"
     },
     "tool-riscv32-esp-elf-gdb": {
       "type": "debugger",
       "optional": true,
-      "owner": "pioarduino",
-      "package-version": "16.3.0+20250913",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/riscv32-esp-gdb-16.3_20250913.zip"
+      "owner": "platformio",
+      "version": "14.2.0+20240403"
     },
     "tool-esptoolpy": {
       "type": "uploader",
       "optional": true,
-      "owner": "pioarduino",
+      "owner": "seeedstudio",
       "package-version": "5.1.2",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/esptoolpy-v5.1.2.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/esptoolpy-v5.1.2.zip"
     },
     "tool-esp_install": {
       "type": "tool",
       "optional": false,
-      "owner": "pioarduino",
+      "owner": "seeedstudio",
       "package-version": "5.3.4",
-      "version": "https://github.com/pioarduino/esp_install/releases/download/v5.3.4/esp_install-v5.3.4.zip"
-    },
-    "contrib-piohome": {
-      "optional": true,
-      "owner": "pioarduino",
-      "package-version": "3.4.4",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/contrib-piohome-3.4.4.tar.gz"
+      "version": "https://files.seeedstudio.com/arduino/platformio/esp_install-v5.3.4.zip"
     },
     "tool-dfuutil-arduino": {
-      "type": "tool",
+      "type": "uploader",
       "optional": true,
-      "owner": "pioarduino",
-      "package-version": "1.11.0",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/dfuutil-arduino-v1.11.0.zip"
+      "owner": "platformio",
+      "version": "~1.11.0"
     },
     "tool-openocd-esp32": {
       "type": "debugger",
       "optional": true,
-      "owner": "pioarduino",
-      "package-version": "2.1200.20251215",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/openocd-v0.12.0-esp32-20251215.zip"
+      "owner": "platformio",
+      "version": "~2.1100.0"
     },
     "tool-mklittlefs": {
       "optional": true,
@@ -143,23 +119,23 @@
     "tool-cppcheck": {
       "type": "tool",
       "optional": true,
-      "owner": "pioarduino",
+      "owner": "seeedstudio",
       "package-version": "2.11.0+230717",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/cppcheck-v2.11.0-230717.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/cppcheck-v2.11.0-230717.zip"
     },
     "tool-clangtidy": {
       "type": "tool",
       "optional": true,
-      "owner": "pioarduino",
+      "owner": "seeedstudio",
       "package-version": "18.1.1",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/clangtidy-v18.1.1.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/clangtidy-v18.1.1.zip"
     },
     "tool-pvs-studio": {
       "type": "tool",
       "optional": true,
-      "owner": "pioarduino",
+      "owner": "seeedstudio",
       "package-version": "7.36.91321",
-      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/pvs-studio-v7.36.91321.zip"
+      "version": "https://files.seeedstudio.com/arduino/platformio/pvs-studio-v7.36.91321.zip"
     },
     "tool-cmake": {
       "optional": true,
