@@ -515,6 +515,8 @@ elif upload_protocol == "probe-rs":
         "swd",
         "--speed",
         str(upload_config.get("probe_rs_speed", 4000)),
+        "--binary-format",
+        "ihex",
         "--verify",
     ]
 
@@ -525,9 +527,9 @@ elif upload_protocol == "probe-rs":
     env.Replace(
         UPLOADER="probe-rs",
         UPLOADERFLAGS=probe_rs_args,
-        UPLOADCMD='"$UPLOADER" $UPLOADERFLAGS "$BUILD_DIR/${PROGNAME}.elf"',
+        UPLOADCMD='"$UPLOADER" $UPLOADERFLAGS "$SOURCE"',
     )
-    upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $BUILD_DIR/${PROGNAME}.elf")]
+    upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
 
 elif upload_protocol in debug_tools:
     openocd_args = [
