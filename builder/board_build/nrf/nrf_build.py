@@ -60,7 +60,7 @@ variant = board.get("build.variant", "")
 
 def _ensure_pyocd_installed():
     # Always use the forked pyOCD with nRF54LM20A support, regardless of MCU.
-    pyocd_spec = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@nrf54lm20a"
+    pyocd_spec = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable"
     expected_url_substring = "github.com/StarSphere-1024/pyOCD"
 
     def _installed_pyocd_is_expected() -> bool:
@@ -488,6 +488,46 @@ elif upload_protocol == "pyocd":
         UPLOADCMD='"$UPLOADER" $UPLOADERFLAGS "$SOURCE"',
     )
     upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
+
+elif upload_protocol == "probe-rs":
+    upload_config = board.get("upload", {})
+    probe_rs_chip = upload_config.get("probe_rs_chip")
+    if not probe_rs_chip:
+        mcu = (board.get("build.mcu") or "").strip()
+        mcu_to_probe_rs_chip = {
+            "nrf54lm20a": "nRF54LM20A",
+            "nrf54l15": "nRF54L15",
+        }
+        probe_rs_chip = mcu_to_probe_rs_chip.get(mcu)
+
+    if not probe_rs_chip:
+        sys.stderr.write(
+            "Error: Unknown MCU '%s' for probe-rs. Set 'upload.probe_rs_chip' in the board JSON.\n"
+            % (board.get("build.mcu") or "")
+        )
+        env.Exit(1)
+
+    probe_rs_args = [
+        "download",
+        "--chip",
+        probe_rs_chip,
+        "--protocol",
+        "swd",
+        "--speed",
+        str(upload_config.get("probe_rs_speed", 4000)),
+        "--verify",
+    ]
+
+    upload_port = env.subst("$UPLOAD_PORT")
+    if upload_port:
+        probe_rs_args.extend(["--probe", upload_port])
+
+    env.Replace(
+        UPLOADER="probe-rs",
+        UPLOADERFLAGS=probe_rs_args,
+        UPLOADCMD='"$UPLOADER" $UPLOADERFLAGS "$BUILD_DIR/${PROGNAME}.elf"',
+    )
+    upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $BUILD_DIR/${PROGNAME}.elf")]
 
 elif upload_protocol in debug_tools:
     openocd_args = [

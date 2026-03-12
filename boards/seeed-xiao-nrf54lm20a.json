@@ -30,6 +30,7 @@
       "pyocd_frequency": 4000000,
       "protocols": [
         "pyocd",
+        "probe-rs",
         "cmsis-dap",
         "jlink"
       ]
