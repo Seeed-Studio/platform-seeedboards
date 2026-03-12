@@ -24,7 +24,9 @@
  {
 	 int ret;
 	 bool led_is_on = true;
+	#if defined(CONFIG_NRFX_POWER)
 	nrfx_power_constlat_mode_request();
+	#endif
 	 if (!gpio_is_ready_dt(&led)) {
 		 return -1;
 	 }
