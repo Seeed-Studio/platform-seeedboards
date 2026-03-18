@@ -41,11 +41,13 @@
 &lfxo {
 	load-capacitors = "internal";
 	load-capacitance-femtofarad = <17000>;
+	status = "okay";
 };
 
 &hfxo {
 	load-capacitors = "internal";
 	load-capacitance-femtofarad = <15000>;
+	status = "okay";
 };
 
 &vregmain {
