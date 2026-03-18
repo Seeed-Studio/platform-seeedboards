@@ -513,8 +513,6 @@ elif upload_protocol == "probe-rs":
         probe_rs_chip,
         "--protocol",
         "swd",
-        "--speed",
-        str(upload_config.get("probe_rs_speed", 4000)),
         "--binary-format",
         "ihex",
         "--verify",
