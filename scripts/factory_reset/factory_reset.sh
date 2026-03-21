@@ -5,7 +5,7 @@ set -e
 # Factory reset wrapper (Linux/macOS)
 # ==============================================
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 FIRMWARE="${DIR}/firmware.hex"
 VENV_DIR="$DIR/.venv"
 DEP_MARKER="$VENV_DIR/.deps_installed"

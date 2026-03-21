@@ -6,7 +6,7 @@ set -e
 # Always uses a dedicated virtual environment
 # ==============================================
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 VENV_DIR="$DIR/.venv"
 DEP_MARKER="$VENV_DIR/.deps_installed"
 REQ_PROBE="$1"
