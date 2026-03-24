@@ -183,6 +183,7 @@ zephyr_udc0: &usbhs {
 		t-exit-dpd = <30000>;
 		requires-ulbpr;
 		use-fast-read;
+		hold-gpios = <&gpio2 0 GPIO_ACTIVE_LOW>;
 		wp-gpios = <&gpio2 3 GPIO_ACTIVE_LOW>;
 	};
 };
