@@ -198,7 +198,12 @@ env.Append(
         "--specs=nano.specs",
         '-Wl,-Map="%s"' % os.path.join("${BUILD_DIR}", "${PROGNAME}.map"),
         "-Wl,--gc-sections",
-        "-Wl,--no-warn-rwx-segments"
+        "-Wl,--no-warn-rwx-segments",
+        # Silicon Labs memory manager wrapper - required for proper malloc/free handling
+        "-Wl,--wrap=_malloc_r",
+        "-Wl,--wrap=_free_r",
+        "-Wl,--wrap=_calloc_r",
+        "-Wl,--wrap=_realloc_r"
     ],
 
     LIBSOURCE_DIRS=[join(FRAMEWORK_DIR, "libraries")]
