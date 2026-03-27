@@ -177,7 +177,7 @@ zephyr_udc0: &usbhs {
 			0c 20 0f 52 /* DW7: Sector Type 1 (4KB, 20H), Type 2 (32KB, 52H) */
 			10 d8 00 81 /* DW8: Sector Type 3 (64KB, D8H), Type 4 (00H, 81H) */
 		];
-		size = <0x8000000>;
+		size = <67108864>;
 		has-dpd;
 		t-enter-dpd = <3000>;
 		t-exit-dpd = <30000>;
