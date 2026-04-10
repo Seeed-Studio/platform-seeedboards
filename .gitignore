@@ -4,3 +4,5 @@
 **/.venv
 **/.pio-ci.platformio.ini
 .pio-ci-logs/
+all-in-one-demo/
+all_bin/
