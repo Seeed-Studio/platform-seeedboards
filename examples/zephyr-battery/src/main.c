@@ -1,13 +1,66 @@
+/*
+ * Copyright (c) 2023 Nordic Semiconductor ASA
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Battery sample for XIAO nRF54L15 / nRF54LM20A.
+ *
+ * nRF54L15  — ADC-based battery voltage reading.
+ * nRF54LM20A — NPM1300 PMIC fuel gauge (voltage, current, temperature,
+ *              charge status).
+ */
+
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(battery, CONFIG_LOG_DEFAULT_LEVEL);
+
+/* ======================================================================
+ * NPM1300 Fuel Gauge path  (XIAO nRF54LM20A)
+ * ====================================================================== */
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A
+
+#include "fuel_gauge.h"
+
+#define SLEEP_TIME_MS 1000
+
+#define NPM13XX_DEVICE(dev) DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_ ## dev))
+
+static const struct device *charger = NPM13XX_DEVICE(charger);
+
+int main(void)
+{
+	if (!device_is_ready(charger)) {
+		LOG_ERR("Charger device not ready.");
+		return 0;
+	}
+
+	if (fuel_gauge_init(charger) < 0) {
+		LOG_ERR("Could not initialise fuel gauge.");
+		return 0;
+	}
+
+	LOG_INF("Fuel gauge device ok");
+
+	while (1) {
+		fuel_gauge_update(charger);
+		k_msleep(SLEEP_TIME_MS);
+	}
+
+	return 0;
+}
+
+/* ======================================================================
+ * ADC battery voltage path  (XIAO nRF54L15)
+ * ====================================================================== */
+#else
+
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/regulator.h>
 #include <zephyr/drivers/adc.h>
-#include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(battery, CONFIG_LOG_DEFAULT_LEVEL);
 
 #if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
 	!DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
@@ -91,3 +144,4 @@ int main(void)
 	return 0;
 }
 
+#endif /* CONFIG_BOARD_XIAO_NRF54LM20A */
