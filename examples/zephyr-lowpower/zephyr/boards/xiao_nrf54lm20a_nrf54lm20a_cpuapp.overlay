@@ -1,0 +1,11 @@
+&power_en {
+	// /delete-property/ regulator-boot-on;
+};
+
+&pmic {
+	regulators {
+		LDO1 {
+			// /delete-property/ regulator-boot-on;
+		};
+	};
+};
