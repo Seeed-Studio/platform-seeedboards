@@ -1,0 +1,13 @@
+/*
+ * ADC demo overlay for XIAO nRF54LM20A
+ *
+ * Board DTS already defines adc channels 0..7 as NRF_SAADC_AIN0..AIN7.
+ * This overlay only exposes them through zephyr,user for convenient access.
+ */
+
+/ {
+	zephyr,user {
+		io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>,
+			      <&adc 4>, <&adc 5>, <&adc 6>, <&adc 7>;
+	};
+};

@@ -1,10 +1,13 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/adc.h>
-#include <zephyr/drivers/pwm.h>
 #include <zephyr/logging/log.h>
 
+#if !defined(CONFIG_BOARD_XIAO_NRF54LM20A)
+#include <zephyr/drivers/pwm.h>
+#endif
+
 // Register log module
-LOG_MODULE_REGISTER(pot_pwm_example, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(adc_demo, CONFIG_LOG_DEFAULT_LEVEL);
 
 // --- ADC Configuration ---
 #if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
@@ -18,6 +21,95 @@ LOG_MODULE_REGISTER(pot_pwm_example, CONFIG_LOG_DEFAULT_LEVEL);
 static const struct adc_dt_spec adc_channels[] = {
     DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels, DT_SPEC_AND_COMMA)
 };
+
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A)
+/* ====== nrf54lm20a: Pure 8-channel ADC sampling (A0-A7) ====== */
+
+#define ADC_CHANNEL_COUNT ARRAY_SIZE(adc_channels)
+#define SAMPLE_INTERVAL_MS 1500
+
+static const char *const adc_labels[] = {
+	"A0(P1.00)",
+	"A1(P1.31)",
+	"A2(P1.30)",
+	"A3(P1.29)",
+	"A4(P1.06)",
+	"A5(P1.05)",
+	"A6(P1.04)",
+	"A7(P1.03)",
+};
+
+static int setup_adc_channels(void)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(adc_channels); ++i) {
+		if (!adc_is_ready_dt(&adc_channels[i])) {
+			LOG_ERR("%s ADC device not ready", adc_labels[i]);
+			return -ENODEV;
+		}
+
+		int ret = adc_channel_setup_dt(&adc_channels[i]);
+		if (ret != 0) {
+			LOG_ERR("adc_channel_setup_dt failed for %s: %d", adc_labels[i], ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static void log_channel_value(size_t index, int16_t raw)
+{
+	int32_t mv = raw;
+	int ret = adc_raw_to_millivolts_dt(&adc_channels[index], &mv);
+
+	if (ret == 0) {
+		LOG_INF("%s raw=%d voltage=%d mV", adc_labels[index], raw, mv);
+	} else {
+		LOG_INF("%s raw=%d voltage=N/A (ret=%d)", adc_labels[index], raw, ret);
+	}
+}
+
+int main(void)
+{
+	int ret;
+
+	LOG_INF("ADC demo started (nrf54lm20a)");
+	LOG_INF("Sampling A0-A7 every %d ms", SAMPLE_INTERVAL_MS);
+
+	ret = setup_adc_channels();
+	if (ret != 0) {
+		return ret;
+	}
+
+	int16_t sample;
+
+	while (1) {
+		for (size_t i = 0; i < ARRAY_SIZE(adc_channels); ++i) {
+			struct adc_sequence sequence = {
+				.buffer = &sample,
+				.buffer_size = sizeof(sample),
+			};
+
+			(void)adc_sequence_init_dt(&adc_channels[i], &sequence);
+
+			ret = adc_read_dt(&adc_channels[i], &sequence);
+			if (ret != 0) {
+				LOG_ERR("adc_read_dt failed for %s: %d", adc_labels[i], ret);
+				continue;
+			}
+
+			log_channel_value(i, sample);
+		}
+
+		LOG_INF("----------------------------------------");
+		k_msleep(SAMPLE_INTERVAL_MS);
+	}
+
+	return 0;
+}
+
+#else
+/* ====== nrf54l15: ADC (potentiometer) to PWM (LED brightness) ====== */
 
 // Define the index of the potentiometer ADC channel in the adc_channels array
 #define POTENTIOMETER_ADC_CHANNEL_IDX 1
@@ -109,3 +201,5 @@ int main(void)
     }
     return 0;
 }
+
+#endif /* CONFIG_BOARD_XIAO_NRF54LM20A */
