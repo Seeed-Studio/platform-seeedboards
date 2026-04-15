@@ -8,6 +8,12 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main_app, LOG_LEVEL);
 
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP)
+#define OLED_BOARD_MODEL_TEXT "nrf54lm20a"
+#else
+#define OLED_BOARD_MODEL_TEXT "nRF54L15"
+#endif
+
 /**
  * @brief Initializes the display device.
  * @param[out] dev Pointer to the display device struct.
@@ -131,7 +137,7 @@ int main(void) {
     while (1) {
         cfb_framebuffer_clear(dev, false);
 
-        const char *line1_text = "nRF54L15";
+        const char *line1_text = OLED_BOARD_MODEL_TEXT;
         // Print line1 at row 1, column 2
         print_text_by_row_col(dev, line1_text, 1, 2, font_width, font_height);
 
