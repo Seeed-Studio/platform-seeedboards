@@ -10,6 +10,44 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dmic_sample);
 
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#include <zephyr/device.h>
+#include <zephyr/drivers/regulator.h>
+
+static int enable_dmic_power(void)
+{
+	int ret;
+	const struct device *const power_en_dev = DEVICE_DT_GET(DT_NODELABEL(power_en));
+	const struct device *const dmic_vdd_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_vdd));
+
+	if (!device_is_ready(power_en_dev)) {
+		LOG_ERR("power_en regulator is not ready");
+		return -ENODEV;
+	}
+
+	if (!device_is_ready(dmic_vdd_dev)) {
+		LOG_ERR("dmic_vdd regulator is not ready");
+		return -ENODEV;
+	}
+
+	ret = regulator_enable(power_en_dev);
+	if (ret < 0 && ret != -EALREADY) {
+		LOG_ERR("Failed to enable power_en: %d", ret);
+		return ret;
+	}
+
+	ret = regulator_enable(dmic_vdd_dev);
+	if (ret < 0 && ret != -EALREADY) {
+		LOG_ERR("Failed to enable dmic_vdd: %d", ret);
+		return ret;
+	}
+
+	k_sleep(K_MSEC(20));
+
+	return 0;
+}
+#endif
+
 #define MAX_SAMPLE_RATE  16000
 #define SAMPLE_BIT_WIDTH 16
 #define BYTES_PER_SAMPLE sizeof(int16_t)
@@ -84,6 +122,13 @@ int main(void)
 		LOG_ERR("%s is not ready", dmic_dev->name);
 		return 0;
 	}
+
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+	ret = enable_dmic_power();
+	if (ret < 0) {
+		return 0;
+	}
+#endif
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = SAMPLE_BIT_WIDTH,
