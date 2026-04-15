@@ -1,0 +1,24 @@
+
+dmic_dev: &pdm20 {
+	status = "okay";
+};
+
+&pwm20 {
+	status = "disabled";
+};
+
+&pmic_i2c {
+	sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+	scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&pmic {
+	regulators {
+		dmic_vdd: LDO1 {
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-boot-on;
+		};
+	};
+};
