@@ -5,6 +5,9 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/uart.h>
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#include <zephyr/drivers/regulator.h>
+#endif
 
 LOG_MODULE_REGISTER(mic_capture_sample, LOG_LEVEL_INF);
 
@@ -23,6 +26,42 @@ static const struct device *const dmic_dev = DEVICE_DT_GET(DT_ALIAS(dmic20)); //
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios); // LED device descriptor
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios); // Button device descriptor
 static const struct device *const console_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console)); // Console UART device
+
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+static const struct device *const power_en_dev = DEVICE_DT_GET(DT_NODELABEL(power_en));
+static const struct device *const dmic_vdd_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_vdd));
+
+static int enable_dmic_power(void)
+{
+    int ret;
+
+    if (!device_is_ready(power_en_dev)) {
+        LOG_ERR("power_en regulator is not ready");
+        return -ENODEV;
+    }
+
+    if (!device_is_ready(dmic_vdd_dev)) {
+        LOG_ERR("dmic_vdd regulator is not ready");
+        return -ENODEV;
+    }
+
+    ret = regulator_enable(power_en_dev);
+    if (ret < 0 && ret != -EALREADY) {
+        LOG_ERR("Failed to enable power_en: %d", ret);
+        return ret;
+    }
+
+    ret = regulator_enable(dmic_vdd_dev);
+    if (ret < 0 && ret != -EALREADY) {
+        LOG_ERR("Failed to enable dmic_vdd: %d", ret);
+        return ret;
+    }
+
+    k_sleep(K_MSEC(20));
+
+    return 0;
+}
+#endif
 
 K_MEM_SLAB_DEFINE_STATIC(mem_slab, CHUNK_SIZE_BYTES, CHUNK_COUNT, 4); // Audio data memory pool
 K_MSGQ_DEFINE(audio_msgq, sizeof(void *), CHUNK_COUNT, 4);
@@ -193,11 +232,18 @@ int main(void)
     int ret;
 
 	// Check if all required devices are ready
-    if (!device_is_ready(dmic_dev) || !device_is_ready(led.port) || 
+    if (!device_is_ready(dmic_dev) || !device_is_ready(led.port) ||
         !device_is_ready(button.port) || !device_is_ready(console_dev)) {
         LOG_ERR("A required device is not ready.");
         return -ENODEV;
     }
+
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+    ret = enable_dmic_power();
+    if (ret < 0) {
+        return ret;
+    }
+#endif
 
 	// Configure DMIC channel mapping
     dmic_config.channel.req_chan_map_lo = dmic_build_channel_map(0, 0, PDM_CHAN_LEFT);
