@@ -145,8 +145,10 @@ static void uart_callback(const struct device *dev, void *user_data)
 // Main function
 int main(void)
 {
-	// Request constant latency mode for power management
+	// Request constant latency mode when NRFX power driver is available.
+#if defined(CONFIG_NRFX_POWER) && (CONFIG_NRFX_POWER == 1)
 	nrfx_power_constlat_mode_request();
+#endif
 	LOG_INF("Starting L76X GPS Module Example");
 
 	// Initialize UART device
