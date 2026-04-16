@@ -2,6 +2,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // Define SHT31 device node from device tree
 #define SHT31_NODE DT_ALIAS(sht31)
@@ -47,12 +48,10 @@ int main(void)
             continue;
         }
 
-        // Print values
-        // Temperature: sensor_value_to_double converts to double (e.g., 25.12)
-        // Humidity: sensor_value_to_double converts to double (e.g., 60.50)
-        printk("Temperature: %.2f C | Humidity: %.2f %%\n",
-               sensor_value_to_double(&temp_val),
-               sensor_value_to_double(&hum_val));
+        // Avoid floating-point formatting on small stacks.
+        printk("Temperature: %d.%06d C | Humidity: %d.%06d %%\n",
+               temp_val.val1, abs(temp_val.val2),
+               hum_val.val1, abs(hum_val.val2));
 
         k_sleep(K_SECONDS(2)); // Read every 2 seconds
     }
