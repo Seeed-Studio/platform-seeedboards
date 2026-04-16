@@ -1,0 +1,19 @@
+/ {
+	chosen {
+		zephyr,rtc = &pfc8563_rtc;
+	};
+
+	aliases {
+		rtc = &pfc8563_rtc;
+	};
+};
+
+&xiao_i2c {
+	status = "okay";
+
+	pfc8563_rtc: pfc8563@51 {
+		compatible = "nxp,pcf8563";
+		reg = <0x51>;
+		status = "okay";
+	};
+};
