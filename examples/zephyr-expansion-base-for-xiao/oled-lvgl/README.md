@@ -8,7 +8,7 @@ How to build PlatformIO based project
 
 ```shell
 # Change directory to example
-$ cd platform-seeedboards/examples/zephyr-expansion-base-for-xiao/oled
+$ cd platform-seeedboards/examples/zephyr-expansion-base-for-xiao/oled-lvgl
 
 # Build project
 $ pio run
@@ -18,11 +18,12 @@ $ pio run --target upload
 
 # Build specific environment
 $ pio run -e seeed-xiao-nrf54l15
+$ pio run -e seeed-xiao-nrf54lm20a
 
 # Upload firmware for the specific environment
 $ pio run -e seeed-xiao-nrf54l15 --target upload
+$ pio run -e seeed-xiao-nrf54lm20a --target upload
 
 # Clean build files
 $ pio run --target clean
 ```
-
