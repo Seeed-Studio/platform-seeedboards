@@ -8,13 +8,16 @@
  */
 
 /** @file
- * @brief SD Card and ZMS Storage Sample for XIAO nRF54L15
- * 
+ * @brief SD Card and ZMS Storage Sample for XIAO nRF54L15 / nRF54LM20A
+ *
  * This sample demonstrates:
  * - Using the filesystem API with SDHC driver for SD card access
- * - Using ZMS (Zephyr Memory Storage) for persistent settings on nRF54L15
+ * - Using ZMS (Zephyr Memory Storage) for persistent settings (nRF54L15 only)
  * - Reading/writing files on SD card
  * - Storing configuration data in ZMS
+ *
+ * ZMS is only enabled on nRF54L15 (NOR Flash based storage).
+ * nRF54LM20A uses RRAM and ZMS support is deferred to a future update.
  */
 
 #include <zephyr/kernel.h>
@@ -22,10 +25,21 @@
 #include <zephyr/storage/disk_access.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/fs/fs.h>
+/*
+ * ZMS (Zephyr Memory Storage) is only supported on nRF54L15 which uses
+ * traditional NOR Flash. nRF54LM20A uses RRAM and ZMS is not yet
+ * supported on that platform.
+ */
+#if defined(CONFIG_ZMS) && defined(CONFIG_BOARD_XIAO_NRF54L15)
+#define SD_CARD_ENABLE_ZMS
+#endif
+
+#ifdef SD_CARD_ENABLE_ZMS
 #include <zephyr/fs/zms.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/storage/flash_map.h>
+#endif
 
 #ifdef CONFIG_NRFX_POWER
 #include <nrfx_power.h>
@@ -78,13 +92,21 @@ static struct fs_mount_t mp = {
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP)
+#define SD_CARD_BANNER_TEXT "XIAO nRF54LM20A SD Card Sample"
+#elif defined(CONFIG_BOARD_XIAO_NRF54L15) || defined(CONFIG_BOARD_XIAO_NRF54L15_NRF54L15_CPUAPP)
+#define SD_CARD_BANNER_TEXT "XIAO nRF54L15 SD Card + ZMS Sample"
+#else
+#define SD_CARD_BANNER_TEXT "XIAO SD Card Sample"
+#endif
+
 #define MAX_PATH 128
 #define SOME_FILE_NAME "some.dat"
 #define SOME_DIR_NAME "some"
 #define SOME_REQUIRED_LEN MAX(sizeof(SOME_FILE_NAME), sizeof(SOME_DIR_NAME))
 
-/* ZMS Configuration */
-#ifdef CONFIG_ZMS
+/* ZMS Configuration — only built when targeting nRF54L15 */
+#ifdef SD_CARD_ENABLE_ZMS
 #define ZMS_PARTITION_ID FIXED_PARTITION_ID(storage_partition)
 /* Storage partition is 8KB (0x2000 bytes) at 0x15c000 */
 /* Use 2 sectors of 4KB = 8KB */
@@ -199,7 +221,7 @@ static void zms_update_sd_count(void)
 		LOG_INF("SD card accessed %u times", sd_access_count);
 	}
 }
-#endif /* CONFIG_ZMS */
+#endif /* SD_CARD_ENABLE_ZMS */
 
 static int lsdir(const char *path);
 
@@ -246,7 +268,7 @@ static const char *disk_mount_pt = DISK_MOUNT_PT;
 int main(void)
 {
 	LOG_INF("========================================");
-	LOG_INF("XIAO nRF54L15 SD Card + ZMS Sample");
+	LOG_INF("%s", SD_CARD_BANNER_TEXT);
 	LOG_INF("========================================");
 
 #ifdef CONFIG_NRFX_POWER
