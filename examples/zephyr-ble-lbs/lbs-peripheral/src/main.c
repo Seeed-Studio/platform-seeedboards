@@ -33,8 +33,9 @@ static bool gpio_ready(const struct gpio_dt_spec *spec);
  * LED wiring contract (per user spec): physical GPIO level 0 -> LED ON, 1 -> LED OFF.
  * We therefore use gpio_pin_set_raw() (no DT active-low inversion).
  */
-#define LED_PHYS_ON_LEVEL  (0)
-#define LED_PHYS_OFF_LEVEL (1)
+#define LED0_ACTIVE_LOW ((DT_GPIO_FLAGS(LED0_NODE, gpios) & GPIO_ACTIVE_LOW) != 0U)
+#define LED_PHYS_ON_LEVEL  (LED0_ACTIVE_LOW ? 0U : 1U)
+#define LED_PHYS_OFF_LEVEL (LED0_ACTIVE_LOW ? 1U : 0U)
 
 enum led_state {
 	LED_STATE_SOLID_ON,

@@ -40,8 +40,9 @@ static bool gpio_ready(const struct gpio_dt_spec *spec);
  * LED wiring contract (per user spec): physical GPIO level 0 -> LED ON, 1 -> LED OFF.
  * We therefore use gpio_pin_set_raw() (no DT active-low inversion).
  */
-#define LED_PHYS_ON_LEVEL  (0)
-#define LED_PHYS_OFF_LEVEL (1)
+#define LED0_ACTIVE_LOW ((DT_GPIO_FLAGS(LED0_NODE, gpios) & GPIO_ACTIVE_LOW) != 0U)
+#define LED_PHYS_ON_LEVEL  (LED0_ACTIVE_LOW ? 0U : 1U)
+#define LED_PHYS_OFF_LEVEL (LED0_ACTIVE_LOW ? 1U : 0U)
 
 enum led_state {
 	LED_STATE_SOLID_ON,
@@ -139,6 +140,7 @@ static struct bt_conn *default_conn;
 static uint16_t onoff_action_handle;
 static uint16_t onoff_service_end_handle;
 static uint16_t onoff_service_start_handle;
+static struct k_mutex conn_lock;
 
 static struct gpio_callback sw0_cb;
 static struct k_work button_work;
@@ -158,6 +160,72 @@ static struct k_work_delayable scan_retry_work;
 static uint8_t scan_retry_attempt;
 
 static struct bt_gatt_write_params write_params;
+static atomic_t write_in_flight;
+static uint8_t write_level;
+
+static struct bt_conn *default_conn_ref_get(void)
+{
+	struct bt_conn *conn = NULL;
+
+	k_mutex_lock(&conn_lock, K_FOREVER);
+	if (default_conn) {
+		conn = bt_conn_ref(default_conn);
+	}
+	k_mutex_unlock(&conn_lock);
+
+	return conn;
+}
+
+static struct bt_conn *default_conn_take(void)
+{
+	struct bt_conn *conn;
+
+	k_mutex_lock(&conn_lock, K_FOREVER);
+	conn = default_conn;
+	default_conn = NULL;
+	k_mutex_unlock(&conn_lock);
+
+	return conn;
+}
+
+static struct bt_conn *discover_conn_ref_get(void)
+{
+	struct bt_conn *conn = NULL;
+
+	k_mutex_lock(&conn_lock, K_FOREVER);
+	if (discover_conn) {
+		conn = bt_conn_ref(discover_conn);
+	}
+	k_mutex_unlock(&conn_lock);
+
+	return conn;
+}
+
+static struct bt_conn *discover_conn_take(void)
+{
+	struct bt_conn *conn;
+
+	k_mutex_lock(&conn_lock, K_FOREVER);
+	conn = discover_conn;
+	discover_conn = NULL;
+	k_mutex_unlock(&conn_lock);
+
+	return conn;
+}
+
+static void discover_conn_set(struct bt_conn *conn)
+{
+	struct bt_conn *old_conn;
+
+	k_mutex_lock(&conn_lock, K_FOREVER);
+	old_conn = discover_conn;
+	discover_conn = conn ? bt_conn_ref(conn) : NULL;
+	k_mutex_unlock(&conn_lock);
+
+	if (old_conn) {
+		bt_conn_unref(old_conn);
+	}
+}
 
 static void start_scan(void);
 static void schedule_scan_retry(bool reset_backoff);
@@ -196,22 +264,37 @@ static void button_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	if (default_conn == NULL || onoff_action_handle == 0U) {
-		LOG_DBG("button: no conn/handle yet (conn=%p handle=0x%04x)", (void *)default_conn,
+	struct bt_conn *conn = default_conn_ref_get();
+	if (conn == NULL || onoff_action_handle == 0U) {
+		LOG_DBG("button: no conn/handle yet (conn=%p handle=0x%04x)", (void *)conn,
 			onoff_action_handle);
+		if (conn) {
+			bt_conn_unref(conn);
+		}
 		return;
 	}
 
+	if (!atomic_cas(&write_in_flight, 0, 1)) {
+		LOG_WRN("button: write busy, drop this press");
+		bt_conn_unref(conn);
+		return;
+	}
+
+	write_level = led_level_toggle(remote_led_level);
 	write_params.handle = onoff_action_handle;
 	write_params.offset = 0U;
-	write_params.data = &remote_led_level;
-	write_params.length = sizeof(remote_led_level);
+	write_params.data = &write_level;
+	write_params.length = sizeof(write_level);
 	write_params.func = gatt_write_cb;
 
-	int err = bt_gatt_write(default_conn, &write_params);
+	int err = bt_gatt_write(conn, &write_params);
+	bt_conn_unref(conn);
+
 	if (err) {
+		atomic_set(&write_in_flight, 0);
 		LOG_ERR("GATT write (with rsp) start failed: %d", err);
 	} else {
+		remote_led_level = write_level;
 		LOG_INF("button: write started remote led=%u (handle=0x%04x)", remote_led_level,
 			onoff_action_handle);
 	}
@@ -222,6 +305,7 @@ static void gatt_write_cb(struct bt_conn *conn, uint8_t err,
 {
 	ARG_UNUSED(conn);
 	ARG_UNUSED(params);
+	atomic_set(&write_in_flight, 0);
 
 	if (err) {
 		LOG_ERR("GATT write failed (att err 0x%02x)", err);
@@ -241,8 +325,7 @@ static void sw0_debounce_handler(struct k_work *work)
 		return;
 	}
 
-	remote_led_level = led_level_toggle(remote_led_level);
-	LOG_DBG("button: debounced press, remote_led_level=%u", remote_led_level);
+	LOG_DBG("button: debounced press");
 	k_work_submit(&button_work);
 }
 
@@ -269,11 +352,9 @@ static int init_sw0(void)
 		return err;
 	}
 
-	err = gpio_pin_interrupt_configure_dt(&sw0, GPIO_INT_EDGE_TO_ACTIVE);
-	if (err) {
-		LOG_ERR("sw0 interrupt config failed: %d", err);
-		return err;
-	}
+	/* Initialize work items before enabling GPIO IRQ to avoid ISR/work race at boot. */
+	k_work_init(&button_work, button_work_handler);
+	k_work_init_delayable(&sw0_debounce_work, sw0_debounce_handler);
 
 	gpio_init_callback(&sw0_cb, sw0_isr, BIT(sw0.pin));
 	err = gpio_add_callback(sw0.port, &sw0_cb);
@@ -282,8 +363,13 @@ static int init_sw0(void)
 		return err;
 	}
 
-	k_work_init(&button_work, button_work_handler);
-	k_work_init_delayable(&sw0_debounce_work, sw0_debounce_handler);
+	err = gpio_pin_interrupt_configure_dt(&sw0, GPIO_INT_EDGE_TO_ACTIVE);
+	if (err) {
+		LOG_ERR("sw0 interrupt config failed: %d", err);
+		(void)gpio_remove_callback(sw0.port, &sw0_cb);
+		return err;
+	}
+
 	LOG_INF("sw0 ready (port=%s pin=%u)", sw0.port->name, sw0.pin);
 	return 0;
 }
@@ -418,9 +504,11 @@ static uint8_t discover_func(struct bt_conn *conn, const struct bt_gatt_attr *at
 		if (params->type == BT_GATT_DISCOVER_PRIMARY) {
 			if (!onoff_service_found) {
 				LOG_ERR("ONOFF service not found during discovery; disconnecting");
-				if (default_conn) {
-					(void)bt_conn_disconnect(default_conn,
+				struct bt_conn *conn_ref = default_conn_ref_get();
+				if (conn_ref) {
+					(void)bt_conn_disconnect(conn_ref,
 							      BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+					bt_conn_unref(conn_ref);
 				}
 			} else {
 				/* Start characteristic discovery only after service discovery is fully done. */
@@ -433,14 +521,16 @@ static uint8_t discover_func(struct bt_conn *conn, const struct bt_gatt_attr *at
 		if (params->type == BT_GATT_DISCOVER_CHARACTERISTIC) {
 			if (!onoff_action_found) {
 				LOG_ERR("ONOFF action characteristic not found during discovery; disconnecting");
-				if (default_conn) {
-					(void)bt_conn_disconnect(default_conn,
+				struct bt_conn *conn_ref = default_conn_ref_get();
+				if (conn_ref) {
+					(void)bt_conn_disconnect(conn_ref,
 							      BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+					bt_conn_unref(conn_ref);
 				}
 			}
-			if (discover_conn) {
-				bt_conn_unref(discover_conn);
-				discover_conn = NULL;
+			struct bt_conn *discover_ref = discover_conn_take();
+			if (discover_ref) {
+				bt_conn_unref(discover_ref);
 			}
 			memset(params, 0, sizeof(*params));
 			return BT_GATT_ITER_STOP;
@@ -493,11 +583,7 @@ static void discover_onoff_service(struct bt_conn *conn)
 	onoff_service_found = false;
 	onoff_action_found = false;
 
-	if (discover_conn) {
-		bt_conn_unref(discover_conn);
-		discover_conn = NULL;
-	}
-	discover_conn = bt_conn_ref(conn);
+	discover_conn_set(conn);
 
 	memset(&svc_discover_params, 0, sizeof(svc_discover_params));
 	svc_discover_params.uuid = BT_UUID_ONOFF;
@@ -516,12 +602,14 @@ static void discover_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	if (discover_conn == NULL) {
+	struct bt_conn *conn = discover_conn_ref_get();
+	if (conn == NULL) {
 		return;
 	}
 
 	if (onoff_service_end_handle == 0U || onoff_service_start_handle == 0U) {
 		LOG_ERR("cannot discover characteristic: missing service handles");
+		bt_conn_unref(conn);
 		return;
 	}
 
@@ -533,7 +621,8 @@ static void discover_work_handler(struct k_work *work)
 	chrc_discover_params.end_handle = onoff_service_end_handle;
 	chrc_discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
 
-	int err = bt_gatt_discover(discover_conn, &chrc_discover_params);
+	int err = bt_gatt_discover(conn, &chrc_discover_params);
+	bt_conn_unref(conn);
 	if (err) {
 		LOG_ERR("discover action characteristic failed: %d", err);
 	}
@@ -545,9 +634,9 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		LOG_ERR("connection failed (0x%02x)", err);
 		atomic_set(&connecting, 0);
 		atomic_set(&scanning, 0);
-		if (default_conn) {
-			bt_conn_unref(default_conn);
-			default_conn = NULL;
+		struct bt_conn *conn_ref = default_conn_take();
+		if (conn_ref) {
+			bt_conn_unref(conn_ref);
 		}
 		led_set_mode(LED_STATE_SOLID_ON);
 		schedule_scan_retry(false);
@@ -574,15 +663,16 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	onoff_action_handle = 0U;
 	onoff_service_start_handle = 0U;
 	onoff_service_end_handle = 0U;
+	atomic_set(&write_in_flight, 0);
 
-	if (discover_conn) {
-		bt_conn_unref(discover_conn);
-		discover_conn = NULL;
+	struct bt_conn *discover_ref = discover_conn_take();
+	if (discover_ref) {
+		bt_conn_unref(discover_ref);
 	}
 
-	if (default_conn) {
-		bt_conn_unref(default_conn);
-		default_conn = NULL;
+	struct bt_conn *conn_ref = default_conn_take();
+	if (conn_ref) {
+		bt_conn_unref(conn_ref);
 	}
 
 	led_set_mode(LED_STATE_SOLID_ON);
@@ -599,6 +689,8 @@ int main(void)
 	int err;
 
 	LOG_INF("boot: role=central");
+	k_mutex_init(&conn_lock);
+	atomic_set(&write_in_flight, 0);
 
 	err = init_led0();
 	if (err) {
