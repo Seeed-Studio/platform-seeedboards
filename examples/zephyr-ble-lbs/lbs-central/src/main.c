@@ -28,9 +28,17 @@
 /* devicetree: user said led0/sw0 already exist */
 #define LED0_NODE DT_ALIAS(led0)
 #define SW0_NODE  DT_ALIAS(sw0)
+#define RFSW_CTL_NODE DT_NODELABEL(rfsw_ctl)
 
 static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET_OR(LED0_NODE, gpios, { 0 });
 static const struct gpio_dt_spec sw0 = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios, { 0 });
+#if DT_NODE_EXISTS(RFSW_CTL_NODE)
+static const struct gpio_dt_spec rfsw_gpio = {
+	.port = DEVICE_DT_GET(DT_GPIO_CTLR(RFSW_CTL_NODE, enable_gpios)),
+	.pin = DT_GPIO_PIN(RFSW_CTL_NODE, enable_gpios),
+	.dt_flags = DT_GPIO_FLAGS(RFSW_CTL_NODE, enable_gpios),
+};
+#endif
 
 LOG_MODULE_REGISTER(app, LOG_LEVEL_DBG);
 
@@ -131,6 +139,35 @@ static int init_led0(void)
 
 	/* Start from LED OFF (physical high). */
 	led_set_physical_level(LED_PHYS_OFF_LEVEL);
+	return 0;
+}
+
+static int init_antenna_path(void)
+{
+#if DT_NODE_EXISTS(RFSW_CTL_NODE)
+	if (!gpio_ready(&rfsw_gpio)) {
+		LOG_ERR("RF switch GPIO device not ready");
+		return -ENODEV;
+	}
+
+	int err = gpio_pin_configure_dt(&rfsw_gpio, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("RF switch GPIO configure failed: %d", err);
+		return err;
+	}
+
+	/* xiao_nrf54l15: logical 0 selects the external antenna path. */
+	err = gpio_pin_set_dt(&rfsw_gpio, 0);
+	if (err) {
+		LOG_ERR("RF switch GPIO set failed: %d", err);
+		return err;
+	}
+
+	LOG_INF("RF path: external antenna selected");
+#else
+	LOG_INF("RF path: fixed antenna (no RF switch)");
+#endif
+
 	return 0;
 }
 
@@ -712,6 +749,13 @@ int main(void)
 	}
 
 	LOG_INF("bluetooth enabled");
+
+	err = init_antenna_path();
+	if (err) {
+		LOG_ERR("antenna path init failed: %d", err);
+		return err;
+	}
+
 	k_work_init(&discover_work, discover_work_handler);
 	k_work_init_delayable(&scan_retry_work, scan_retry_handler);
 	atomic_set(&scanning, 0);

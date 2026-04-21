@@ -5,9 +5,11 @@
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/hci_vs.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
+#include <zephyr/sys/byteorder.h>
 
 #define BT_UUID_ONOFF_VAL BT_UUID_128_ENCODE(0x8e7f1a23, 0x4b2c, 0x11ee, 0xbe56, 0x0242ac120002)
 #define BT_UUID_ONOFF     BT_UUID_DECLARE_128(BT_UUID_ONOFF_VAL)
@@ -18,12 +20,21 @@
 #define BT_UUID_ONOFF_READ_VAL \
     BT_UUID_128_ENCODE(0x8e7f1a25, 0x4b2c, 0x11ee, 0xbe56, 0x0242ac120003)
 #define BT_UUID_ONOFF_READ BT_UUID_DECLARE_128(BT_UUID_ONOFF_READ_VAL)
+#define LBS_TX_PWR_DBM 8
 
 /* devicetree: user said led0/sw0 already exist */
 #define LED0_NODE DT_ALIAS(led0)
+#define RFSW_CTL_NODE DT_NODELABEL(rfsw_ctl)
 
 static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET_OR(LED0_NODE, gpios, { 0 });
 static uint8_t led_level;
+#if DT_NODE_EXISTS(RFSW_CTL_NODE)
+static const struct gpio_dt_spec rfsw_gpio = {
+	.port = DEVICE_DT_GET(DT_GPIO_CTLR(RFSW_CTL_NODE, enable_gpios)),
+	.pin = DT_GPIO_PIN(RFSW_CTL_NODE, enable_gpios),
+	.dt_flags = DT_GPIO_FLAGS(RFSW_CTL_NODE, enable_gpios),
+};
+#endif
 
 LOG_MODULE_REGISTER(app, LOG_LEVEL_DBG);
 
@@ -136,13 +147,73 @@ static int init_led0(void)
 	return 0;
 }
 
+static int init_antenna_path(void)
+{
+#if DT_NODE_EXISTS(RFSW_CTL_NODE)
+	if (!gpio_ready(&rfsw_gpio)) {
+		LOG_ERR("RF switch GPIO device not ready");
+		return -ENODEV;
+	}
+
+	int err = gpio_pin_configure_dt(&rfsw_gpio, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("RF switch GPIO configure failed: %d", err);
+		return err;
+	}
+
+	/* xiao_nrf54l15: logical 0 selects the external antenna path. */
+	err = gpio_pin_set_dt(&rfsw_gpio, 0);
+	if (err) {
+		LOG_ERR("RF switch GPIO set failed: %d", err);
+		return err;
+	}
+
+	LOG_INF("RF path: external antenna selected");
+#else
+	LOG_INF("RF path: fixed antenna (no RF switch)");
+#endif
+
+	return 0;
+}
+
+static int set_tx_power(uint8_t handle_type, uint16_t handle, int8_t tx_power_dbm)
+{
+	struct bt_hci_cp_vs_write_tx_power_level *cp;
+	struct bt_hci_rp_vs_write_tx_power_level *rp;
+	struct net_buf *buf;
+	struct net_buf *rsp = NULL;
+
+	buf = bt_hci_cmd_alloc(K_FOREVER);
+	if (buf == NULL) {
+		return -ENOMEM;
+	}
+
+	cp = net_buf_add(buf, sizeof(*cp));
+	cp->handle_type = handle_type;
+	cp->handle = sys_cpu_to_le16(handle);
+	cp->tx_power_level = tx_power_dbm;
+
+	int err = bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL, buf, &rsp);
+	if (err) {
+		LOG_ERR("set tx power failed: type=%u handle=0x%04x err=%d",
+			handle_type, handle, err);
+		return err;
+	}
+
+	rp = (void *)rsp->data;
+	LOG_INF("tx power set: type=%u handle=0x%04x selected=%d dBm",
+		rp->handle_type, sys_le16_to_cpu(rp->handle), rp->selected_tx_power);
+	net_buf_unref(rsp);
+	return 0;
+}
+
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, sizeof(CONFIG_BT_DEVICE_NAME) - 1),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_ONOFF_VAL),
 };
 
 static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_ONOFF_VAL),
+	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, sizeof(CONFIG_BT_DEVICE_NAME) - 1),
 };
 
 static struct k_work_delayable adv_restart_work;
@@ -159,6 +230,13 @@ static int adv_start(void)
 	err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err == -EALREADY) {
 		return 0;
+	}
+
+	if (err == 0) {
+		int tx_err = set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0U, LBS_TX_PWR_DBM);
+		if (tx_err) {
+			LOG_WRN("advertising tx power setup failed: %d", tx_err);
+		}
 	}
 	return err;
 }
@@ -251,6 +329,14 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 
 	LOG_INF("connected");
+	uint16_t conn_handle;
+	int tx_err = bt_hci_get_conn_handle(conn, &conn_handle);
+	if (tx_err == 0) {
+		tx_err = set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_CONN, conn_handle, LBS_TX_PWR_DBM);
+	}
+	if (tx_err) {
+		LOG_WRN("connection tx power setup failed: %d", tx_err);
+	}
 	/* On connect: force LED OFF, then wait for central to control it via GATT write. */
 	led_level = LED_PHYS_OFF_LEVEL;
 	led_set_mode(LED_STATE_SOLID_OFF);
@@ -291,6 +377,13 @@ int main(void)
 	}
 
 	LOG_INF("bluetooth enabled");
+
+	err = init_antenna_path();
+	if (err) {
+		LOG_ERR("antenna path init failed: %d", err);
+		return err;
+	}
+
 	k_work_init_delayable(&adv_restart_work, adv_restart_handler);
 	adv_retry_attempt = 0U;
 
