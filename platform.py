@@ -137,24 +137,32 @@ class SeeedstudioPlatform(PlatformBase):
         python_exe = get_pythonexe_path()
         if not python_exe:
             return
-        try:
-            import rich_click  # pylint: disable=unused-import,import-outside-toplevel
-        except ImportError:
+
+        for module_name, pip_spec in [
+            ("rich_click", "rich_click<2"),
+            ("intelhex", "intelhex"),
+        ]:
             try:
-                subprocess.run(
-                    [
-                        python_exe,
-                        "-m",
-                        "pip",
-                        "install",
-                        "rich_click<2",
-                        "--disable-pip-version-check",
-                        "--no-input",
-                    ],
-                    check=True,
-                )
-            except Exception as e:
-                print(f"Warning: failed to install rich_click for esptoolpy: {e}")
+                __import__(module_name)
+            except ImportError:
+                try:
+                    subprocess.run(
+                        [
+                            python_exe,
+                            "-m",
+                            "pip",
+                            "install",
+                            pip_spec,
+                            "--disable-pip-version-check",
+                            "--no-input",
+                        ],
+                        check=True,
+                    )
+                except Exception as e:
+                    print(
+                        "Warning: failed to install %s for esptoolpy: %s"
+                        % (module_name, e)
+                    )
 
     def _get_packages_dir(self):
         config = ProjectConfig.get_instance()
