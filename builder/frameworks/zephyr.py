@@ -67,32 +67,114 @@ if os.path.isdir(platform_boards_dir):
             shutil.copytree(src, dst)
             print(f"Copied board: {board_name_dir} -> {dst}")
 
-if not os.path.exists(hal_nordic_dir) and os.path.exists(west_yml_path):
-    with open(west_yml_path, "r", encoding="utf-8") as f:
+import re
+import time
+
+
+def _is_commit_hash(value):
+    return value and re.match(r"[0-9a-f]{7,}$", value) is not None
+
+
+def _git_clone_with_retry(url, dst, revision, max_retries=3, retry_delay=5):
+    """Clone a git repository with retry logic for unstable networks."""
+    for attempt in range(1, max_retries + 1):
+        args = ["git", "clone"]
+        is_commit = _is_commit_hash(revision)
+        if not is_commit and revision:
+            args.extend(["--branch", revision, "--depth", "1"])
+        elif not is_commit:
+            args.extend(["--depth", "1"])
+
+        try:
+            print(f"  Cloning {url} (attempt {attempt}/{max_retries})")
+            subprocess.run(args + [url, dst], check=True,
+                           capture_output=True, text=True)
+            if is_commit and revision:
+                subprocess.run(
+                    ["git", "-C", dst, "checkout", revision],
+                    check=True, capture_output=True, text=True)
+            print(f"  OK: {os.path.basename(dst)}")
+            return True
+        except subprocess.CalledProcessError as e:
+            if os.path.isdir(dst):
+                import shutil
+                shutil.rmtree(dst, ignore_errors=True)
+            if attempt < max_retries:
+                print(f"  Failed (attempt {attempt}): {e.stderr.strip() if e.stderr else e}")
+                print(f"  Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                print(f"  FAILED after {max_retries} attempts: {url}")
+                return False
+    return False
+
+
+def _preinstall_west_deps(framework_dir, platform_name_hint):
+    """Pre-install west.yml dependencies with retry so that install-deps.py
+    can skip them later. This avoids the clean_up() wiping everything on
+    a single clone failure."""
+    west_yml = join(framework_dir, "west.yml")
+    if not os.path.isfile(west_yml):
+        return
+
+    pio_dir = join(framework_dir, "_pio")
+
+    with open(west_yml, "r", encoding="utf-8") as f:
         west_data = yaml.safe_load(f)
     manifest = west_data.get("manifest", {})
-    remotes = manifest.get("remotes", [])
+    remotes = {r["name"]: r for r in manifest.get("remotes", [])}
     default_remote = manifest.get("defaults", {}).get("remote", "")
-    url_base = next((r.get("url-base", "") for r in remotes if r.get("name") == default_remote), "")
-    hal_nordic_url = None
-    hal_nordic_rev = None
+
+    # Only pre-install for platforms that need hal_nordic (nordicnrf52, etc.)
+    hal_platforms = {"nordicnrf52", "nordicnrf51"}
+    if platform_name_hint not in hal_platforms:
+        return
+
+    print("Pre-installing Zephyr west dependencies (with retry)...")
+
     for proj in manifest.get("projects", []):
-        if proj.get("name") == "hal_nordic":
-            proj_url = proj.get("url")
-            if proj_url:
-                if proj_url.startswith("http://") or proj_url.startswith("https://"):
-                    hal_nordic_url = proj_url
-                else:
-                    hal_nordic_url = url_base.rstrip("/") + "/" + proj_url.lstrip("/")
-            else:
-                hal_nordic_url = url_base.rstrip("/") + "/hal_nordic.git"
-            hal_nordic_rev = proj.get("revision")
-            break
-    if hal_nordic_url:
-        print(f"Cloning hal_nordic from {hal_nordic_url} into {hal_nordic_dir}")
-        subprocess.run(["git", "clone", hal_nordic_url, hal_nordic_dir], check=True)
-        if hal_nordic_rev:
-            subprocess.run(["git", "-C", hal_nordic_dir, "checkout", hal_nordic_rev], check=True)
+        name = proj.get("name", "")
+        proj_path = proj.get("path", name)
+
+        # Skip tool packages
+        if proj_path.startswith("tool") or name.startswith("nrf_hw_"):
+            continue
+
+        # Only install HAL packages needed for nordic
+        if name.startswith("hal_") and name != "hal_nordic":
+            continue
+
+        dst = join(pio_dir, proj_path)
+        if os.path.isdir(dst):
+            continue
+
+        # Build URL
+        if "url" in proj:
+            proj_url = proj["url"]
+            if not proj_url.startswith("http"):
+                url_base = remotes.get(
+                    proj.get("remote", default_remote), {}
+                ).get("url-base", "")
+                proj_url = url_base.rstrip("/") + "/" + proj_url.lstrip("/")
+        else:
+            url_base = remotes.get(
+                proj.get("remote", default_remote), {}
+            ).get("url-base", "")
+            repo_path = proj.get("repo-path", name)
+            proj_url = url_base.rstrip("/") + "/" + repo_path + ".git"
+
+        revision = proj.get("revision")
+        print(f"Pre-installing: {name}")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        _git_clone_with_retry(proj_url, dst, revision)
+
+    print("Pre-install complete.")
+
+
+# Pre-install west dependencies with retry before platformio-build.py runs
+# This ensures they exist when install-deps.py checks, avoiding its
+# destructive clean_up() on any single failure.
+_preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
