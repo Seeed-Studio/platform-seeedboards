@@ -3,7 +3,6 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/i2c.h>
-#include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
@@ -12,6 +11,23 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 static const struct i2c_dt_spec imu_i2c = I2C_DT_SPEC_GET(DT_ALIAS(imu0));
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 static const struct gpio_dt_spec imu_int = GPIO_DT_SPEC_GET(DT_NODELABEL(lsm6ds3tr_c), irq_gpios);
+
+/*
+ * nRF54LM20A: IMU is powered through nPM1300 PMIC (LDO1 = imu_vdd at 3.3V)
+ * and a board-level power_en regulator (gpio1.12). Both must be enabled at
+ * runtime before the IMU can respond on I2C.
+ *
+ * nRF54L15: IMU power is provided by pdm_imu_pwr (gpio0.1) with
+ * regulator-boot-on, so it is always on — no runtime action needed.
+ */
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP)
+#include <zephyr/drivers/regulator.h>
+
+static const struct device *const power_en_dev =
+	DEVICE_DT_GET(DT_NODELABEL(power_en));
+static const struct device *const imu_vdd_dev =
+	DEVICE_DT_GET(DT_NODELABEL(imu_vdd));
+#endif
 
 /* Register addresses */
 #define LSM6DS3TR_C_CTRL1_XL 0x10
@@ -57,6 +73,37 @@ static K_TIMER_DEFINE(tap_timer, tap_timer_expiry_function, NULL);
 
 /* GPIO callback struct for the IMU interrupt pin */
 static struct gpio_callback imu_cb_data;
+
+static int enable_imu_power(void)
+{
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP)
+	int ret;
+
+	if (!device_is_ready(power_en_dev)) {
+		LOG_ERR("power_en regulator is not ready");
+		return -ENODEV;
+	}
+	ret = regulator_enable(power_en_dev);
+	if (ret < 0 && ret != -EALREADY) {
+		LOG_ERR("Failed to enable power_en: %d", ret);
+		return ret;
+	}
+
+	if (!device_is_ready(imu_vdd_dev)) {
+		LOG_ERR("imu_vdd regulator is not ready");
+		return -ENODEV;
+	}
+	ret = regulator_enable(imu_vdd_dev);
+	if (ret < 0 && ret != -EALREADY) {
+		LOG_ERR("Failed to enable imu_vdd: %d", ret);
+		return ret;
+	}
+
+	/* Wait for power rail to stabilize */
+	k_sleep(K_MSEC(20));
+#endif
+	return 0;
+}
 
 /* Helper to flash the LED */
 static void trigger_led_flash(void)
@@ -190,11 +237,7 @@ static int configure_lsm6ds3_tap(void)
 
 int main(void)
 {
-    if (!i2c_is_ready_dt(&imu_i2c))
-    {
-        LOG_ERR("I2C bus for IMU not ready.");
-        return 0;
-    }
+    int ret;
 
     if (!gpio_is_ready_dt(&led))
     {
@@ -207,6 +250,22 @@ int main(void)
     gpio_pin_set_dt(&led, 1);
     k_msleep(500);
     gpio_pin_set_dt(&led, 0);
+
+    /* On nRF54LM20A, enable power_en + imu_vdd via nPM1300 before accessing IMU.
+     * On nRF54L15, function is a no-op (power is always on).
+     */
+    ret = enable_imu_power();
+    if (ret < 0)
+    {
+        LOG_ERR("Failed to enable IMU power: %d", ret);
+        return 0;
+    }
+
+    if (!i2c_is_ready_dt(&imu_i2c))
+    {
+        LOG_ERR("I2C bus for IMU not ready.");
+        return 0;
+    }
 
     if (configure_lsm6ds3_tap() != 0)
     {
