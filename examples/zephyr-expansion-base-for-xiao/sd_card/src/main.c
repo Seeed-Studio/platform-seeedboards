@@ -255,7 +255,7 @@ static bool create_some_entries(const char *base_path)
 	strcat(&path[base], SOME_DIR_NAME);
 
 	if (fs_mkdir(path) != 0) {
-		LOG_ERR("Failed to create dir %s", path);
+		LOG_WRN("Directory %s already exists", path);
 		/* If code gets here, it has at least successes to create the
 		 * file so allow function to return true.
 		 */
