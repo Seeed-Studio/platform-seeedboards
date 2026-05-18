@@ -1,13 +1,14 @@
 /*
  * SD Card configuration for XIAO nRF54LM20A with Expansion Base.
  *
- * Uses low-speed hardware SPI (spi20) for SD card communication.
- * - spi20 conflicts with uart20 (same peripheral instance at 0xc6000).
- *   uart20 is disabled and the console is redirected to uart21.
+ * Uses spi23 (XIAO SPI controller, low-speed SPIM domain) for SD card.
  *
- * Note: The spi20/uart20 peripheral base, pin assignments, and pinctrl
- * configuration on nRF54LM20A are identical to nRF54L15, so this overlay
- * mirrors the nRF54L15 version exactly.
+ * On nRF54LM20A, the XIAO SPI header pins map to:
+ *   D8 (SCK)  = P1.4    D9 (MISO) = P1.5    D10 (MOSI) = P1.6
+ * These are routed through spi23, which is in the low-speed peripheral domain.
+ *
+ * No conflict with uart20 — spi23 and uart20 are independent instances.
+ * Console remains on uart21 (TX=P1.9, RX=P1.8).
  */
 
 / {
@@ -22,11 +23,8 @@
 	};
 };
 
-&spi20 {
+&spi23 {
 	compatible = "nordic,nrf-spim";
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&spi20_default>;
-	pinctrl-1 = <&spi20_sleep>;
 	status = "okay";
 
 	cs-gpios = <&xiao_d 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
@@ -43,26 +41,15 @@
 	};
 };
 
-&uart20 {
-	status = "disabled";
-};
-
-&pinctrl {
-	spi20_default: spi20_default {
-		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 2, 1)>,
-				<NRF_PSEL(SPIM_MOSI, 2, 2)>,
-				<NRF_PSEL(SPIM_MISO, 2, 4)>;
-		};
+/* Override spi23 pinctrl: add MISO pull-up as required by SD spec */
+&spi23_default {
+	group1 {
+		psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
+			<NRF_PSEL(SPIM_MOSI, 1, 6)>;
 	};
-
-	spi20_sleep: spi20_sleep {
-		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 2, 1)>,
-				<NRF_PSEL(SPIM_MOSI, 2, 2)>,
-				<NRF_PSEL(SPIM_MISO, 2, 4)>;
-			low-power-enable;
-		};
+	group2 {
+		psels = <NRF_PSEL(SPIM_MISO, 1, 5)>;
+		bias-pull-up;
 	};
 };
 
