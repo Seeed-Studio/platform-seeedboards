@@ -10,18 +10,6 @@ The [Seeed Studio XIAO Series](https://wiki.seeedstudio.com/SeeedStudio_XIAO_Ser
 1. [Install PlatformIO](http://platformio.org)
 2. Create PlatformIO project and configure a platform option in [platformio.ini](http://docs.platformio.org/page/projectconf.html) file:
 
-### Stable version
-
-```ini
-[env:stable]
-platform = Seeed Studio
-board = ...
-framework = arduino
-...
-```
-
-### Development version
-
 ```ini
 [env:development]
 platform = https://github.com/Seeed-Studio/platform-seeedboards.git
