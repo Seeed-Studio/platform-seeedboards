@@ -8,18 +8,12 @@
  * These are routed through spi23, which is in the low-speed peripheral domain.
  *
  * No conflict with uart20 — spi23 and uart20 are independent instances.
- * Console remains on uart21 (TX=P1.9, RX=P1.8).
+ * Console stays on the board default uart20 (TX=P1.11, RX=P1.10).
  */
 
 / {
 	aliases {
 		sdhc0 = &sdhc0;
-	};
-
-	chosen {
-		zephyr,console = &uart21;
-		nordic,rpc-uart = &uart21;
-		zephyr,shell-uart = &uart21;
 	};
 };
 
@@ -50,24 +44,5 @@
 	group2 {
 		psels = <NRF_PSEL(SPIM_MISO, 1, 5)>;
 		bias-pull-up;
-	};
-};
-
-&uart21_default {
-	group1 {
-		psels = <NRF_PSEL(UART_TX, 1, 9)>;
-	};
-
-	group2 {
-		psels = <NRF_PSEL(UART_RX, 1, 8)>;
-		bias-pull-up;
-	};
-};
-
-&uart21_sleep {
-	group1 {
-		psels = <NRF_PSEL(UART_TX, 1, 9)>,
-			<NRF_PSEL(UART_RX, 1, 8)>;
-		low-power-enable;
 	};
 };
