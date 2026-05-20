@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/conn.h>
@@ -107,5 +108,10 @@ int main(void)
 	}
 
 	printf("Bluetooth enabled");
+
+	for (;;) {
+		k_sleep(K_FOREVER);
+	}
+
 	return 0;
 }
