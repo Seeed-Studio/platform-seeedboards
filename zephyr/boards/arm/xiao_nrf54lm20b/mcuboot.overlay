@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2025 Seeed Technology Co., Ltd.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * MCUboot USB CDC ACM serial recovery DTS overlay
+ * for XIAO nRF54LM20B board.
+ *
+ * Configures the CDC ACM UART device used by MCUboot for
+ * serial recovery firmware updates over USB.
+ *
+ * zephyr_udc0 is defined in nrf54lm20a_cpuapp_common.dtsi
+ * as an alias for &usbhs (USB 2.0 High-Speed controller).
+ */
+
+/ {
+	chosen {
+		zephyr,cdc-acm-uart = &cdc_acm_uart0;
+	};
+};
+
+cdc_acm_uart0: &zephyr_udc0 {
+	compatible = "zephyr,cdc-acm-uart";
+};

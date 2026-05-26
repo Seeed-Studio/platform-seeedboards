@@ -100,6 +100,7 @@
 		pwm-led1 = &pwm_led1;
 		pwm-led2 = &pwm_led2;
 		sw0 = &button0;
+		mcuboot-button0 = &button0;
 		watchdog0 = &wdt31;
 		imu0 = &lsm6ds3tr_c;
 		dmic20 = &pdm20;
