@@ -20,7 +20,7 @@ import shutil
 import site
 from platform import system
 from os import makedirs
-from os.path import isdir, join, basename
+from os.path import isdir, isfile, join, basename
 
 from SCons.Script import (ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild,
                           Builder, Default, DefaultEnvironment)
@@ -87,6 +87,31 @@ def _ensure_pyocd_installed():
         pyocd_spec,
         "libusb",
     ])
+
+
+def _ensure_nrfutil_installed():
+    """Ensure Nordic nrfutil CLI is available for MCUboot serial upload.
+
+    Note: This is NOT Adafruit nrfutil (which PlatformIO ships as
+    tool-adafruit-nrfutil).  Nordic nrfutil is a separate Python package
+    that provides the 'mcu-manager' sub-command for MCUboot serial
+    recovery over USB CDC ACM.
+    """
+    if shutil.which("nrfutil"):
+        return
+    print("[INFO] Installing Nordic nrfutil (mcu-manager)...")
+    python_exe = env.subst("$PYTHONEXE")
+    try:
+        subprocess.check_call([
+            python_exe, "-m", "pip", "install", "--upgrade", "nrfutil"
+        ])
+    except subprocess.CalledProcessError:
+        sys.stderr.write(
+            "Error: Failed to install Nordic nrfutil.\n"
+            "Please install manually: pip install nrfutil\n"
+            "Note: This is NOT the same as Adafruit nrfutil.\n"
+        )
+        env.Exit(1)
 
 env.Replace(
     AR="arm-none-eabi-ar",
@@ -238,6 +263,19 @@ else:
         target_firm = env.PackageDfu(
             join("$BUILD_DIR", "${PROGNAME}"),
             env.ElfToHex(join("$BUILD_DIR", "${PROGNAME}"), target_elf))
+    elif "nrfutil-mcumgr" == upload_protocol:
+        # For MCUboot serial upload over USB CDC ACM, prefer the signed
+        # binary from sysbuild.  Fallback chain covers different build
+        # configurations that may produce different output names.
+        signed_bin = join("$BUILD_DIR", "zephyr", "zephyr.signed.bin")
+        app_update = join("$BUILD_DIR", "zephyr", "app_update.bin")
+        if isfile(env.subst(signed_bin)):
+            target_firm = signed_bin
+        elif isfile(env.subst(app_update)):
+            target_firm = app_update
+        else:
+            target_firm = env.ElfToBin(
+                join("$BUILD_DIR", "${PROGNAME}"), target_elf)
     elif "nrfjprog" == upload_protocol:
         target_firm = env.ElfToHex(
             join("$BUILD_DIR", "${PROGNAME}"), target_elf)
@@ -375,6 +413,29 @@ elif upload_protocol == "nrfutil":
     )
     upload_actions = [
         env.VerboseAction(BeforeUpload, "Looking for upload port..."),
+        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")
+    ]
+
+elif upload_protocol == "nrfutil-mcumgr":
+    # Nordic nrfutil MCUboot serial recovery over USB CDC ACM.
+    # The board must have MCUboot with serial recovery enabled and the
+    # device must be in serial recovery mode (via WAIT_FOR_DFU window,
+    # GPIO button press, or no-application fallback).
+    _ensure_nrfutil_installed()
+
+    env.Replace(
+        UPLOADER="nrfutil",
+        UPLOADERFLAGS=[
+            "mcu-manager",
+            "serial",
+            "image-upload",
+            "--serial-port", '"$UPLOAD_PORT"',
+            "--firmware",
+        ],
+        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"'
+    )
+    upload_actions = [
+        env.VerboseAction(env.AutodetectUploadPort, "Looking for upload port..."),
         env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")
     ]
 
