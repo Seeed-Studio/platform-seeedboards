@@ -5,7 +5,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/uart.h>
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
 #include <zephyr/drivers/regulator.h>
 #endif
 
@@ -27,7 +27,7 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios); 
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios); // Button device descriptor
 static const struct device *const console_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console)); // Console UART device
 
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
 static const struct device *const power_en_dev = DEVICE_DT_GET(DT_NODELABEL(power_en));
 static const struct device *const dmic_vdd_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_vdd));
 
@@ -238,7 +238,7 @@ int main(void)
         return -ENODEV;
     }
 
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
     ret = enable_dmic_power();
     if (ret < 0) {
         return ret;

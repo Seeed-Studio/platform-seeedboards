@@ -20,7 +20,7 @@ static const struct gpio_dt_spec imu_int = GPIO_DT_SPEC_GET(DT_NODELABEL(lsm6ds3
  * nRF54L15: IMU power is provided by pdm_imu_pwr (gpio0.1) with
  * regulator-boot-on, so it is always on — no runtime action needed.
  */
-#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP)
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
 #include <zephyr/drivers/regulator.h>
 
 static const struct device *const power_en_dev =
@@ -76,7 +76,7 @@ static struct gpio_callback imu_cb_data;
 
 static int enable_imu_power(void)
 {
-#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP)
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
 	int ret;
 
 	if (!device_is_ready(power_en_dev)) {

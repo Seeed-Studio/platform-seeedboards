@@ -2,7 +2,7 @@
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
 
-#if !defined(CONFIG_BOARD_XIAO_NRF54LM20A)
+#if !defined(CONFIG_BOARD_XIAO_NRF54LM20A) && !defined(CONFIG_BOARD_XIAO_NRF54LM20B)
 #include <zephyr/drivers/pwm.h>
 #endif
 
@@ -22,8 +22,8 @@ static const struct adc_dt_spec adc_channels[] = {
     DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels, DT_SPEC_AND_COMMA)
 };
 
-#if defined(CONFIG_BOARD_XIAO_NRF54LM20A)
-/* ====== nrf54lm20a: Pure 8-channel ADC sampling (A0-A7) ====== */
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20B)
+/* ====== nrf54lm20a/20b: Pure 8-channel ADC sampling (A0-A7) ====== */
 
 #define ADC_CHANNEL_COUNT ARRAY_SIZE(adc_channels)
 #define SAMPLE_INTERVAL_MS 1500
@@ -202,4 +202,4 @@ int main(void)
     return 0;
 }
 
-#endif /* CONFIG_BOARD_XIAO_NRF54LM20A */
+#endif /* CONFIG_BOARD_XIAO_NRF54LM20A || CONFIG_BOARD_XIAO_NRF54LM20B */

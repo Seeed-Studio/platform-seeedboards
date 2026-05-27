@@ -18,7 +18,7 @@ LOG_MODULE_REGISTER(battery, CONFIG_LOG_DEFAULT_LEVEL);
 /* ======================================================================
  * NPM1300 Fuel Gauge path  (XIAO nRF54LM20A)
  * ====================================================================== */
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20B)
 
 #include "fuel_gauge.h"
 
@@ -144,4 +144,4 @@ int main(void)
 	return 0;
 }
 
-#endif /* CONFIG_BOARD_XIAO_NRF54LM20A */
+#endif /* CONFIG_BOARD_XIAO_NRF54LM20A || CONFIG_BOARD_XIAO_NRF54LM20B */

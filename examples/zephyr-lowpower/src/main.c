@@ -16,7 +16,7 @@
 
 static const struct gpio_dt_spec sw0 = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
 
-#if defined(CONFIG_BOARD_XIAO_NRF54LM20A)
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20B)
 
 static int print_reset_cause(uint32_t reset_cause)
 {
@@ -73,7 +73,7 @@ int main(void)
 		return 0;
 	}
 
-#if defined(CONFIG_BOARD_XIAO_NRF54LM20A)
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20B)
 	printf("\n=== %s system off demo start ===\n", CONFIG_BOARD);
 
 	uint32_t reset_cause;
@@ -99,7 +99,7 @@ int main(void)
 		return 0;
 	}
 
-#if defined(CONFIG_BOARD_XIAO_NRF54LM20A)
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20B)
 	rc = gpio_pin_interrupt_configure_dt(&sw0, GPIO_INT_LEVEL_ACTIVE);
 #else
 	rc = gpio_pin_interrupt_configure_dt(&sw0, GPIO_INT_LEVEL_LOW);

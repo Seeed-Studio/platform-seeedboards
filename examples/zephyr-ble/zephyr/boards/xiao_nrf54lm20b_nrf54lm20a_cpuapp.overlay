@@ -1,0 +1,19 @@
+/*
+ * Use Zephyr LL_SW controller path for this sample.
+ * The board default selects bt_hci_sdc, but this app is configured for
+ * the built-in controller stack.
+ */
+
+&bt_hci_sdc {
+	status = "disabled";
+};
+
+&bt_hci_controller {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		zephyr,bt-hci = &bt_hci_controller;
+	};
+};

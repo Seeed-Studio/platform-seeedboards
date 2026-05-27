@@ -7,7 +7,7 @@
  * charge status) from the NPM1300 charger.
  */
 
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A) || defined(CONFIG_BOARD_XIAO_NRF54LM20B)
 
 #include <stdlib.h>
 
@@ -112,4 +112,4 @@ int fuel_gauge_update(const struct device *charger)
 	return 0;
 }
 
-#endif /* CONFIG_BOARD_XIAO_NRF54LM20A */
+#endif /* CONFIG_BOARD_XIAO_NRF54LM20A || CONFIG_BOARD_XIAO_NRF54LM20B */

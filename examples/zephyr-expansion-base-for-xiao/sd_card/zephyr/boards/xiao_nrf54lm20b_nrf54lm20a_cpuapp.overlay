@@ -1,0 +1,48 @@
+/*
+ * SD Card configuration for XIAO nRF54LM20A with Expansion Base.
+ *
+ * Uses spi23 (XIAO SPI controller, low-speed SPIM domain) for SD card.
+ *
+ * On nRF54LM20A, the XIAO SPI header pins map to:
+ *   D8 (SCK)  = P1.4    D9 (MISO) = P1.5    D10 (MOSI) = P1.6
+ * These are routed through spi23, which is in the low-speed peripheral domain.
+ *
+ * No conflict with uart20 — spi23 and uart20 are independent instances.
+ * Console stays on the board default uart20 (TX=P1.11, RX=P1.10).
+ */
+
+/ {
+	aliases {
+		sdhc0 = &sdhc0;
+	};
+};
+
+&spi23 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+
+	cs-gpios = <&xiao_d 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+		spi-max-frequency = <24000000>;
+	};
+};
+
+/* Override spi23 pinctrl: add MISO pull-up as required by SD spec */
+&spi23_default {
+	group1 {
+		psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
+			<NRF_PSEL(SPIM_MOSI, 1, 6)>;
+	};
+	group2 {
+		psels = <NRF_PSEL(SPIM_MISO, 1, 5)>;
+		bias-pull-up;
+	};
+};

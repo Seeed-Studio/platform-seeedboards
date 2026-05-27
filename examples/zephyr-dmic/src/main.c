@@ -10,7 +10,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dmic_sample);
 
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
 #include <zephyr/device.h>
 #include <zephyr/drivers/regulator.h>
 
@@ -123,7 +123,7 @@ int main(void)
 		return 0;
 	}
 
-#ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+#if defined(CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP) || defined(CONFIG_BOARD_XIAO_NRF54LM20B_NRF54LM20A_CPUAPP)
 	ret = enable_dmic_power();
 	if (ret < 0) {
 		return 0;
