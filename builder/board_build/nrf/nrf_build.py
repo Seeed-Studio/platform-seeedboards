@@ -18,6 +18,7 @@ import json
 import os
 import shutil
 import site
+import time
 from platform import system
 from os import makedirs
 from os.path import isdir, isfile, join, basename
@@ -50,6 +51,84 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
     if ("/" in env.subst("$UPLOAD_PORT") and
             env.subst("$UPLOAD_PROTOCOL") == "sam-ba"):
         env.Replace(UPLOAD_PORT=basename(env.subst("$UPLOAD_PORT")))
+
+
+def _mcumgr_autoreset_and_upload(env, source):
+    """Send an mcumgr reset to the running application so it reboots into
+    MCUboot serial recovery, then upload the firmware image.
+
+    Flow:
+      1. Detect the current USB CDC ACM port (the application's console).
+      2. Send ``nrfutil mcu-manager serial reset`` – the app's SMP server
+         writes the boot-mode flag and calls sys_reboot().
+      3. Wait for a *new* CDC ACM port to appear (MCUboot serial recovery).
+      4. Upload the signed firmware via ``nrfutil mcu-manager serial
+         image-upload``.
+    """
+    _ensure_nrfutil_installed()
+
+    # ── Step 1: find the application's serial port ──
+    upload_port = env.subst("$UPLOAD_PORT")
+    if not upload_port:
+        env.AutodetectUploadPort()
+        upload_port = env.subst("$UPLOAD_PORT")
+
+    if not upload_port:
+        sys.stderr.write(
+            "Error: No serial port found. Connect the board and try again.\n"
+        )
+        env.Exit(1)
+
+    print("Auto-reset: using application port %s" % upload_port)
+
+    # ── Step 2: send mcumgr reset to trigger reboot into serial recovery ──
+    reset_cmd = [
+        "nrfutil", "mcu-manager", "serial", "reset",
+        "--serial-port", upload_port,
+    ]
+    print("Auto-reset: sending mcumgr reset ...")
+    try:
+        subprocess.run(reset_cmd, timeout=10, capture_output=True, text=True)
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
+        # reset may fail if device is already in serial recovery or
+        # the application does not have SMP server – that is okay,
+        # we will fall through to the normal upload attempt.
+        print(
+            "Auto-reset: reset command did not succeed "
+            "(device may already be in serial recovery): %s" % str(exc)
+        )
+
+    # ── Step 3: wait for MCUboot serial recovery CDC ACM to enumerate ──
+    before_ports = [p["port"] for p in list_serial_ports()]
+    new_port = None
+    for _ in range(30):  # wait up to ~15 seconds
+        time.sleep(0.5)
+        after_ports = [p["port"] for p in list_serial_ports()]
+        new_ports = [p for p in after_ports if p not in before_ports]
+        if new_ports:
+            new_port = new_ports[0]
+            break
+
+    if new_port:
+        print("Auto-reset: MCUboot serial recovery port detected: %s" % new_port)
+        env.Replace(UPLOAD_PORT=new_port)
+    else:
+        # No new port appeared – fall back to the original port.
+        print(
+            "Auto-reset: no new serial port appeared after reset, "
+            "trying original port %s" % upload_port
+        )
+        env.Replace(UPLOAD_PORT=upload_port)
+
+    # ── Step 4: upload the firmware ──
+    upload_port = env.subst("$UPLOAD_PORT")
+    upload_cmd = [
+        "nrfutil", "mcu-manager", "serial", "image-upload",
+        "--serial-port", upload_port,
+        "--firmware", str(source),
+    ]
+    print("Uploading %s to %s ..." % (str(source), upload_port))
+    subprocess.run(upload_cmd, check=True)
 
 
 env = DefaultEnvironment()
@@ -418,9 +497,19 @@ elif upload_protocol == "nrfutil":
 
 elif upload_protocol == "nrfutil-mcumgr":
     # Nordic nrfutil MCUboot serial recovery over USB CDC ACM.
-    # The board must have MCUboot with serial recovery enabled and the
-    # device must be in serial recovery mode (via WAIT_FOR_DFU window,
-    # GPIO button press, or no-application fallback).
+    #
+    # Auto-reset flow (Solution A):
+    #   1. Send mcumgr "reset" to the running application over its
+    #      USB CDC ACM console port.  The application's SMP server
+    #      writes the boot-mode flag via Zephyr's retention subsystem
+    #      and reboots.
+    #   2. MCUboot reads the retained boot-mode flag and enters
+    #      serial recovery mode – USB re-enumerates as CDC ACM.
+    #   3. Upload the signed firmware image.
+    #
+    # Fallback: if the reset command fails (no SMP server, bricked
+    # app, first boot), the user can press the MCUboot button or
+    # rely on BOOT_SERIAL_NO_APPLICATION / WAIT_FOR_DFU.
     _ensure_nrfutil_installed()
 
     env.Replace(
@@ -435,8 +524,12 @@ elif upload_protocol == "nrfutil-mcumgr":
         UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"'
     )
     upload_actions = [
-        env.VerboseAction(env.AutodetectUploadPort, "Looking for upload port..."),
-        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")
+        env.VerboseAction(
+            lambda target, source, env: _mcumgr_autoreset_and_upload(
+                env, str(source[0])
+            ),
+            "Auto-reset and Uploading $SOURCE",
+        ),
     ]
 
 elif upload_protocol == "sam-ba":

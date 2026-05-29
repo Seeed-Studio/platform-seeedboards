@@ -16,6 +16,7 @@
 	chosen {
 		zephyr,code-partition = &slot0_partition;
 		zephyr,sram = &cpuapp_sram;
+		zephyr,boot-mode = &boot_mode_retention;
 	};
 };
 

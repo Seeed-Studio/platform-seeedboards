@@ -30,3 +30,18 @@ CONFIG_NRF_GRTC_START_SYSCOUNTER=y
 
 # Enable MCUboot as default bootloader (for USB CDC ACM serial recovery)
 CONFIG_BOOTLOADER_MCUBOOT=y
+
+# ── SMP Server for DFU auto-reset ──
+# Enables an SMP server in the application so that PlatformIO can send a
+# mcumgr "reset" command over USB CDC ACM.  The application's OS mgmt
+# handler writes the bootloader boot-mode flag via Zephyr's retention
+# subsystem before rebooting, causing MCUboot to enter serial recovery.
+CONFIG_MCUMGR_SMP_SERIAL=y
+CONFIG_MCUMGR_CMD_OS_MGMT=y
+
+# ── Boot mode retention ──
+# Required by both the application (to set the flag) and MCUboot (to read
+# the flag).  The DTS node "boot_mode_retention" provides the backing store.
+CONFIG_RETENTION=y
+CONFIG_RETAINED_MEM=y
+CONFIG_RETENTION_BOOT_MODE=y

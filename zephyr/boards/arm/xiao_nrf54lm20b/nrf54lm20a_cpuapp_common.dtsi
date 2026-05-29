@@ -34,6 +34,36 @@
 	status = "okay";
 };
 
+/*
+ * Boot mode retention area: 16 bytes of non-init SRAM at the end of
+ * cpuapp_sram, used by Zephyr's retention subsystem to pass a boot-mode
+ * flag between the application and MCUboot.
+ *
+ * The application writes BOOT_MODE_TYPE_BOOTLOADER here then calls
+ * sys_reboot(); MCUboot reads this flag on startup and enters serial
+ * recovery mode automatically.
+ */
+sram_boot_mode: sram@2007fbf0 {
+	compatible = "zephyr,memory-region", "mmio-sram";
+	reg = <0x2007fbf0 0x10>;
+	zephyr,memory-region = "RetainedMem";
+	zephyr,memory-region-attr = "no-init";
+	status = "okay";
+
+	retainedmem0: retainedmem {
+		compatible = "zephyr,retained-ram";
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_mode_retention: retention@0 {
+			compatible = "zephyr,retention";
+			status = "okay";
+			reg = <0x0 0x10>;
+		};
+	};
+};
+
 &hfpll {
 	clock-frequency = <DT_FREQ_M(128)>;
 };

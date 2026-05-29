@@ -15,6 +15,7 @@
 / {
 	chosen {
 		zephyr,cdc-acm-uart = &cdc_acm_uart0;
+		zephyr,boot-mode = &boot_mode_retention;
 	};
 };
 
