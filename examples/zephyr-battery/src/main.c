@@ -86,61 +86,59 @@ int main(void)
 	int32_t val_mv;
 	struct adc_sequence sequence = {
 		.buffer = &buf,
-		/* buffer size in bytes, not number of samples */
 		.buffer_size = sizeof(buf),
 	};
 
-	regulator_enable(vbat_reg);
-	k_sleep(K_MSEC(100));
+	if (!device_is_ready(vbat_reg)) {
+		printf("VBAT regulator not ready\n");
+		return 0;
+	}
 
-	/* Configure channels individually prior to sampling. */
-	if (!adc_is_ready_dt(&adc_channels[ADC_CHANNEL_ID]))
-	{
-		printf("ADC controller device %s not ready\n", adc_channels[ADC_CHANNEL_ID].dev->name);
+	if (!adc_is_ready_dt(&adc_channels[ADC_CHANNEL_ID])) {
+		printf("ADC controller device %s not ready\n",
+		       adc_channels[ADC_CHANNEL_ID].dev->name);
 		return 0;
 	}
 
 	err = adc_channel_setup_dt(&adc_channels[ADC_CHANNEL_ID]);
-	if (err < 0)
-	{
+	if (err < 0) {
 		printf("Could not setup channel #%d (%d)\n", ADC_CHANNEL_ID, err);
 		return 0;
 	}
 
-	(void)adc_sequence_init_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
-	err = adc_read_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
-	if (err < 0)
-	{
-		printf("Could not read (%d)\n", err);
-		return 0;
+	printf("Battery ADC started\r\n");
+
+	while (1) {
+		regulator_enable(vbat_reg);
+		k_sleep(K_MSEC(100));
+
+		(void)adc_sequence_init_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
+		err = adc_read_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
+		if (err < 0) {
+			printf("Could not read (%d)\n", err);
+			regulator_disable(vbat_reg);
+			k_sleep(K_MSEC(1000));
+			continue;
+		}
+
+		if (adc_channels[ADC_CHANNEL_ID].channel_cfg.differential) {
+			val_mv = (int32_t)((int16_t)buf);
+		} else {
+			val_mv = (int32_t)buf;
+		}
+
+		err = adc_raw_to_millivolts_dt(&adc_channels[ADC_CHANNEL_ID],
+									   &val_mv);
+		if (err < 0) {
+			printf(" value in mV not available\n");
+		} else {
+			printf("bat vol = %" PRId32 " mV\n", val_mv * 2);
+		}
+
+		regulator_disable(vbat_reg);
+		k_sleep(K_MSEC(1000));
 	}
 
-	/*
-	 * If using differential mode, the 16 bit value
-	 * in the ADC sample buffer should be a signed 2's
-	 * complement value.
-	 */
-	if (adc_channels[ADC_CHANNEL_ID].channel_cfg.differential)
-	{
-		val_mv = (int32_t)((int16_t)buf);
-	}
-	else
-	{
-		val_mv = (int32_t)buf;
-	}
-	err = adc_raw_to_millivolts_dt(&adc_channels[ADC_CHANNEL_ID],
-								   &val_mv);
-	/* conversion to mV may not be supported, skip if not */
-	if (err < 0)
-	{
-		printf(" value in mV not available\n");
-	}
-	else
-	{
-		printf("bat vol = %" PRId32 " mV\n", val_mv * 2);
-	}
-
-	regulator_disable(vbat_reg);
 	return 0;
 }
 
