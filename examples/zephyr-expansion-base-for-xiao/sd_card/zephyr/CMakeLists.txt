@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-set(BOARD_ROOT "$ENV{ZEPHYR_BASE}/../../platforms/SeeedStudio/zephyr")
 
 cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
