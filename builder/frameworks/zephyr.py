@@ -62,7 +62,11 @@ if os.path.isdir(platform_boards_dir):
         dst = join(framework_boards_dir, board_name_dir)
         if not os.path.isdir(src):
             continue
-        if os.path.exists(dst) or os.path.islink(dst):
+        # Remove stale symlinks left by older platform versions, and skip
+        # if a real directory already exists (avoid clobbering on re-builds).
+        if os.path.islink(dst) and not os.path.exists(dst):
+            os.remove(dst)
+        elif os.path.exists(dst):
             continue
         shutil.copytree(src, dst)
         print(f"Copied board: {board_name_dir} -> {dst}")
