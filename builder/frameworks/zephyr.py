@@ -45,13 +45,18 @@ platform_dir = env.PioPlatform().get_dir()
 west_yml_path = join(framework_dir, "west.yml")
 hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 
-# Symlink custom board definitions into Zephyr framework boards directory
+# Copy custom board definitions into Zephyr framework boards directory
 # so that Zephyr CMake can discover them during build configuration.
+# Note: We intentionally use copytree instead of symlink on all platforms.
+# Python's pathlib.Path.rglob() (used by Zephyr's list_boards.py) does not
+# follow symlink directories by default, which makes symlinked boards
+# invisible to CMake on macOS/Linux.
 platform_boards_dir = join(platform_dir, "zephyr", "boards", "arm")
 framework_boards_dir = join(framework_dir, "boards", "arm")
 
 if os.path.isdir(platform_boards_dir):
     os.makedirs(framework_boards_dir, exist_ok=True)
+    import shutil
     for board_name_dir in os.listdir(platform_boards_dir):
         src = join(platform_boards_dir, board_name_dir)
         dst = join(framework_boards_dir, board_name_dir)
@@ -59,13 +64,8 @@ if os.path.isdir(platform_boards_dir):
             continue
         if os.path.exists(dst) or os.path.islink(dst):
             continue
-        try:
-            os.symlink(src, dst)
-            print(f"Linked board: {board_name_dir} -> {src}")
-        except OSError:
-            import shutil
-            shutil.copytree(src, dst)
-            print(f"Copied board: {board_name_dir} -> {dst}")
+        shutil.copytree(src, dst)
+        print(f"Copied board: {board_name_dir} -> {dst}")
 
 import re
 import time
