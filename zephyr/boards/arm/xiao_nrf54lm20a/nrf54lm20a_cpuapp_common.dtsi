@@ -6,7 +6,7 @@
 
 /* This file is common to the secure and non-secure domain */
 
-#include <nordic/nrf54lm20a_enga_cpuapp.dtsi>
+#include <nordic/nrf54lm20a_cpuapp.dtsi>
 #include "xiao_nrf54lm20a_nrf54lm20a-common.dtsi"
 
 / {
