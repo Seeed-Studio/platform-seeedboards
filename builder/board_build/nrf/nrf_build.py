@@ -480,7 +480,7 @@ elif upload_protocol.startswith("jlink"):
         commands = ["h"]
         if "DFUBOOTHEX" in env:
             commands.append("loadbin %s,%s" % (str(source).replace("_signature", ""),
-                env.BoardConfig().get("upload.offset_address", "0x26000")))
+                env.BoardConfig().get("upload.offset_address", "0x27000")))
             commands.append("loadbin %s,%s" % (source, env.get("BOOT_SETTING_ADDR")))
         else:
             commands.append("loadbin %s,%s" % (source, env.BoardConfig().get(
