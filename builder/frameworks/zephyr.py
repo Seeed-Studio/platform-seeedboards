@@ -44,6 +44,7 @@ framework_dir = env.PioPlatform().get_package_dir("framework-zephyr")
 platform_dir = env.PioPlatform().get_dir()
 west_yml_path = join(framework_dir, "west.yml")
 hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
+platformio_build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
 
 # Copy custom board definitions into Zephyr framework boards directory
 # so that Zephyr CMake can discover them during build configuration.
@@ -62,17 +63,43 @@ if os.path.isdir(platform_boards_dir):
         dst = join(framework_boards_dir, board_name_dir)
         if not os.path.isdir(src):
             continue
-        # Remove stale symlinks left by older platform versions, and skip
-        # if a real directory already exists (avoid clobbering on re-builds).
+        # Refresh copied board definitions on every build so local DTS/Kconfig
+        # changes always override any stale board copies inside the framework.
         if os.path.islink(dst) and not os.path.exists(dst):
             os.remove(dst)
+        elif os.path.isdir(dst):
+            shutil.rmtree(dst)
         elif os.path.exists(dst):
-            continue
+            os.remove(dst)
         shutil.copytree(src, dst)
         print(f"Copied board: {board_name_dir} -> {dst}")
 
 import re
 import time
+
+
+def _patch_platformio_build(framework_dir):
+    """Patch PlatformIO's Zephyr object naming to avoid basename collisions.
+
+    Zephyr 4.4's module tree can contain duplicate source basenames
+    (for example LVGL's vg_lite_matrix.c in two directories). The stock
+    PlatformIO script falls back to basename-only object paths for sources
+    outside the module-local root, which causes duplicate object targets.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    needle = """            else:\n                obj_path = os.path.join(\n                    obj_path_temp, os.path.basename(src_path)\n                )\n"""
+    replacement = """            else:\n                framework_root = %r\n                if src_path.startswith(framework_root):\n                    unique_rel = os.path.relpath(src_path, framework_root)\n                else:\n                    unique_rel = os.path.join(\n                        os.path.basename(os.path.dirname(src_path)),\n                        os.path.basename(src_path),\n                    )\n                obj_path = os.path.join(obj_path_temp, unique_rel)\n""" % framework_dir
+
+    if needle in text and replacement not in text:
+        text = text.replace(needle, replacement)
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
 
 
 def _is_commit_hash(value):
@@ -179,6 +206,7 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
 # This ensures they exist when install-deps.py checks, avoiding its
 # destructive clean_up() on any single failure.
 _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
+_patch_platformio_build(framework_dir)
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")

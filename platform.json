@@ -245,9 +245,9 @@
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "~3.40300.0",
+      "version": "3.40400.260428",
       "optionalVersions": [
-        "~3.40300.0"
+        "3.40400.260428"
       ]
     },
     "tool-adafruit-nrfutil": {
