@@ -44,7 +44,6 @@ framework_dir = env.PioPlatform().get_package_dir("framework-zephyr")
 platform_dir = env.PioPlatform().get_dir()
 west_yml_path = join(framework_dir, "west.yml")
 hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
-platformio_build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
 
 # Copy custom board definitions into Zephyr framework boards directory
 # so that Zephyr CMake can discover them during build configuration.
@@ -78,14 +77,15 @@ import re
 import time
 
 
-def _patch_platformio_build(framework_dir):
-    """Patch PlatformIO's Zephyr object naming to avoid basename collisions.
+def _ensure_system_path_available():
+    """Keep system tools like git available for west/zephyr helper scripts."""
+    current_path = os.environ.get("PATH", "")
+    if current_path:
+        os.environ["PATH"] = current_path
 
-    Zephyr 4.4's module tree can contain duplicate source basenames
-    (for example LVGL's vg_lite_matrix.c in two directories). The stock
-    PlatformIO script falls back to basename-only object paths for sources
-    outside the module-local root, which causes duplicate object targets.
-    """
+
+def _patch_platformio_path_handling(framework_dir):
+    """Make PlatformIO's Zephyr env keep the system PATH when appending tools."""
     build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
     if not os.path.isfile(build_py):
         return
@@ -93,8 +93,12 @@ def _patch_platformio_build(framework_dir):
     with open(build_py, "r", encoding="utf-8") as fp:
         text = fp.read()
 
-    needle = """            else:\n                obj_path = os.path.join(\n                    obj_path_temp, os.path.basename(src_path)\n                )\n"""
-    replacement = """            else:\n                framework_root = %r\n                if src_path.startswith(framework_root):\n                    unique_rel = os.path.relpath(src_path, framework_root)\n                else:\n                    unique_rel = os.path.join(\n                        os.path.basename(os.path.dirname(src_path)),\n                        os.path.basename(src_path),\n                    )\n                obj_path = os.path.join(obj_path_temp, unique_rel)\n""" % framework_dir
+    needle = '    zephyr_env["PATH"] = os.pathsep.join(additional_packages)\n'
+    replacement = (
+        '    zephyr_env["PATH"] = os.pathsep.join(\n'
+        '        additional_packages + [zephyr_env.get("PATH", "")]\n'
+        '    )\n'
+    )
 
     if needle in text and replacement not in text:
         text = text.replace(needle, replacement)
@@ -205,8 +209,9 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
 # Pre-install west dependencies with retry before platformio-build.py runs
 # This ensures they exist when install-deps.py checks, avoiding its
 # destructive clean_up() on any single failure.
+_ensure_system_path_available()
 _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
-_patch_platformio_build(framework_dir)
+_patch_platformio_path_handling(framework_dir)
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
