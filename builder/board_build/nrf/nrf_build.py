@@ -58,6 +58,21 @@ board = env.BoardConfig()
 variant = board.get("build.variant", "")
 
 
+def _get_dfu_upload_offset(board_config):
+    upload_offset = board_config.get("upload.offset_address")
+    if upload_offset:
+        return upload_offset
+
+    ldscript = basename(
+        board_config.get("build.arduino.ldscript", "")
+        or board_config.get("build.ldscript", "")
+    )
+    if ldscript == "nrf52840_s140_v6.ld":
+        return "0x26000"
+
+    return "0x27000"
+
+
 def _ensure_pyocd_installed():
     # Always use the forked pyOCD with nRF54LM20A support, regardless of MCU.
     pyocd_spec = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable"
@@ -480,7 +495,7 @@ elif upload_protocol.startswith("jlink"):
         commands = ["h"]
         if "DFUBOOTHEX" in env:
             commands.append("loadbin %s,%s" % (str(source).replace("_signature", ""),
-                env.BoardConfig().get("upload.offset_address", "0x27000")))
+                _get_dfu_upload_offset(env.BoardConfig())))
             commands.append("loadbin %s,%s" % (source, env.get("BOOT_SETTING_ADDR")))
         else:
             commands.append("loadbin %s,%s" % (source, env.BoardConfig().get(
