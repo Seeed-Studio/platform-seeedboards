@@ -37,6 +37,7 @@ platform_name = env.subst("$PIOPLATFORM")
 board_name = env.get("BOARD", "")
 platform = env.PioPlatform()
 framework_package_name = platform.get_zephyr_package_name(board_name)
+framework_version = None
 
 if board_name and "nrf" in board_name:
     env.Replace(
@@ -57,13 +58,52 @@ hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 platform_boards_dir = join(platform_dir, "zephyr", "boards", "arm")
 framework_boards_dir = join(framework_dir, "boards", "arm")
 
+def _get_framework_version():
+    global framework_version
+    if framework_version:
+        return framework_version
+
+    package_json = join(framework_dir, "package.json")
+    with open(package_json, "r", encoding="utf-8") as fp:
+        package_data = json.load(fp)
+
+    raw_version = package_data.get("version", "")
+    parts = raw_version.split(".")
+    if len(parts) < 2 or not parts[1].isdigit():
+        raise RuntimeError(
+            f"Unexpected {framework_package_name} version: {raw_version}"
+        )
+
+    encoded = parts[1].zfill(5)
+    major = int(encoded[0])
+    minor = int(encoded[1:3])
+    patch = int(encoded[3:5])
+    framework_version = f"{major}.{minor}.{patch}"
+    return framework_version
+
+
+def _board_copy_mode():
+    version = _get_framework_version()
+    try:
+        major, minor, _patch = [int(part) for part in version.split(".")]
+    except ValueError:
+        return "refresh"
+
+    if (major, minor) >= (4, 4):
+        return "missing-only"
+    return "refresh"
+
+
 if os.path.isdir(platform_boards_dir):
     os.makedirs(framework_boards_dir, exist_ok=True)
     import shutil
+    board_copy_mode = _board_copy_mode()
     for board_name_dir in os.listdir(platform_boards_dir):
         src = join(platform_boards_dir, board_name_dir)
         dst = join(framework_boards_dir, board_name_dir)
         if not os.path.isdir(src):
+            continue
+        if board_copy_mode == "missing-only" and os.path.exists(dst):
             continue
         # Refresh copied board definitions on every build so local DTS/Kconfig
         # changes always override any stale board copies inside the framework.
@@ -85,25 +125,6 @@ def _ensure_system_path_available():
     current_path = os.environ.get("PATH", "")
     if current_path:
         os.environ["PATH"] = current_path
-
-
-def _get_framework_version():
-    package_json = join(framework_dir, "package.json")
-    with open(package_json, "r", encoding="utf-8") as fp:
-        package_data = json.load(fp)
-
-    raw_version = package_data.get("version", "")
-    parts = raw_version.split(".")
-    if len(parts) < 2 or not parts[1].isdigit():
-        raise RuntimeError(
-            f"Unexpected {framework_package_name} version: {raw_version}"
-        )
-
-    encoded = parts[1].zfill(5)
-    major = int(encoded[0])
-    minor = int(encoded[1:3])
-    patch = int(encoded[3:5])
-    return f"{major}.{minor}.{patch}"
 
 
 def _get_zephyr_venv_dir():

@@ -245,7 +245,7 @@
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "~3.40300.0",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40300.0/framework-zephyr-3.40300.0.tar.gz",
       "optionalVersions": [
         "~3.40300.0"
       ]
@@ -254,7 +254,7 @@
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "3.40400.260428",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40400.260428/framework-zephyr-3.40400.260428.tar.gz",
       "optionalVersions": [
         "3.40400.260428"
       ]
