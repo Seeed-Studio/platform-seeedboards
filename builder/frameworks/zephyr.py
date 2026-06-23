@@ -35,14 +35,16 @@ Import("env")
 
 platform_name = env.subst("$PIOPLATFORM")
 board_name = env.get("BOARD", "")
+platform = env.PioPlatform()
+framework_package_name = platform.get_zephyr_package_name(board_name)
 
 if board_name and "nrf" in board_name:
     env.Replace(
         PIOPLATFORM="nordicnrf52"
     )
 # Clone hal_nordic package from west.yaml if not present
-framework_dir = env.PioPlatform().get_package_dir("framework-zephyr")
-platform_dir = env.PioPlatform().get_dir()
+framework_dir = platform.get_package_dir(framework_package_name)
+platform_dir = platform.get_dir()
 west_yml_path = join(framework_dir, "west.yml")
 hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 
@@ -93,7 +95,9 @@ def _get_framework_version():
     raw_version = package_data.get("version", "")
     parts = raw_version.split(".")
     if len(parts) < 2 or not parts[1].isdigit():
-        raise RuntimeError(f"Unexpected framework-zephyr version: {raw_version}")
+        raise RuntimeError(
+            f"Unexpected {framework_package_name} version: {raw_version}"
+        )
 
     encoded = parts[1].zfill(5)
     major = int(encoded[0])
@@ -205,7 +209,7 @@ def _ensure_zephyr_python_env():
 def _ensure_minimal_west_workspace(framework_dir):
     """Create the minimum west workspace metadata expected by Zephyr 4.4.
 
-    PlatformIO installs framework-zephyr as a plain source tree, not as a
+    PlatformIO installs the selected Zephyr framework package as a plain source tree, not as a
     `west init` workspace. Newer Zephyr tooling may still call
     `Manifest.from_file()` and expect a `.west/config` file to exist.
     """

@@ -26,7 +26,7 @@
       "script": "builder/frameworks/espidf.py"
     },
     "zephyr": {
-      "package": "framework-zephyr",
+      "package": "framework-zephyr-nrf54lm20",
       "script": "builder/frameworks/zephyr.py"
     }
   },
@@ -241,7 +241,16 @@
         "~2.50400.0"
       ]
     },
-    "framework-zephyr": {
+    "framework-zephyr-nrf54l15": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "~3.40300.0",
+      "optionalVersions": [
+        "~3.40300.0"
+      ]
+    },
+    "framework-zephyr-nrf54lm20": {
       "type": "framework",
       "optional": true,
       "owner": "platformio",

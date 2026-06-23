@@ -56,6 +56,7 @@ env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
 variant = board.get("build.variant", "")
+zephyr_package_name = platform.get_zephyr_package_name(board.id)
 
 
 def _ensure_pyocd_installed():
@@ -244,7 +245,7 @@ if not env.get("PIOFRAMEWORK"):
 if "zephyr" in env.get("PIOFRAMEWORK", []):
     env.SConscript(
         join(platform.get_package_dir(
-            "framework-zephyr"), "scripts", "platformio", "platformio-build-pre.py"),
+            zephyr_package_name), "scripts", "platformio", "platformio-build-pre.py"),
         exports={"env": env}
     )
 
