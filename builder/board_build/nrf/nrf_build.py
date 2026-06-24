@@ -59,7 +59,7 @@ variant = board.get("build.variant", "")
 
 
 def _get_dfu_upload_offset(board_config):
-    upload_offset = board_config.get("upload.offset_address")
+    upload_offset = board_config.get("upload.offset_address", None)
     if upload_offset:
         return upload_offset
 
