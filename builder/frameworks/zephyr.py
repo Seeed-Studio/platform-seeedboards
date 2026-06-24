@@ -57,6 +57,7 @@ hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 # invisible to CMake on macOS/Linux.
 platform_boards_dir = join(platform_dir, "zephyr", "boards", "arm")
 framework_boards_dir = join(framework_dir, "boards", "arm")
+framework_vendor_boards_dir = join(framework_dir, "boards", "seeed")
 
 def _get_framework_version():
     global framework_version
@@ -95,14 +96,17 @@ def _board_copy_mode():
 
 
 if os.path.isdir(platform_boards_dir):
-    os.makedirs(framework_boards_dir, exist_ok=True)
+    os.makedirs(framework_vendor_boards_dir, exist_ok=True)
     import shutil
     board_copy_mode = _board_copy_mode()
     for board_name_dir in os.listdir(platform_boards_dir):
         src = join(platform_boards_dir, board_name_dir)
-        dst = join(framework_boards_dir, board_name_dir)
+        dst = join(framework_vendor_boards_dir, board_name_dir)
+        stale_arm_dst = join(framework_boards_dir, board_name_dir)
         if not os.path.isdir(src):
             continue
+        if os.path.isdir(stale_arm_dst):
+            shutil.rmtree(stale_arm_dst)
         if board_copy_mode == "missing-only" and os.path.exists(dst):
             continue
         # Refresh copied board definitions on every build so local DTS/Kconfig
@@ -339,6 +343,33 @@ def _patch_platformio_object_naming(framework_dir):
             fp.write(text)
 
 
+def _patch_platformio_framework_package_name(framework_dir, framework_package_name):
+    """Make PlatformIO's bundled Zephyr script use the selected package name."""
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    replacements = {
+        'platform.get_package_dir("framework-zephyr")': f'platform.get_package_dir("{framework_package_name}")',
+        'platform.get_package_version("framework-zephyr")': f'platform.get_package_version("{framework_package_name}")',
+        'platform.get_package("framework-zephyr")': f'platform.get_package("{framework_package_name}")',
+        'config["name"].replace("framework-zephyr", "")': f'config["name"].replace("{framework_package_name}", "")',
+    }
+
+    changed = False
+    for needle, replacement in replacements.items():
+        if needle in text and replacement not in text:
+            text = text.replace(needle, replacement)
+            changed = True
+
+    if changed:
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+
+
 def _is_commit_hash(value):
     return value and re.match(r"[0-9a-f]{7,}$", value) is not None
 
@@ -448,6 +479,7 @@ _ensure_minimal_west_workspace(framework_dir)
 _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
 _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
+_patch_platformio_framework_package_name(framework_dir, framework_package_name)
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
