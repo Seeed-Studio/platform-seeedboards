@@ -41,6 +41,11 @@ if IS_WINDOWS:
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 Architecture = ""
+ZEPHYR_PACKAGE_BY_BOARD = {
+    "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
+    "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
+    "seeed-xiao-nrf54lm20b": "framework-zephyr-nrf54lm20",
+}
 
 class SeeedstudioPlatform(PlatformBase):
     def __init__(self, *args, **kwargs):
@@ -55,6 +60,7 @@ class SeeedstudioPlatform(PlatformBase):
             return super().configure_default_packages(variables, targets)
 
         board_name = variables.get("board")
+        self._configure_zephyr_package_for_board(board_name, variables)
 
         if "esp32" in board_name:
             Architecture = "esp"
@@ -88,6 +94,29 @@ class SeeedstudioPlatform(PlatformBase):
             result = super().configure_default_packages(variables, targets)
 
         return result
+
+    def _configure_zephyr_package_for_board(self, board_name, variables):
+        frameworks = variables.get("pioframework", [])
+        if "zephyr" not in frameworks or "zephyr" not in self.frameworks:
+            return
+
+        package_name = ZEPHYR_PACKAGE_BY_BOARD.get(board_name)
+        if not package_name:
+            return
+
+        self.frameworks["zephyr"]["package"] = package_name
+
+    def get_zephyr_package_name(self, board_name=None):
+        if board_name:
+            return ZEPHYR_PACKAGE_BY_BOARD.get(
+                board_name,
+                self.frameworks.get("zephyr", {}).get("package", "framework-zephyr-nrf54lm20"),
+            )
+
+        package_name = self.frameworks.get("zephyr", {}).get("package")
+        if package_name:
+            return package_name
+        return "framework-zephyr-nrf54lm20"
 
     def _iter_required_esp_tools(self):
         return [

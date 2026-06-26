@@ -5,8 +5,8 @@
  */
 
 /dts-v1/;
-#include <nordic/nrf54lm20a_enga_cpuflpr.dtsi>
-#include "xiao_nrf54lm20_nrf54lm20a-common.dtsi"
+#include <nordic/nrf54lm20a_cpuflpr.dtsi>
+#include "xiao_nrf54lm20a_nrf54lm20a-common.dtsi"
 
 / {
 	model = "Seeed XIAO nRF54LM20A nRF54LM20A FLPR MCU";

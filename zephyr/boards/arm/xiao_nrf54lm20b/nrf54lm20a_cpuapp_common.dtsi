@@ -6,7 +6,7 @@
 
 /* This file is common to the secure and non-secure domain */
 
-#include <nordic/nrf54lm20a_enga_cpuapp.dtsi>
+#include <nordic/nrf54lm20a_cpuapp.dtsi>
 #include "xiao_nrf54lm20b_nrf54lm20a-common.dtsi"
 
 / {
@@ -25,7 +25,6 @@
 		zephyr,bt-c2h-uart = &uart20;
 		zephyr,flash-controller = &rram_controller;
 		zephyr,flash = &cpuapp_rram;
-		zephyr,bt-hci = &bt_hci_sdc;
 		zephyr,ieee802154 = &ieee802154;
 	};
 };
@@ -137,10 +136,6 @@
 };
 
 &clock {
-	status = "okay";
-};
-
-&bt_hci_controller {
 	status = "okay";
 };
 

@@ -5,7 +5,7 @@
  */
 
 /dts-v1/;
-#include <nordic/nrf54lm20a_enga_cpuflpr.dtsi>
+#include <nordic/nrf54lm20a_cpuflpr.dtsi>
 #include "xiao_nrf54lm20b_nrf54lm20a-common.dtsi"
 
 / {

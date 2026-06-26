@@ -26,7 +26,7 @@
       "script": "builder/frameworks/espidf.py"
     },
     "zephyr": {
-      "package": "framework-zephyr",
+      "package": "framework-zephyr-nrf54lm20",
       "script": "builder/frameworks/zephyr.py"
     }
   },
@@ -241,14 +241,22 @@
         "~2.50400.0"
       ]
     },
-    "framework-zephyr": {
+    "framework-zephyr-nrf54l15": {
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "~3.40201.251021",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40201.251021/framework-zephyr-3.40201.251021.tar.gz",
       "optionalVersions": [
-        "~3.40200.0",
-        "~3.40100.0"
+        "~3.40201.251021"
+      ]
+    },
+    "framework-zephyr-nrf54lm20": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40400.260428/framework-zephyr-3.40400.260428.tar.gz",
+      "optionalVersions": [
+        "3.40400.260428"
       ]
     },
     "tool-adafruit-nrfutil": {
