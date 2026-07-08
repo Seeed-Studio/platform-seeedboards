@@ -24,7 +24,10 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 #define LED0_NODE DT_ALIAS(led0)
 
 static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET_OR(LED0_NODE, gpios, {0});
+static struct k_work_delayable blink_work;
 static uint8_t led_state;
+static uint8_t blink_led_state;
+static bool blink_active;
 
 static bool gpio_ready(const struct gpio_dt_spec *spec)
 {
@@ -38,6 +41,37 @@ static void led_apply(uint8_t value)
 	}
 
 	(void)gpio_pin_set_dt(&led0, value ? 1 : 0);
+}
+
+static void blink_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (!blink_active) {
+		return;
+	}
+
+	blink_led_state = blink_led_state ? 0U : 1U;
+	led_apply(blink_led_state);
+	k_work_reschedule(&blink_work, K_MSEC(500));
+}
+
+static void start_blink(void)
+{
+	if (!gpio_ready(&led0)) {
+		return;
+	}
+
+	blink_active = true;
+	k_work_reschedule(&blink_work, K_NO_WAIT);
+}
+
+static void stop_blink(void)
+{
+	blink_active = false;
+	(void)k_work_cancel_delayable(&blink_work);
+	blink_led_state = 0U;
+	led_apply(led_state);
 }
 
 static ssize_t read_led(struct bt_conn *conn, const struct bt_gatt_attr *attr,
@@ -105,6 +139,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 
 	LOG_INF("connected");
+	stop_blink();
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -112,6 +147,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	ARG_UNUSED(conn);
 
 	LOG_INF("disconnected: 0x%02x %s", reason, bt_hci_err_to_str(reason));
+	start_blink();
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -122,6 +158,8 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 int main(void)
 {
 	int err;
+
+	k_work_init_delayable(&blink_work, blink_handler);
 
 	led_state = 0U;
 	if (gpio_ready(&led0)) {
@@ -145,6 +183,7 @@ int main(void)
 	}
 
 	LOG_INF("advertising");
+	start_blink();
 
 	for (;;) {
 		k_sleep(K_FOREVER);
