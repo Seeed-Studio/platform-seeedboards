@@ -20,8 +20,10 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 	BT_UUID_128_ENCODE(0x8e7f1a24, 0x4b2c, 0x11ee, 0xbe56, 0x0242ac120002)
 #define BT_UUID_LBS_MIN_WRITE BT_UUID_DECLARE_128(BT_UUID_LBS_MIN_WRITE_VAL)
 
+#define LED0_NODE DT_ALIAS(led0)
 #define SW0_NODE DT_ALIAS(sw0)
 
+static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET_OR(LED0_NODE, gpios, {0});
 static const struct gpio_dt_spec sw0 = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios, {0});
 
 static struct bt_conn *default_conn;
@@ -31,16 +33,78 @@ static struct bt_gatt_write_params write_params;
 static struct gpio_callback sw0_cb;
 static struct k_work button_work;
 static struct k_work_delayable debounce_work;
+static struct k_work_delayable blink_work;
 static atomic_t write_busy;
 
 static uint16_t svc_start_handle;
 static uint16_t svc_end_handle;
 static uint16_t write_handle;
 static uint8_t remote_led_state;
+static uint8_t blink_led_state;
+static bool blink_active;
 
 static bool gpio_ready(const struct gpio_dt_spec *spec)
 {
 	return spec->port != NULL && device_is_ready(spec->port);
+}
+
+static void status_led_apply(uint8_t value)
+{
+	if (!gpio_ready(&led0)) {
+		return;
+	}
+
+	(void)gpio_pin_set_dt(&led0, value ? 1 : 0);
+}
+
+static void blink_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (!blink_active) {
+		return;
+	}
+
+	blink_led_state = blink_led_state ? 0U : 1U;
+	status_led_apply(blink_led_state);
+	k_work_reschedule(&blink_work, K_MSEC(500));
+}
+
+static int init_status_led(void)
+{
+	int err;
+
+	k_work_init_delayable(&blink_work, blink_handler);
+
+	if (!gpio_ready(&led0)) {
+		return -ENODEV;
+	}
+
+	err = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_INACTIVE);
+	if (err) {
+		return err;
+	}
+
+	status_led_apply(0U);
+	return 0;
+}
+
+static void start_blink(void)
+{
+	if (!gpio_ready(&led0)) {
+		return;
+	}
+
+	blink_active = true;
+	k_work_reschedule(&blink_work, K_NO_WAIT);
+}
+
+static void stop_blink(void)
+{
+	blink_active = false;
+	(void)k_work_cancel_delayable(&blink_work);
+	blink_led_state = 0U;
+	status_led_apply(0U);
 }
 
 static bool ad_has_uuid(struct bt_data *data, void *user_data)
@@ -94,6 +158,13 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 		return;
 	}
 
+	{
+		char addr_str[BT_ADDR_LE_STR_LEN];
+
+		bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
+		LOG_INF("LBS adv matched from %s (type=0x%02x)", addr_str, type);
+	}
+
 	err = bt_le_scan_stop();
 	if (err) {
 		LOG_WRN("scan stop failed: %d", err);
@@ -125,6 +196,7 @@ static uint8_t discover_func(struct bt_conn *conn, const struct bt_gatt_attr *at
 			     struct bt_gatt_discover_params *params)
 {
 	if (attr == NULL) {
+		LOG_INF("discover complete (attr=NULL) write_handle=0x%04x", write_handle);
 		memset(params, 0, sizeof(*params));
 		if (discover_conn) {
 			bt_conn_unref(discover_conn);
@@ -138,9 +210,15 @@ static uint8_t discover_func(struct bt_conn *conn, const struct bt_gatt_attr *at
 
 		svc_start_handle = attr->handle;
 		svc_end_handle = svc->end_handle;
+		LOG_INF("primary svc found: start=0x%04x end=0x%04x",
+			svc_start_handle, svc_end_handle);
 
 		memset(params, 0, sizeof(*params));
-		params->uuid = BT_UUID_LBS_MIN_WRITE;
+		/* Discover all characteristics in the service, then match the write
+		 * characteristic in code. Filtering by the 128-bit UUID at ATT level
+		 * can return nothing even when the characteristic exists.
+		 */
+		params->uuid = NULL;
 		params->func = discover_func;
 		params->start_handle = svc_start_handle + 1U;
 		params->end_handle = svc_end_handle;
@@ -155,6 +233,11 @@ static uint8_t discover_func(struct bt_conn *conn, const struct bt_gatt_attr *at
 
 	if (params->type == BT_GATT_DISCOVER_CHARACTERISTIC) {
 		const struct bt_gatt_chrc *chrc = attr->user_data;
+		char uuid_str[37];
+
+		bt_uuid_to_str(chrc->uuid, uuid_str, sizeof(uuid_str));
+		LOG_INF("chrc: value_handle=0x%04x props=0x%02x uuid=%s",
+			chrc->value_handle, chrc->properties, uuid_str);
 
 		if (bt_uuid_cmp(chrc->uuid, BT_UUID_LBS_MIN_WRITE) == 0) {
 			write_handle = chrc->value_handle;
@@ -298,6 +381,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 
 	LOG_INF("connected");
+	stop_blink();
 	discover_lbs_service(conn);
 }
 
@@ -314,6 +398,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	write_handle = 0U;
 	atomic_set(&write_busy, 0);
+	start_blink();
 	start_scan();
 }
 
@@ -328,6 +413,11 @@ int main(void)
 
 	remote_led_state = 0U;
 
+	err = init_status_led();
+	if (err) {
+		LOG_WRN("status led init failed: %d", err);
+	}
+
 	err = init_button();
 	if (err) {
 		LOG_WRN("button init failed: %d", err);
@@ -340,6 +430,7 @@ int main(void)
 	}
 
 	LOG_INF("bluetooth initialized");
+	start_blink();
 	start_scan();
 
 	for (;;) {
