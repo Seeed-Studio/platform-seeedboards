@@ -1,7 +1,14 @@
+/ {
+	chosen {
+		zephyr,display = &ssd1306_128x64;
+	};
+};
+
 &xiao_i2c {
-	ssd1306@3c {
+	ssd1306_128x64: ssd1306@3c {
 		compatible = "solomon,ssd1306";
 		reg = <0x3c>;
+		status = "okay";
 		width = <128>;
 		height = <64>;
 		segment-offset = <0>;
