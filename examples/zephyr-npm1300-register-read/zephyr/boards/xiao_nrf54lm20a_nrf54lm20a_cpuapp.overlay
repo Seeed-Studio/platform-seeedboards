@@ -1,0 +1,22 @@
+/*
+ * XIAO nRF54LM20A nPM1300 PMIC register-read sample.
+ *
+ * The board common DTS defines the PMIC node.  This overlay fixes the PMIC
+ * GPIO-I2C pins for the LM20A hardware revision used by the battery sample.
+ */
+
+&pmic_i2c {
+	sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+	scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+};
+
+&pmic_charger {
+	/*
+	 * Keep the LM20A board default charge settings explicit in this sample.
+	 * Raise current-microamp only after confirming the attached battery rating.
+	 */
+	term-microvolt = <4200000>;
+	current-microamp = <150000>;
+	vbus-limit-microamp = <500000>;
+	charging-enable;
+};
