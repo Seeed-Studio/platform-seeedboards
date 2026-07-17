@@ -1,4 +1,5 @@
 import sys
+import time
 from os.path import join
 
 from SCons.Script import ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild, Builder, Default, DefaultEnvironment
@@ -31,11 +32,26 @@ if env.get("PROGNAME", "program") == "program":
 
 env.Append(
     BUILDERS={
+        "ElfToBin": Builder(
+            action=env.VerboseAction(
+                "$OBJCOPY -O binary $SOURCES $TARGET", "Building $TARGET"
+            ),
+            suffix=".bin",
+        ),
         "ElfToHex": Builder(
             action=env.VerboseAction(
                 "$OBJCOPY -O ihex -R .eeprom $SOURCES $TARGET", "Building $TARGET"
             ),
             suffix=".hex",
+        ),
+        "BinToUf2": Builder(
+            action=env.VerboseAction(
+                '"$PYTHONEXE" "%s" -i $SOURCES -b ${UF2_BASE_ADDR} '
+                '--family-id ${UF2_FAMILY_ID} -o $TARGET'
+                % join(platform.get_dir(), "builder", "tools", "uf2conv.py"),
+                "Building $TARGET",
+            ),
+            suffix=".uf2",
         ),
     }
 )
@@ -64,6 +80,7 @@ else:
     env.Depends(target_firm, "checkprogsize")
 
 AlwaysBuild(env.Alias("nobuild", target_firm))
+target_buildprog_sources = [target_firm]
 target_size = env.AddPlatformTarget(
     "size",
     target_elf,
@@ -73,7 +90,47 @@ target_size = env.AddPlatformTarget(
 )
 
 debug_tools = board.get("debug.tools", {})
-if upload_protocol == "stlink":
+uf2_config = board.get("upload.uf2", {})
+if uf2_config or "uf2" in board.get("upload.protocols", []):
+    env.Replace(
+        UF2_BASE_ADDR=str(board.get("upload.offset_address", "0x08008000")),
+        UF2_FAMILY_ID=str(uf2_config.get("family_id", "0x00C5C5C5")),
+    )
+    target_bin = env.ElfToBin(join("$BUILD_DIR", "${PROGNAME}"), target_elf)
+    target_uf2 = env.BinToUf2(join("$BUILD_DIR", "${PROGNAME}"), target_bin)
+    env.AddPlatformTarget(
+        "uf2", target_uf2, [], "Build UF2 Image", "Build UF2 image for UF2 bootloader upload"
+    )
+    target_buildprog_sources.append(target_uf2)
+else:
+    target_uf2 = None
+
+target_buildprog = env.Alias("buildprog", target_buildprog_sources)
+
+if upload_protocol == "uf2":
+    tools_dir = join(platform.get_dir(), "builder", "tools")
+    volume_label = uf2_config.get("volume_label", "XIAOC5BOOT")
+    env.Replace(
+        UPLOADCMD='"$PYTHONEXE" "%s" "$SOURCE" --label %s --port "${UPLOAD_PORT}"'
+        % (join(tools_dir, "uf2upload.py"), volume_label),
+    )
+
+    def before_uf2_upload(target, source, env):  # pylint: disable=unused-argument
+        env.AutodetectUploadPort()
+        if board.get("upload.use_1200bps_touch", False):
+            env.TouchSerialPort("$UPLOAD_PORT", 1200)
+            time.sleep(0.5)
+
+    env.AddPlatformTarget(
+        "upload",
+        target_uf2,
+        [
+            env.VerboseAction(before_uf2_upload, "Triggering bootloader via 1200-bps touch"),
+            env.VerboseAction("$UPLOADCMD", "Uploading via UF2"),
+        ],
+        "Upload",
+    )
+elif upload_protocol == "stlink":
     env.Replace(
         UPLOADER="STM32_Programmer_CLI",
         UPLOADERFLAGS=[
@@ -105,4 +162,4 @@ elif upload_protocol == "custom":
 else:
     sys.stderr.write("Warning! Unknown upload protocol %s\n" % upload_protocol)
 
-Default([target_firm, target_size])
+Default([target_buildprog, target_size])
