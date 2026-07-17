@@ -259,6 +259,15 @@
         "3.40400.260428"
       ]
     },
+    "framework-zephyr-stm32c5": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40400.260428/framework-zephyr-3.40400.260428.tar.gz",
+      "optionalVersions": [
+        "3.40400.260428"
+      ]
+    },
     "tool-adafruit-nrfutil": {
       "owner": "platformio",
       "optional": true,

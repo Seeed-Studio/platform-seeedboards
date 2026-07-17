@@ -45,6 +45,7 @@ ZEPHYR_PACKAGE_BY_BOARD = {
     "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
     "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
     "seeed-xiao-nrf54lm20b": "framework-zephyr-nrf54lm20",
+    "seeed-xiao-stm32c5": "framework-zephyr-stm32c5",
 }
 
 class SeeedstudioPlatform(PlatformBase):
