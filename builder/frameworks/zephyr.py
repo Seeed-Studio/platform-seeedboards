@@ -490,6 +490,23 @@ _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 
+if board_name == "seeed-xiao-stm32c5":
+    source_module_dir = join(platform_dir, "zephyr", "modules", "uf2_dfu_reset")
+    target_module_dir = join(framework_dir, "_pio", "modules", "uf2_dfu_reset")
+    if os.path.isdir(source_module_dir):
+        if os.path.exists(target_module_dir):
+            if os.path.isdir(target_module_dir):
+                shutil.rmtree(target_module_dir)
+            else:
+                os.remove(target_module_dir)
+        shutil.copytree(source_module_dir, target_module_dir)
+        extra_modules = [
+            value for value in os.environ.get("ZEPHYR_EXTRA_MODULES", "").split(";")
+            if value
+        ]
+        extra_modules.append(target_module_dir)
+        os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(extra_modules)
+
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
     

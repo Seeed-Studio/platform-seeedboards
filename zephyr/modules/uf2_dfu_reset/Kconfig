@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config UF2_DFU_RESET
+	bool "Enable TinyUF2 1200-bps bootloader auto-trigger"
+	default y
+	help
+	  Arms a minimal on-chip USB CDC ACM stack (built on the STM32C5
+	  HAL NG PCD API) so that when the host opens the serial port
+	  at 1200 baud, the application writes the TinyUF2 DBL_TAP_MAGIC
+	  to the top of SRAM and resets into the bootloader.  No manual
+	  RESET double-tap required.
+
+	  The STM32C5 HAL NG PCD API is incompatible with Zephyr's USB
+	  drivers, so this module provides its own minimal USB CDC ACM
+	  implementation and initializes it automatically via SYS_INIT().
