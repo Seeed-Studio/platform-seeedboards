@@ -75,6 +75,8 @@ class SeeedstudioPlatform(PlatformBase):
             Architecture = "samd"
         if "mg24" in board_name:
             Architecture = "siliconlab"
+        if "stm32" in board_name:
+            Architecture = "stm32"
 
         if Architecture:
             try:
@@ -297,6 +299,8 @@ class SeeedstudioPlatform(PlatformBase):
             Architecture = "samd"
         if "mg24" in board_name:
             Architecture = "siliconlab"
+        if "stm32" in board_name:
+            Architecture = "stm32"
 
         if Architecture:
             # 动态导入板子配置函数
