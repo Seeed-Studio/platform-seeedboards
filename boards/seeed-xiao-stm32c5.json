@@ -1,0 +1,44 @@
+{
+    "build": {
+        "cpu": "cortex-m33",
+        "f_cpu": "144000000L",
+        "hwids": [
+            [
+                "0x2886",
+                "0x00C5"
+            ]
+        ],
+        "mcu": "stm32c5a3cg",
+        "zephyr": {
+            "variant": "xiao_stm32c5"
+        }
+    },
+    "debug": {
+        "default_tools": [
+            "stlink"
+        ],
+        "openocd_target": "stm32c5x.cfg"
+    },
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "Seeed Studio XIAO STM32C5",
+    "upload": {
+        "maximum_ram_size": 262144,
+        "maximum_size": 1048576,
+        "offset_address": "0x08008000",
+        "protocol": "uf2",
+        "protocols": [
+            "uf2",
+            "stlink"
+        ],
+        "require_upload_port": true,
+        "uf2": {
+            "volume_label": "XIAOC5BOOT",
+            "family_id": "0x00C5C5C5"
+        },
+        "use_1200bps_touch": true
+    },
+    "url": "https://wiki.seeedstudio.com/xiao_stm32c5_getting_started",
+    "vendor": "Seeed Studio"
+}
