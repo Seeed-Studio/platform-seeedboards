@@ -43,6 +43,10 @@ if board_name and "nrf" in board_name:
     env.Replace(
         PIOPLATFORM="nordicnrf52"
     )
+if board_name and "stm32" in board_name:
+    env.Replace(
+        PIOPLATFORM="ststm32"
+    )
 # Clone hal_nordic package from west.yaml if not present
 framework_dir = platform.get_package_dir(framework_package_name)
 platform_dir = platform.get_dir()
@@ -424,9 +428,13 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
     remotes = {r["name"]: r for r in manifest.get("remotes", [])}
     default_remote = manifest.get("defaults", {}).get("remote", "")
 
-    # Only pre-install for platforms that need hal_nordic (nordicnrf52, etc.)
-    hal_platforms = {"nordicnrf52", "nordicnrf51"}
-    if platform_name_hint not in hal_platforms:
+    hal_modules_by_platform = {
+        "nordicnrf52": {"hal_nordic"},
+        "nordicnrf51": {"hal_nordic"},
+        "ststm32": {"hal_st", "hal_stm32"},
+    }
+    required_hal_modules = hal_modules_by_platform.get(platform_name_hint)
+    if not required_hal_modules:
         return
 
     print("Pre-installing Zephyr west dependencies (with retry)...")
@@ -439,8 +447,9 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
         if proj_path.startswith("tool") or name.startswith("nrf_hw_"):
             continue
 
-        # Only install HAL packages needed for nordic
-        if name.startswith("hal_") and name != "hal_nordic":
+        # Only install HAL packages needed by the selected platform. Core
+        # west modules, including cmsis and cmsis_6, are installed normally.
+        if name.startswith("hal_") and name not in required_hal_modules:
             continue
 
         dst = join(pio_dir, proj_path)
@@ -485,6 +494,10 @@ SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
     
 if board_name and "nrf" in board_name:
+    env.Replace(
+        PIOPLATFORM=platform_name
+    )
+if board_name and "stm32" in board_name:
     env.Replace(
         PIOPLATFORM=platform_name
     )
