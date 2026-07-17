@@ -24,6 +24,7 @@ import subprocess
 import os
 import json
 import shutil
+import sys
 from SCons.Script import Import, SConscript
 try:
     import yaml
@@ -506,6 +507,12 @@ if board_name == "seeed-xiao-stm32c5":
         ]
         extra_modules.append(target_module_dir)
         os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(extra_modules)
+
+if board_name == "seeed-xiao-stm32c5":
+    sys.path.insert(0, join(platform_dir, "builder", "frameworks"))
+    from zephyr_patch import apply_framework_patches
+
+    apply_framework_patches(platform_dir, framework_dir)
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
