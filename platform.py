@@ -45,7 +45,24 @@ ZEPHYR_PACKAGE_BY_BOARD = {
     "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
     "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
     "seeed-xiao-nrf54lm20b": "framework-zephyr-nrf54lm20",
-    "seeed-xiao-stm32c5": "framework-zephyr-stm32c5",
+    # seeed-xiao-stm32c5 shares the exact same Zephyr 4.4.0 tarball as nrf54lm20
+    # (identical content), so it maps to framework-zephyr-nrf54lm20 directly. No
+    # separate framework-zephyr-stm32c5 package is shipped — PlatformIO would
+    # URL-dedupe an identically-versioned package into the nrf54lm20 dir anyway,
+    # leaving the name misleading. STM32C5 specifics (pinctrl via the hal_stm32
+    # west module; udc/xspi/adc overrides) come in per-board via zephyr/fixes.yml.
+    "seeed-xiao-stm32c5": "framework-zephyr-nrf54lm20",
+}
+
+# Maps a PIO board id to its Zephyr board.name (e.g. "seeed-xiao-stm32c5" ->
+# "xiao_stm32c5"). Used by the fixes dispatcher to locate per-board fixes
+# under zephyr/{patches,overrides}/<board.name>/. Must stay in sync with the
+# board directories under zephyr/boards/arm/.
+ZEPHYR_BOARD_NAME_BY_BOARD = {
+    "seeed-xiao-nrf54l15": "xiao_nrf54l15",
+    "seeed-xiao-nrf54lm20a": "xiao_nrf54lm20a",
+    "seeed-xiao-nrf54lm20b": "xiao_nrf54lm20b",
+    "seeed-xiao-stm32c5": "xiao_stm32c5",
 }
 
 class SeeedstudioPlatform(PlatformBase):
@@ -109,6 +126,13 @@ class SeeedstudioPlatform(PlatformBase):
 
         self.frameworks["zephyr"]["package"] = package_name
 
+        if board_name == "seeed-xiao-stm32c5":
+            # STM32C5 reuses framework-zephyr-nrf54lm20 (same Zephyr 4.4.0 tarball;
+            # no separate c5 package is shipped). STM32C5-specific fixes are applied
+            # per-board via zephyr/fixes.yml by builder/frameworks/zephyr_fixes.py.
+            print("Zephyr: seeed-xiao-stm32c5 reuses framework-zephyr-nrf54lm20 "
+                  "(same Zephyr 4.4.0 tarball; STM32C5 specifics via zephyr/fixes.yml)")
+
     def get_zephyr_package_name(self, board_name=None):
         if board_name:
             return ZEPHYR_PACKAGE_BY_BOARD.get(
@@ -120,6 +144,14 @@ class SeeedstudioPlatform(PlatformBase):
         if package_name:
             return package_name
         return "framework-zephyr-nrf54lm20"
+
+    def get_zephyr_board_name(self, board_name):
+        """Return the Zephyr board.name (e.g. 'xiao_stm32c5') for a PIO board id.
+
+        Used to locate per-board fixes under zephyr/{patches,overrides}/<board>/.
+        Returns '' if the board has no mapping (no local fixes dir to apply).
+        """
+        return ZEPHYR_BOARD_NAME_BY_BOARD.get(board_name, "")
 
     def _iter_required_esp_tools(self):
         return [

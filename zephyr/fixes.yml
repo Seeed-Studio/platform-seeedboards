@@ -1,0 +1,68 @@
+# =============================================================================
+# zephyr/fixes.yml — 对 framework-zephyr 包的本地修复登记表（唯一真相源）
+# =============================================================================
+#
+# builder/frameworks/zephyr_fixes.py 读取本文件，对当前板对应的 framework-zephyr
+# 包应用其中登记的修复。按两级门控：
+#   1) 板/package 门控：只取 boards[<board.name>] 节（找不到 = 该板无修复，跳过）
+#   2) 版本门控：       只应用 applies_to 命中当前 Zephyr 版本的条目
+#
+# 目录约定（源文件位置，板子维度在 patches/overrides 内部分一层）：
+#   patch    源文件 = zephyr/patches/<board>/<fix.path>
+#   override 源文件 = zephyr/overrides/<board>/<fix.path>
+#   override 的 <fix.path> 同时 = 它在 framework 包内的相对目标路径（与 target 一致）
+#
+# 字段说明：
+#   id            稳定标识，用于日志
+#   type          patch | override
+#   path          patch: 相对 patches/<board>/ 的文件名
+#                 override: 相对 overrides/<board>/ 的路径（= framework 包内 target）
+#   target        framework 包内被修改/覆盖的目标文件（相对 framework 根）
+#   applies_to    适用的 Zephyr 版本列表：精确版本（如 "4.4.0"）或 PEP 440 范围（如 ">=4.4,<4.6"）
+#   upstream      对应的上游 PR/issue 链接，升级时核对是否已合入（可选）
+#   baseline_sha  上游目标文件的 sha256（仅 override，可选）；apply 前校验，不符则告警
+#                 以防 framework 包升级后整文件覆盖造成 silent regression
+#   reason        简述为何需要此修复
+# =============================================================================
+
+boards:
+  xiao_stm32c5:
+    fixes:
+      - id: adc-pcsel
+        type: patch
+        path: 0001-adc-stm32-fix-pcsel-channel-preselection.patch
+        target: drivers/adc/adc_stm32.c
+        applies_to: ["4.4.0"]
+        reason: >
+          STM32 ADC 驱动 PCSEL（通道预选）用经 STM32_ADC_DECIMAL_NB_TO_CHANNEL
+          转换后的 channel 值当位掩码，应为 BIT(channel_id)；多通道 ADC 配置异常。
+
+      - id: udc-stm32-hal2
+        type: override
+        path: drivers/usb/udc/udc_stm32.c
+        target: drivers/usb/udc/udc_stm32.c
+        applies_to: ["4.4.0"]
+        baseline_sha: "cce3ae86dfb457878053278f5b2a84e24b4135330b44bc2dc248e3db249565df"
+        upstream: "https://github.com/zephyrproject-rtos/zephyr/pull/105957"
+        reason: >
+          上游 udc_stm32.c 在 Zephyr 4.4.0 不含 STM32C5 HAL2 USB 支持（PR#105957
+          在 4.4.0 之后才合入）。本 override 是把该 PR 的 HAL2 双分支 backport 到
+          4.4.0 的整文件副本，是 XIAO STM32C5 USB CDC / 1200-bps UF2 触发的必需依赖。
+
+      - id: flash-stm32-xspi-c
+        type: override
+        path: drivers/flash/flash_stm32_xspi.c
+        target: drivers/flash/flash_stm32_xspi.c
+        applies_to: ["4.4.0"]
+        baseline_sha: "8cfca7e4af3a6b5f8e24900e90ff425702e912efecc1f3b42a36a39274c0b0c4"
+        reason: >
+          上游 Zephyr 4.4.0 缺少 STM32C5 XSPI flash 驱动支持；本 override 为带
+          STM32C5 支持的整文件副本，供 XSPI1 外挂 NOR flash（PY25Q128HA）使用。
+
+      - id: flash-stm32-xspi-h
+        type: override
+        path: drivers/flash/flash_stm32_xspi.h
+        target: drivers/flash/flash_stm32_xspi.h
+        applies_to: ["4.4.0"]
+        baseline_sha: "0bf20f12282191169efeaa650549ffad3b168fc4b49a797d29f844da3adcf474"
+        reason: flash-stm32-xspi-c 对应的头文件，随驱动一起 override。

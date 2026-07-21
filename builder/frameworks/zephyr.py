@@ -508,11 +508,15 @@ if board_name == "seeed-xiao-stm32c5":
         extra_modules.append(target_module_dir)
         os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(extra_modules)
 
-if board_name == "seeed-xiao-stm32c5":
-    sys.path.insert(0, join(platform_dir, "builder", "frameworks"))
-    from zephyr_patch import apply_framework_patches
+# Apply per-board Zephyr fixes (patches + overrides) registered in
+# zephyr/fixes.yml. Dispatched by zephyr_fixes.py — boards absent from the
+# manifest get no fixes, so there is no coupling across boards/packages.
+sys.path.insert(0, join(platform_dir, "builder", "frameworks"))
+from zephyr_fixes import apply_all
 
-    apply_framework_patches(platform_dir, framework_dir)
+apply_all(platform_dir, framework_dir,
+          platform.get_zephyr_board_name(board_name),
+          _get_framework_version())
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")

@@ -1,21 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+"""
+Zephyr framework patch applier (执行器 A).
+
+Pure executor: applies one unified-diff patch to the framework-zephyr package.
+Reads no manifest, knows nothing about board/version, does no directory scan —
+it only receives "which patch, to which framework root". Idempotent: a hunk
+already present is skipped.
+
+Dispatched by builder/frameworks/zephyr_fixes.py. Interface:
+    apply_patch(src_patch, framework_dir, target_relpath=None)
+"""
+
 import os
 from os.path import join
 
 
-def apply_framework_patches(platform_dir, framework_dir):
-    patches_root = join(platform_dir, "zephyr", "patches", "framework-zephyr")
-    if not os.path.isdir(patches_root):
-        return
+def apply_patch(src_patch, framework_dir, target_relpath=None):
+    """Apply a unified-diff patch to the framework package (idempotent).
 
-    for patch_name in sorted(os.listdir(patches_root)):
-        if not patch_name.endswith(".patch"):
-            continue
+    Each hunk's target file is determined by its ``+++`` line (stripped of a/ b/
+    prefixes), relative to framework_dir. target_relpath is informational only
+    (for logs); it does not override the patch's own paths.
 
-        patch_path = join(patches_root, patch_name)
-        stats = _apply_unified_patch(patch_path, framework_dir)
-        if stats["applied"] > 0:
-            print("Applied Zephyr patch: %s" % patch_name)
+    Returns: {"applied": int, "already-applied": int}.
+    Raises RuntimeError if a hunk does not match (build should fail).
+    """
+    stats = _apply_unified_patch(src_patch, framework_dir)
+    name = os.path.basename(src_patch)
+    if stats["applied"] > 0:
+        print("Applied Zephyr patch: %s (%d hunk(s))" % (name, stats["applied"]))
+    elif stats["already-applied"] > 0:
+        print("Patch already applied, skipped: %s" % name)
+    return stats
 
+
+# --- idempotent unified-diff application (unchanged from original impl) ---
 
 def _strip_patch_path(path):
     if path.startswith("a/") or path.startswith("b/"):
