@@ -63,6 +63,38 @@ def filter_projects_by_prefix(projects: list[Path], allowed_prefixes: tuple[str,
     return filtered
 
 
+def project_uses_framework(project_dir: Path, framework: str) -> bool:
+    """True if the project's platformio.ini selects the given framework.
+
+    Reads the `framework =` line (case-insensitive, comma-separated). Selecting
+    by framework content rather than by directory-name prefix covers board-grouped
+    layouts like examples/seeed-xiao-stm32c5/zephyr-blink whose first path segment
+    is the board name, not "zephyr-".
+    """
+    ini = project_dir / "platformio.ini"
+    if not ini.is_file():
+        return False
+    text = ini.read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or stripped.startswith("#"):
+            continue
+        m = re.match(r"^framework\s*=\s*(.+?)\s*$", stripped, flags=re.IGNORECASE)
+        if m:
+            frameworks = [f.strip() for f in m.group(1).split(",")]
+            return framework in frameworks
+    return False
+
+
+def filter_by_framework(projects: list[Path], framework: str) -> list[Path]:
+    """Return projects whose platformio.ini selects the given framework.
+
+    Replaces prefix-based filtering for framework-specific CI builds so new
+    boards don't require a filter edit each time.
+    """
+    return [p for p in projects if project_uses_framework(p, framework)]
+
+
 def should_override_platform(ini_text: str) -> bool:
     for line in ini_text.splitlines():
         stripped = line.strip()

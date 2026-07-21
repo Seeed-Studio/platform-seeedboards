@@ -6,7 +6,7 @@ import sys
 
 from _examples_build_lib import (
     build_projects,
-    filter_projects_by_prefix,
+    filter_by_framework,
     find_platformio_projects,
     make_argparser,
     repo_root,
@@ -23,7 +23,7 @@ def main(argv: list[str]) -> int:
         return 2
 
     projects = find_platformio_projects(examples_dir)
-    projects = filter_projects_by_prefix(projects, allowed_prefixes=("zephyr-",))
+    projects = filter_by_framework(projects, framework="zephyr")
     if not projects:
         print(f"No Zephyr projects found under: {examples_dir}", file=sys.stderr)
         return 2
