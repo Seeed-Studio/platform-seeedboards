@@ -9,10 +9,12 @@
  * The bootloader sees the magic on the next boot and enters DFU mode,
  * eliminating the need to manually double-tap the RESET button.
  *
- * USB is driven by Zephyr's standard UDC + CDC ACM stack (udc_stm32.c,
- * patched for the STM32C5 HAL2 API — see zephyr/overrides/). This module
- * only registers the line-coding (DTE-rate) callback that detects the
- * 1200-baud touch and arms the reset; it does not touch the USB hardware.
+ * USB is driven by Zephyr's standard UDC + CDC ACM stack (udc_stm32.c).
+ * The STM32C5 HAL2 backport of udc_stm32.c (upstream PR #105957) is
+ * registered as an override in zephyr/fixes.yml (udc-stm32-hal2). This
+ * module only registers the line-coding (DTE-rate) callback that detects
+ * the 1200-baud touch and arms the reset; it does not touch the USB
+ * hardware.
  *
  * Magic register: 0x2003FFFC (top of 256 KB SRAM minus 4 bytes).
  * Magic value:    0xf01669ef (DBL_TAP_MAGIC, 32-bit register size).

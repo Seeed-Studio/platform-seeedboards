@@ -21,9 +21,10 @@ CONFIG_USE_DT_CODE_PARTITION=y
 CONFIG_INIT_ARCH_HW_AT_BOOT=y
 
 # USB device stack (new stack / UDC). The STM32C5 USB DRD FS peripheral is
-# driven by the standard udc_stm32.c driver (HAL2-patched, carried under
-# zephyr/overrides/ — upstream Zephyr only gained STM32C5 USB support in
-# PR #105957, post-4.4.0). The 1200-bps UF2 trigger rides on top of this.
+# driven by the standard udc_stm32.c driver, whose STM32C5 HAL2 backport
+# (upstream PR #105957, post-4.4.0) is carried as an override registered
+# in zephyr/fixes.yml (udc-stm32-hal2). The 1200-bps UF2 trigger rides on
+# top of this.
 CONFIG_USB_DEVICE_STACK_NEXT=y
 
 # CDC ACM class (virtual serial port) + line control (baudrate read, used by

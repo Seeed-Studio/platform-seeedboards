@@ -138,9 +138,9 @@
 	 *
 	 * Driven by Zephyr's standard UDC driver (udc_stm32.c). The upstream
 	 * driver only gained STM32C5 HAL2 support after the 4.4.0 release
-	 * (Zephyr PR #105957), so platform-seeedboards carries a patched copy
-	 * of udc_stm32.c under zephyr/overrides/ that the builder applies
-	 * onto the framework-zephyr package at build time.
+	 * (Zephyr PR #105957); the HAL2 backport is carried as an override
+	 * registered in zephyr/fixes.yml (udc-stm32-hal2) and applied to the
+	 * framework-zephyr package at build time.
 	 */
 	usb: usb@40016000 {
 		compatible = "st,stm32-usb";

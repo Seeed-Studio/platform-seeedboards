@@ -4,12 +4,14 @@ config UF2_DFU_RESET
 	bool "Enable TinyUF2 1200-bps bootloader auto-trigger"
 	default y
 	help
-	  Arms a minimal on-chip USB CDC ACM stack (built on the STM32C5
-	  HAL NG PCD API) so that when the host opens the serial port
-	  at 1200 baud, the application writes the TinyUF2 DBL_TAP_MAGIC
-	  to the top of SRAM and resets into the bootloader.  No manual
-	  RESET double-tap required.
+	  Brings up Zephyr's standard USB device stack (UDC) + CDC ACM class
+	  automatically at boot via SYS_INIT(), so the host sees a virtual
+	  serial port. When that port is opened at 1200 baud, the module writes
+	  the TinyUF2 DBL_TAP_MAGIC to the top of SRAM and resets into the
+	  bootloader — no manual RESET double-tap required.
 
-	  The STM32C5 HAL NG PCD API is incompatible with Zephyr's USB
-	  drivers, so this module provides its own minimal USB CDC ACM
-	  implementation and initializes it automatically via SYS_INIT().
+	  The STM32C5 USB DRD FS peripheral is driven by the standard
+	  udc_stm32.c driver; its STM32C5 HAL2 support (upstream Zephyr PR
+	  #105957, post-4.4.0) is carried as an override registered in
+	  zephyr/fixes.yml (udc-stm32-hal2). This module only registers the
+	  line-coding callback and does not implement its own USB stack.
