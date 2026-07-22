@@ -1,8 +1,8 @@
 # Copyright (c) 2025 Seeed Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-identifier:xiao_nrf54lm20b/nrf54lm20a/cpuapp
-name: XIAO nRF54LM20B-nRF54LM20A-Application
+identifier: xiao_nrf54lm20b/nrf54lm20b/cpuapp
+name: XIAO nRF54LM20B Application
 type: mcu
 arch: arm
 toolchain:

@@ -6,8 +6,8 @@
 
 /* This file is common to the secure and non-secure domain */
 
-#include <nordic/nrf54lm20a_cpuapp.dtsi>
-#include "xiao_nrf54lm20b_nrf54lm20a-common.dtsi"
+#include <nordic/nrf54lm20b_cpuapp.dtsi>
+#include "xiao_nrf54lm20b_nrf54lm20b-common.dtsi"
 
 / {
 	power_en: power_en {
@@ -18,11 +18,11 @@
 	};
 
 	chosen {
-		zephyr,console = &uart20;
-		zephyr,shell-uart = &uart20;
-		zephyr,uart-mcumgr = &uart20;
-		zephyr,bt-mon-uart = &uart20;
-		zephyr,bt-c2h-uart = &uart20;
+		zephyr,console = &cdc_acm_uart;
+		zephyr,shell-uart = &cdc_acm_uart;
+		zephyr,uart-mcumgr = &cdc_acm_uart;
+		zephyr,bt-mon-uart = &cdc_acm_uart;
+		zephyr,bt-c2h-uart = &cdc_acm_uart;
 		zephyr,flash-controller = &rram_controller;
 		zephyr,flash = &cpuapp_rram;
 		zephyr,ieee802154 = &ieee802154;
@@ -39,7 +39,7 @@
 
 &lfxo {
 	load-capacitors = "internal";
-	load-capacitance-femtofarad = <17000>;
+	load-capacitance-femtofarad = <16000>;
 	status = "okay";
 };
 
@@ -52,6 +52,10 @@
 &vregmain {
 	status = "okay";
 	regulator-initial-mode = <NRF5X_REG_MODE_DCDC>;
+};
+
+&vregusb {
+	status = "okay";
 };
 
 &grtc {
@@ -99,10 +103,6 @@
 	};
 };
 
-&uart20 {
-	status = "okay";
-};
-
 &nfct {
 	status = "okay";
 };
@@ -145,6 +145,10 @@
 
 zephyr_udc0: &usbhs {
 	status = "okay";
+
+	cdc_acm_uart: cdc_acm_uart {
+		compatible = "zephyr,cdc-acm-uart";
+	};
 };
 
 /* SPI Flash: PY25Q128HA (128Mbit) — upgraded from PY25Q64HA (64Mbit)
@@ -187,6 +191,10 @@ zephyr_udc0: &usbhs {
 };
 
 &spi23 {
+	status = "okay";
+};
+
+&uart20 {
 	status = "okay";
 };
 
