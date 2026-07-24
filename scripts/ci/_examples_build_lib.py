@@ -136,25 +136,37 @@ def extract_env_names(ini_text: str) -> list[str]:
 
 
 def write_override_project_conf(project_dir: Path, ini_text: str, local_platform: str) -> Path:
-    """Create a temporary PlatformIO config that includes the original and overrides platform.
+    """Create a temporary PlatformIO config with repo platform URLs made local.
 
-    PlatformIO's `pio run` supports selecting a config via `--project-conf`.
-    We use `extra_configs` to include the original `platformio.ini` and then
-    redefine `platform` for each env to ensure the local platform is used.
+    PlatformIO loads ``extra_configs`` after the main configuration, so an
+    override file that includes the original ``platformio.ini`` can let the
+    original remote URL win.  Write a copy instead and replace matching platform
+    URL values in place, preserving every other project setting.
     """
     override_path = project_dir / ".pio-ci.platformio.ini"
-    envs = extract_env_names(ini_text)
-
+    platform_line = re.compile(
+        r"^(?P<prefix>\s*platform\s*=\s*)(?P<value>.*?)(?P<suffix>\s*)$",
+        flags=re.IGNORECASE,
+    )
     lines: list[str] = []
-    lines.append("[platformio]\n")
-    # The override file lives in the same directory as the original platformio.ini
-    lines.append("extra_configs = platformio.ini\n\n")
+    replaced = False
+    for line in ini_text.splitlines(keepends=True):
+        newline = "\n" if line.endswith("\n") else ""
+        content = line[:-1] if newline else line
+        match = platform_line.match(content)
+        if match and any(
+            match.group("value").strip().startswith(prefix)
+            for prefix in REPO_PLATFORM_URL_PREFIXES
+        ):
+            lines.append(
+                f"{match.group('prefix')}{local_platform}{match.group('suffix')}{newline}"
+            )
+            replaced = True
+        else:
+            lines.append(line)
 
-    # Force platform for each env so it wins over any env-specific setting.
-    for env in envs:
-        lines.append(f"[env:{env}]\n")
-        lines.append(f"platform = {local_platform}\n\n")
-
+    if not replaced:
+        raise RuntimeError("Unable to replace the repository platform URL in platformio.ini")
     override_path.write_text("".join(lines), encoding="utf-8")
     return override_path
 
