@@ -1,0 +1,2 @@
+# Firmware checksums must be stable across Windows, macOS, and Linux checkouts.
+scripts/factory_reset/*.hex -text
