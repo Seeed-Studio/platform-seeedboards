@@ -72,3 +72,35 @@ cd scripts/factory_reset
 bash recover_only.sh
 ```
 
+## Recovery Firmware for XIAO nRF54LM20A
+
+For XIAO nRF54LM20A boards, use the dedicated recovery scripts to remove
+APPROTECT, erase application flash, and program a known-good Zephyr blink
+firmware. This is a recovery image, not the factory test firmware and not a
+full restoration of manufacturing data.
+
+The recovery image is built from `examples/zephyr-blink` using the
+`seeed-xiao-nrf54lm20a` environment. Its SHA-256 checksum is recorded in
+`scripts/factory_reset/firmware_lm20a_blink.sha256`.
+
+The scripts reuse PlatformIO Core's `tool-openocd` package. If it is not
+already present, PlatformIO installs that package; no separate pyOCD virtual
+environment is created.
+
+Windows:
+
+```powershell
+cd scripts\factory_reset
+.\factory_reset_lm20a.bat
+```
+
+Linux / macOS:
+
+```bash
+cd scripts/factory_reset
+bash factory_reset_lm20a.sh
+```
+
+When more than one CMSIS-DAP probe is connected, pass its unique ID as the
+first argument to the script.
+
