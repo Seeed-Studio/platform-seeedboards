@@ -54,8 +54,9 @@
 		compatible = "gpio-i2c";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		sda-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
-		scl-gpios = <&gpio1 16 GPIO_ACTIVE_HIGH>;
+		/* PMIC I2C: P1.18 = SDA, P1.17 = SCL. */
+		sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+		scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
 		clock-frequency = <100000>;
 		status = "okay";
 
