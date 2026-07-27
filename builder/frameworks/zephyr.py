@@ -24,6 +24,7 @@ import subprocess
 import os
 import json
 import shutil
+import sys
 from SCons.Script import Import, SConscript
 try:
     import yaml
@@ -42,6 +43,10 @@ framework_version = None
 if board_name and "nrf" in board_name:
     env.Replace(
         PIOPLATFORM="nordicnrf52"
+    )
+if board_name and "stm32" in board_name:
+    env.Replace(
+        PIOPLATFORM="ststm32"
     )
 # Clone hal_nordic package from west.yaml if not present
 framework_dir = platform.get_package_dir(framework_package_name)
@@ -424,9 +429,13 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
     remotes = {r["name"]: r for r in manifest.get("remotes", [])}
     default_remote = manifest.get("defaults", {}).get("remote", "")
 
-    # Only pre-install for platforms that need hal_nordic (nordicnrf52, etc.)
-    hal_platforms = {"nordicnrf52", "nordicnrf51"}
-    if platform_name_hint not in hal_platforms:
+    hal_modules_by_platform = {
+        "nordicnrf52": {"hal_nordic"},
+        "nordicnrf51": {"hal_nordic"},
+        "ststm32": {"hal_st", "hal_stm32"},
+    }
+    required_hal_modules = hal_modules_by_platform.get(platform_name_hint)
+    if not required_hal_modules:
         return
 
     print("Pre-installing Zephyr west dependencies (with retry)...")
@@ -439,8 +448,9 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
         if proj_path.startswith("tool") or name.startswith("nrf_hw_"):
             continue
 
-        # Only install HAL packages needed for nordic
-        if name.startswith("hal_") and name != "hal_nordic":
+        # Only install HAL packages needed by the selected platform. Core
+        # west modules, including cmsis and cmsis_6, are installed normally.
+        if name.startswith("hal_") and name not in required_hal_modules:
             continue
 
         dst = join(pio_dir, proj_path)
@@ -481,10 +491,50 @@ _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 
+if board_name == "seeed-xiao-stm32c5":
+    # Copy every bundled Zephyr module under zephyr/modules/ into the framework
+    # package and register each via ZEPHYR_EXTRA_MODULES, which is Zephyr's
+    # official way to inject modules outside the west manifest (each module's
+    # zephyr/module.yml is then discovered normally). Add a new module by
+    # simply dropping it under zephyr/modules/<name>/ — no edit needed here.
+    modules_root = join(platform_dir, "zephyr", "modules")
+    if os.path.isdir(modules_root):
+        extra_modules = [
+            value for value in os.environ.get("ZEPHYR_EXTRA_MODULES", "").split(";")
+            if value
+        ]
+        for entry in os.listdir(modules_root):
+            source_module_dir = join(modules_root, entry)
+            if not os.path.isdir(source_module_dir):
+                continue
+            target_module_dir = join(framework_dir, "_pio", "modules", entry)
+            if os.path.exists(target_module_dir):
+                if os.path.isdir(target_module_dir):
+                    shutil.rmtree(target_module_dir)
+                else:
+                    os.remove(target_module_dir)
+            shutil.copytree(source_module_dir, target_module_dir)
+            extra_modules.append(target_module_dir)
+        os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(extra_modules)
+
+# Apply per-board Zephyr fixes (patches + overrides) registered in
+# zephyr/fixes.yml. Dispatched by zephyr_fixes.py — boards absent from the
+# manifest get no fixes, so there is no coupling across boards/packages.
+sys.path.insert(0, join(platform_dir, "builder", "frameworks"))
+from zephyr_fixes import apply_all
+
+apply_all(platform_dir, framework_dir,
+          platform.get_zephyr_board_name(board_name),
+          _get_framework_version())
+
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
     
 if board_name and "nrf" in board_name:
+    env.Replace(
+        PIOPLATFORM=platform_name
+    )
+if board_name and "stm32" in board_name:
     env.Replace(
         PIOPLATFORM=platform_name
     )

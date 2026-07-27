@@ -63,6 +63,38 @@ def filter_projects_by_prefix(projects: list[Path], allowed_prefixes: tuple[str,
     return filtered
 
 
+def project_uses_framework(project_dir: Path, framework: str) -> bool:
+    """True if the project's platformio.ini selects the given framework.
+
+    Reads the `framework =` line (case-insensitive, comma-separated). Selecting
+    by framework content rather than by directory-name prefix covers board-grouped
+    layouts like examples/seeed-xiao-stm32c5/zephyr-blink whose first path segment
+    is the board name, not "zephyr-".
+    """
+    ini = project_dir / "platformio.ini"
+    if not ini.is_file():
+        return False
+    text = ini.read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or stripped.startswith("#"):
+            continue
+        m = re.match(r"^framework\s*=\s*(.+?)\s*$", stripped, flags=re.IGNORECASE)
+        if m:
+            frameworks = [f.strip() for f in m.group(1).split(",")]
+            return framework in frameworks
+    return False
+
+
+def filter_by_framework(projects: list[Path], framework: str) -> list[Path]:
+    """Return projects whose platformio.ini selects the given framework.
+
+    Replaces prefix-based filtering for framework-specific CI builds so new
+    boards don't require a filter edit each time.
+    """
+    return [p for p in projects if project_uses_framework(p, framework)]
+
+
 def should_override_platform(ini_text: str) -> bool:
     for line in ini_text.splitlines():
         stripped = line.strip()
@@ -104,25 +136,37 @@ def extract_env_names(ini_text: str) -> list[str]:
 
 
 def write_override_project_conf(project_dir: Path, ini_text: str, local_platform: str) -> Path:
-    """Create a temporary PlatformIO config that includes the original and overrides platform.
+    """Create a temporary PlatformIO config with repo platform URLs made local.
 
-    PlatformIO's `pio run` supports selecting a config via `--project-conf`.
-    We use `extra_configs` to include the original `platformio.ini` and then
-    redefine `platform` for each env to ensure the local platform is used.
+    PlatformIO loads ``extra_configs`` after the main configuration, so an
+    override file that includes the original ``platformio.ini`` can let the
+    original remote URL win.  Write a copy instead and replace matching platform
+    URL values in place, preserving every other project setting.
     """
     override_path = project_dir / ".pio-ci.platformio.ini"
-    envs = extract_env_names(ini_text)
-
+    platform_line = re.compile(
+        r"^(?P<prefix>\s*platform\s*=\s*)(?P<value>.*?)(?P<suffix>\s*)$",
+        flags=re.IGNORECASE,
+    )
     lines: list[str] = []
-    lines.append("[platformio]\n")
-    # The override file lives in the same directory as the original platformio.ini
-    lines.append("extra_configs = platformio.ini\n\n")
+    replaced = False
+    for line in ini_text.splitlines(keepends=True):
+        newline = "\n" if line.endswith("\n") else ""
+        content = line[:-1] if newline else line
+        match = platform_line.match(content)
+        if match and any(
+            match.group("value").strip().startswith(prefix)
+            for prefix in REPO_PLATFORM_URL_PREFIXES
+        ):
+            lines.append(
+                f"{match.group('prefix')}{local_platform}{match.group('suffix')}{newline}"
+            )
+            replaced = True
+        else:
+            lines.append(line)
 
-    # Force platform for each env so it wins over any env-specific setting.
-    for env in envs:
-        lines.append(f"[env:{env}]\n")
-        lines.append(f"platform = {local_platform}\n\n")
-
+    if not replaced:
+        raise RuntimeError("Unable to replace the repository platform URL in platformio.ini")
     override_path.write_text("".join(lines), encoding="utf-8")
     return override_path
 

@@ -1,0 +1,385 @@
+/*
+ * Copyright (c) 2025 Seeed Technology Co., Ltd.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * XIAO STM32C5 board definition.
+ * MCU: STM32C5A3CG (UFQFPN48, Cortex-M33, 144MHz, 256KB SRAM, 1MB Flash)
+ * Pin map extracted from schematic 04 XIAO Header&STM32C5.kicad_sch and
+ * verified against STM32C5A3 datasheet DS15137-Rev1.
+ *
+ * UF2 bootloader constraint: application starts at 0x08008000 (32KB offset).
+ * Flash partitions, chosen code-partition, and ROM_START_OFFSET MUST NOT
+ * be modified — they are aligned with the TinyUF2 bootloader.
+ */
+
+/dts-v1/;
+#include <st/c5/stm32c5a3Xg.dtsi>
+#include <st/c5/stm32c5(9-a)3z(e-g)tx-pinctrl.dtsi>
+#include <zephyr/dt-bindings/flash_controller/xspi.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include "seeed_xiao_connector.dtsi"
+
+/ {
+	model = "Seeed XIAO STM32C5";
+	compatible = "seeed,xiao-stm32c5";
+
+	chosen {
+		zephyr,console = &usart1;
+		zephyr,shell-uart = &usart1;
+		zephyr,sram = &sram1;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,canbus = &fdcan2;
+	};
+
+	aliases {
+		led0 = &user_led;
+		watchdog0 = &iwdg;
+		can0 = &fdcan2;
+		flash1 = &ext_flash;
+		imu0 = &lsm6ds3tr_c;
+		imu-heater = &imu_heater_pwm;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		user_led: led_0 {
+			gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+			label = "User LED";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+
+		imu_heater_pwm: imu_heater_pwm {
+			pwms = <&pwm1 1 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+			label = "IMU Heater PWM";
+		};
+	};
+
+	/*
+	 * CAN transceiver: the standby pin (CAN_STB = PB14, XIAO D15) is
+	 * driven LOW (inactive) during normal operation and HIGH (active)
+	 * when the CAN bus is idle/disabled to reduce power consumption.
+	 */
+	can_phy0: can-phy0 {
+		compatible = "can-transceiver-gpio";
+		standby-gpios = <&gpiob 14 GPIO_ACTIVE_HIGH>;
+		max-bitrate = <8000000>;
+		#phy-cells = <0>;
+	};
+};
+
+&gpiob {
+	ext_flash_cs_default: ext-flash-cs-default {
+		gpio-hog;
+		gpios = <10 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "EXT_FLASH_CS";
+	};
+};
+
+/*
+ * FDCAN peripheral definitions.
+ *
+ * NOTE: The upstream Zephyr STM32C5 SoC DTSI (as of this writing) does not
+ * yet define fdcan1/fdcan2 nodes. The definitions below are derived from
+ * the STM32C5A3 CMSIS header (stm32c5a3xx.h):
+ *   - FDCAN1_BASE  = APB1PERIPH_BASE + 0xA400 = 0x4000A400
+ *   - FDCAN2_BASE  = APB1PERIPH_BASE + 0xA800 = 0x4000A800
+ *   - SRAMCAN_BASE = APB1PERIPH_BASE + 0xAC00 = 0x4000AC00 (shared message RAM)
+ *   - FDCAN1 interrupts: IT0 = 34, IT1 = 35
+ *   - FDCAN2 interrupts: IT0 = 86, IT1 = 87
+ *   - Clock enable: RCC_APB1HENR bit 9  ->  STM32_CLOCK(APB1_2, 9)
+ *   - Kernel clock: CCIPR1 bits 27:26   ->  FDCAN_SEL()
+ *     STM32C5 FDCAN supports PCLK1/PSIS/PSIK/HSE. Use PSIS here so CAN FD
+ *     data phase bit timing can reach 8 Mbps with enough time quanta.
+ *
+ * When upstream Zephyr adds these nodes to the SoC DTSI, the full
+ * definitions here can be removed, leaving only the board-specific
+ * pinctrl/status overrides.
+ */
+/ {
+	fdcan1: can@4000a400 {
+		compatible = "st,stm32-fdcan";
+		reg = <0x4000a400 0x400>, <0x4000ac00 0x350>;
+		reg-names = "m_can", "message_ram";
+		interrupt-parent = <&nvic>;
+		interrupts = <34 0>, <35 0>;
+		interrupt-names = "int0", "int1";
+		clocks = <&rcc STM32_CLOCK(APB1_2, 9)>,
+			 <&rcc STM32_SRC_PSIS FDCAN_SEL(1)>;
+		bosch,mram-cfg = <0x0 28 8 3 3 0 3 3>;
+		status = "disabled";
+	};
+
+	fdcan2: can@4000a800 {
+		compatible = "st,stm32-fdcan";
+		reg = <0x4000a800 0x400>, <0x4000ac00 0x6a0>;
+		reg-names = "m_can", "message_ram";
+		interrupt-parent = <&nvic>;
+		interrupts = <86 0>, <87 0>;
+		interrupt-names = "int0", "int1";
+		clocks = <&rcc STM32_CLOCK(APB1_2, 9)>,
+			 <&rcc STM32_SRC_PSIS FDCAN_SEL(1)>;
+		bosch,mram-cfg = <0x350 28 8 3 3 0 3 3>;
+		status = "disabled";
+	};
+
+	/*
+	 * USB DRD FS controller (USB_DRD_FS).
+	 * Base: 0x40016000, PMA: 0x40016400, IRQ: 62, Clock: APB2 bit 24.
+	 * Kernel clock CK48 sourced from HSIDIV3 (HSI144/3 = 48 MHz) via
+	 * CK48_SEL(2).  DM=PA11, DP=PA12 (fixed analog function, see pinctrl
+	 * DTSI).
+	 *
+	 * Driven by Zephyr's standard UDC driver (udc_stm32.c). The upstream
+	 * driver only gained STM32C5 HAL2 support after the 4.4.0 release
+	 * (Zephyr PR #105957); the HAL2 backport is carried as an override
+	 * registered in zephyr/fixes.yml (udc-stm32-hal2) and applied to the
+	 * framework-zephyr package at build time.
+	 */
+	usb: usb@40016000 {
+		compatible = "st,stm32-usb";
+		reg = <0x40016000 0x400>;
+		interrupt-parent = <&nvic>;
+		interrupts = <62 0>;
+		interrupt-names = "usb";
+		num-bidir-endpoints = <8>;
+		ram-size = <2048>;
+		maximum-speed = "full-speed";
+		pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>;
+		pinctrl-names = "default";
+		clocks = <&rcc STM32_CLOCK(APB2, 24)>,
+			 <&rcc STM32_SRC_CK48 CK48_SEL(2)>;
+		status = "okay";
+	};
+
+	/*
+	 * External NOR flash: Puya PY25Q128HA, 128 Mbit / 16 MByte.
+	 * The STM32C5 SoC DTSI does not define XSPI1 yet; values below are
+	 * derived from stm32c5a3xx.h:
+	 *   - XSPI1_R_BASE = AHB4PERIPH_BASE + 0x1001400 = 0x47001400
+	 *   - XSPI1 memory-mapped base = 0x90000000
+	 *   - XSPI1 IRQ = 91
+	 *   - Clock enable: RCC_AHB4ENR bit 20 -> STM32_CLOCK(AHB4, 20)
+	 *   - Kernel clock: CCIPR3 bits 1:0 -> XSPI1_SEL()
+	 */
+	xspi1: spi@47001400 {
+		compatible = "st,stm32-xspi";
+		reg = <0x47001400 0x400>, <0x90000000 DT_SIZE_M(16)>;
+		interrupt-parent = <&nvic>;
+		interrupts = <91 0>;
+		clock-names = "xspix", "xspi-ker";
+		clocks = <&rcc STM32_CLOCK(AHB4, 20)>,
+			 <&rcc STM32_SRC_HSIK XSPI1_SEL(2)>;
+		pinctrl-0 = <&xspi1_clk_pb2 &xspi1_ncs1_pb10
+			     &xspi1_io0_pb1 &xspi1_io1_pa5
+			     &xspi1_io2_pa7 &xspi1_io3_pa6>;
+		pinctrl-names = "default";
+		dlyb-bypass;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		ext_flash: py25q128ha@0 {
+			compatible = "st,stm32-xspi-nor";
+			reg = <0>;
+			size = <DT_SIZE_M(128)>;
+			spi-bus-width = <XSPI_SPI_MODE>;
+			data-rate = <XSPI_STR_TRANSFER>;
+			ospi-max-frequency = <DT_FREQ_M(48)>;
+			status = "okay";
+		};
+	};
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(48)>;
+	status = "okay";
+};
+
+&clk_hsidiv3 {
+	status = "okay";
+};
+
+&clk_hsik {
+	clock-frequency = <DT_FREQ_M(48)>;
+	xsik-div = "3";
+	status = "okay";
+};
+
+&clk_hsis {
+	status = "okay";
+};
+
+&clk_psis {
+	clock-frequency = <DT_FREQ_M(144)>;
+	status = "okay";
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_lse {
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* TinyUF2 Bootloader: 32KB — DO NOT MODIFY */
+		boot_partition: partition@0 {
+			label = "uf2-bootloader";
+			reg = <0x00000000 DT_SIZE_K(32)>;
+		};
+
+		/* Application slot: 488KB (aligned with UF2 layout) — DO NOT MODIFY */
+		slot0_partition: partition@8000 {
+			label = "image-0";
+			reg = <0x00008000 DT_SIZE_K(488)>;
+		};
+
+		/* OTA slot: 480KB */
+		slot1_partition: partition@82000 {
+			label = "image-1";
+			reg = <0x00082000 DT_SIZE_K(480)>;
+		};
+
+		/* Storage: 24KB */
+		storage_partition: partition@fa000 {
+			label = "storage";
+			reg = <0x000fa000 DT_SIZE_K(24)>;
+		};
+	};
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_scl_pb6 &i2c1_sda_pb7>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	status = "okay";
+};
+
+&i2c2 {
+	pinctrl-0 = <&i2c2_scl_pb3 &i2c2_sda_pb4>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	status = "okay";
+
+	lsm6ds3tr_c: lsm6ds3tr-c@6a {
+		compatible = "st,lsm6dsl";
+		reg = <0x6a>;
+		irq-gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+&adc1 {
+	pinctrl-0 = <&adc1_in0_pa0 &adc1_in1_pa1 &adc1_in2_pa2 &adc1_in3_pa3>;
+	pinctrl-names = "default";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@3 {
+		reg = <3>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+&timers1 {
+	st,prescaler = <143>;
+	status = "okay";
+
+	pwm1: pwm {
+		pinctrl-0 = <&tim1_ch1_pa8>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+};
+
+&fdcan2 {
+	pinctrl-0 = <&fdcan2_rx_pb5 &fdcan2_tx_pb13>;
+	pinctrl-names = "default";
+	phys = <&can_phy0>;
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB3, 21)>,
+		 <&rcc STM32_SRC_LSE RTC_SEL(1)>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&clk_hsis>;
+	clock-frequency = <DT_FREQ_M(144)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <2>;
+	apb2-prescaler = <2>;
+	apb3-prescaler = <2>;
+	st,psi-frequency = <144>;
+	st,psi-source = "HSE";
+};
+
+&iwdg {
+	status = "okay";
+};
+
+/* XIAO connector CAN alias (must be after fdcan2 definition above) */
+xiao_can: &fdcan2 {};
+
+/* USB device controller alias (standard Zephyr UDC) */
+zephyr_udc0: &usb {};
+
+/* CDC ACM UART: host-facing virtual serial port. The 1200-bps UF2 trigger
+ * (uf2_dfu_reset module) listens for SET_LINE_CODING on this interface.
+ */
+&zephyr_udc0 {
+	cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "Zephyr USB CDC-ACM";
+	};
+};

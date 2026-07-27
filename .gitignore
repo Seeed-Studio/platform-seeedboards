@@ -6,3 +6,5 @@
 .pio-ci-logs/
 all-in-one-demo/
 all_bin/
+# Windows shortcut files (local artifacts, not source)
+*.lnk

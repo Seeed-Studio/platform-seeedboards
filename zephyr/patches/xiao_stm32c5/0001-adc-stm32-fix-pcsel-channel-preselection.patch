@@ -1,0 +1,34 @@
+diff --git a/drivers/adc/adc_stm32.c b/drivers/adc/adc_stm32.c
+--- a/drivers/adc/adc_stm32.c
++++ b/drivers/adc/adc_stm32.c
+@@ -1004,6 +1004,7 @@ static int adc_stm32_preselection_setup(const struct device *dev, uint32_t chann
+ 	const struct adc_stm32_cfg *config = (const struct adc_stm32_cfg *)dev->config;
+ 	ADC_TypeDef *adc = config->base;
+ 	uint32_t channel = STM32_ADC_DECIMAL_NB_TO_CHANNEL(channel_id);
++	uint32_t channel_mask = BIT(channel_id);
+ 	int err;
+ #ifdef STM32H72X_ADC
+ 	volatile uint32_t *pcsel_reg = &adc->PCSEL_RES0;
+@@ -1012,7 +1013,7 @@ static int adc_stm32_preselection_setup(const struct device *dev, uint32_t chann
+ #endif /* STM32H72X_ADC */
+ 
+ 	if (!config->has_channel_preselection ||
+-	    (stm32_reg_read(pcsel_reg) & channel) == channel) {
++	    (stm32_reg_read(pcsel_reg) & channel_mask) == channel_mask) {
+ 		/* Nothing to configure */
+ 		return 0;
+ 	}
+@@ -1445,7 +1446,13 @@ static void adc_context_on_complete(struct adc_context *ctx, int status)
+ #if ANY_ADC_HAS_CHANNEL_PRESELECTION
+ 	if (config->has_channel_preselection) {
+ 		/* Reset channel preselection register */
+-		LL_ADC_SetChannelPreselection(adc, 0);
++#ifdef STM32H72X_ADC
++		volatile uint32_t *pcsel_reg = &adc->PCSEL_RES0;
++#else /* STM32H72X_ADC */
++		volatile uint32_t *pcsel_reg = &adc->PCSEL;
++#endif /* STM32H72X_ADC */
++		*pcsel_reg = 0;
+ 	}
+ #endif /* ANY_ADC_HAS_CHANNEL_PRESELECTION */
+ #endif /* CONFIG_ADC_STM32_INJECTED_CHANNELS */
