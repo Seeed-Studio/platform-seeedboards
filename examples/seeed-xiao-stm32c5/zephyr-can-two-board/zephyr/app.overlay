@@ -1,0 +1,26 @@
+/*
+ * Two-board CAN round-trip test overlay.
+ *
+ * 1) FDCAN kernel clock = PSIS at 100 MHz (identical to
+ *    zephyr-canfd-data-stress-psis100) so this test reproduces the exact clock
+ *    under which that firmware fails vs a USB-CAN adapter at 1M/1M and 500k/5M.
+ *
+ * 2) Host interaction over USB CDC ACM. The board DTS already enables the USB
+ *    controller (zephyr_udc0) and declares cdc_acm_uart0; re-declaring it here
+ *    keeps the example self-contained and matches zephyr-usb-cdc-echo-1m.
+ */
+
+&rcc {
+	st,psi-frequency = <100>;
+};
+
+&clk_psis {
+	clock-frequency = <100000000>;
+};
+
+&zephyr_udc0 {
+	cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "XIAO STM32C5 CDC";
+	};
+};

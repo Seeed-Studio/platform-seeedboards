@@ -1,0 +1,14 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Minimal gs_usb device node. With no explicit cannectivity-channel node,
+ * CANnectivity's main() auto-binds the CAN controller from the board's
+ * zephyr,canbus chosen node (= &fdcan2 here).
+ */
+
+/ {
+	gs_usb0: gs_usb0 {
+		compatible = "gs_usb";
+		label = "gs_usb";
+	};
+};

@@ -1,0 +1,18 @@
+/*
+ * SLCAN bridge overlay.
+ *
+ * The board DTS (xiao_stm32c5.dts) already enables FDCAN2 (PB5/PB13) and the
+ * on-board transceiver can_phy0 (standby = PB14, managed by the CAN driver
+ * via `phys`). So nothing CAN-side needs touching here for classic CAN.
+ *
+ * The host-facing USB CDC ACM UART is attached to the USB device controller
+ * (zephyr_udc0). The board may already declare it; re-declaring here keeps
+ * the example self-contained and matches zephyr-usb-cdc-echo-1m.
+ */
+
+&zephyr_udc0 {
+	cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "XIAO STM32C5 SLCAN";
+	};
+};
