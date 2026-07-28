@@ -8,3 +8,5 @@ all-in-one-demo/
 all_bin/
 # Windows shortcut files (local artifacts, not source)
 *.lnk
+# Nucleo C5 example board (kept local, not submitted upstream)
+examples/nucleo_c5a3zg/

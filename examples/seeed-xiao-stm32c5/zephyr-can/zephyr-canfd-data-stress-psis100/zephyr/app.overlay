@@ -1,0 +1,14 @@
+/*
+ * Keep FDCAN2 on PSIS, but run the FDCAN kernel clock at 100 MHz.
+ * 100 MHz / (BRP 1 * 20 time quanta) produces an exact 5 Mbit/s CAN FD
+ * data-phase bitrate. The system clock remains the board's HSIS at 144 MHz.
+ */
+
+&rcc {
+	st,psi-frequency = <100>;
+};
+
+/* Keep the devicetree's FDCAN PSIS clock description in sync with RCC. */
+&clk_psis {
+	clock-frequency = <100000000>;
+};

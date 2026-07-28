@@ -1,0 +1,14 @@
+/*
+ * PA11/PA12 are already defined by the board as USB FS DM/DP:
+ *   PA11 -> usb_dm_pa11
+ *   PA12 -> usb_dp_pa12
+ *
+ * Keep the board USB controller enabled and use its CDC ACM UART child.
+ */
+
+&zephyr_udc0 {
+	cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "XIAO STM32C5 USB CDC ACM";
+	};
+};
