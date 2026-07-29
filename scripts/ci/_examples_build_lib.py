@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -188,6 +189,58 @@ def _sanitize_filename(name: str) -> str:
     return name or "log"
 
 
+def collect_firmware(
+    project_dir: Path,
+    env_name: str | None,
+    project_rel: Path,
+    out_root: Path,
+) -> Path | None:
+    """Copy one flashable firmware file for the built env into out_root.
+
+    Preference: ``firmware.uf2`` (UF2-bootloader boards, e.g. XIAO STM32C5)
+    when present, otherwise ``firmware.hex`` (e.g. nRF54 boards, which the nRF
+    builder does not convert to UF2). This rule yields exactly "C5 -> uf2,
+    others -> hex" without any board-type detection.
+
+    Returns the destination path on success, or None if no firmware was found.
+    Never raises: collection is best-effort and must not fail the build (the
+    workflow uploads artifacts with ``if: always()`` so partial output still
+    lands).
+    """
+    build_root = project_dir / ".pio" / "build"
+    if env_name:
+        candidates = [build_root / env_name]
+    elif build_root.is_dir():
+        candidates = sorted(p for p in build_root.glob("*") if p.is_dir())
+    else:
+        candidates = []
+
+    # Stable, collision-free filename from the project path under examples/.
+    # e.g. "seeed-xiao-stm32c5/zephyr-can/zephyr-can-bridge-gsusb"
+    try:
+        rel_examples = project_rel.relative_to("examples")
+    except ValueError:
+        rel_examples = project_rel
+    base = _sanitize_filename(str(rel_examples).replace(os.sep, "/"))
+
+    for bdir in candidates:
+        uf2 = bdir / "firmware.uf2"
+        hex_ = bdir / "firmware.hex"
+        src = uf2 if uf2.is_file() else (hex_ if hex_.is_file() else None)
+        if src is None:
+            continue
+        board_dir = out_root / (env_name or bdir.name)
+        board_dir.mkdir(parents=True, exist_ok=True)
+        dst = board_dir / f"{base}.{src.suffix.lstrip('.')}"
+        try:
+            shutil.copy2(src, dst)
+        except Exception as exc:  # best-effort; don't fail the build
+            print(f"(warn) failed to collect {src}: {exc}", file=sys.stderr)
+            return None
+        return dst
+    return None
+
+
 def _read_tail_lines(path: Path, n: int) -> list[str]:
     if n <= 0:
         return []
@@ -238,6 +291,7 @@ def build_projects(
     log_dir: str | None,
     tail_lines: int,
     quiet: bool,
+    firmware_out: str | None = None,
 ) -> int:
     failures: list[str] = []
     failure_logs: dict[str, Path] = {}
@@ -247,6 +301,12 @@ def build_projects(
     if log_dir:
         resolved_log_dir = (root / log_dir).resolve()
         resolved_log_dir.mkdir(parents=True, exist_ok=True)
+
+    resolved_firmware_dir: Path | None = None
+    if firmware_out:
+        resolved_firmware_dir = (root / firmware_out).resolve()
+        resolved_firmware_dir.mkdir(parents=True, exist_ok=True)
+    collected_firmware: list[Path] = []
 
     for project_dir in projects:
         rel = project_dir.relative_to(root)
@@ -291,6 +351,10 @@ def build_projects(
                                 print(f"\n--- tail ({tail_lines} lines) {log_path} ---", file=sys.stderr)
                                 for line in tail:
                                     print(line, file=sys.stderr)
+                elif resolved_firmware_dir is not None:
+                    dst = collect_firmware(project_dir, None, rel, resolved_firmware_dir)
+                    if dst is not None:
+                        collected_firmware.append(dst)
                 continue
 
             for env in envs:
@@ -320,9 +384,28 @@ def build_projects(
                                 print(f"\n--- tail ({tail_lines} lines) {log_path} ---", file=sys.stderr)
                                 for line in tail:
                                     print(line, file=sys.stderr)
+                elif resolved_firmware_dir is not None:
+                    dst = collect_firmware(project_dir, env, rel, resolved_firmware_dir)
+                    if dst is not None:
+                        collected_firmware.append(dst)
         finally:
             if override_conf is not None:
                 safe_unlink(override_conf)
+
+    if resolved_firmware_dir is not None and collected_firmware:
+        boards: dict[str, int] = {}
+        for p in collected_firmware:
+            board = p.parent.name
+            boards[board] = boards.get(board, 0) + 1
+        try:
+            shown_dir = str(resolved_firmware_dir.relative_to(root))
+        except ValueError:
+            shown_dir = str(resolved_firmware_dir)
+        print(f"\nCollected {len(collected_firmware)} firmware file(s) into {shown_dir}")
+        for board in sorted(boards):
+            print(f"  {board}: {boards[board]}")
+    elif resolved_firmware_dir is not None:
+        print("\nNo firmware collected.", file=sys.stderr)
 
     if failures:
         print("\nBuild failures:", file=sys.stderr)
@@ -358,5 +441,15 @@ def make_argparser(description: str) -> argparse.ArgumentParser:
         "--quiet",
         action="store_true",
         help="Reduce console output (recommended with --log-dir)",
+    )
+    parser.add_argument(
+        "--firmware-out",
+        default=None,
+        help=(
+            "Copy one flashable firmware file per built env into this directory "
+            "(relative to repo root). Collects firmware.uf2 when present "
+            "(UF2 boards, e.g. STM32C5), otherwise firmware.hex (e.g. nRF54). "
+            "Output layout: <dir>/<env>/<sanitized-project-path>.<ext>."
+        ),
     )
     return parser

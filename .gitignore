@@ -7,5 +7,7 @@
 .pio-ci-logs/
 all-in-one-demo/
 all_bin/
+# Firmware/packaging output produced by CI builds (e.g. dist/firmware)
+dist/
 # Windows shortcut files (local artifacts, not source)
 *.lnk
