@@ -1,0 +1,103 @@
+#include <zephyr/dt-bindings/pwm/pwm.h>
+
+/ {
+	zephyr,user {
+		io-channels = <&adc1 0>, <&adc1 1>, <&adc1 2>, <&adc1 3>;
+	};
+
+	battery_adc_ctrl {
+		compatible = "gpio-leds";
+
+		bat_en: bat_en {
+			gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>;
+			label = "BAT_EN/PE2";
+		};
+	};
+
+	pwm_outputs {
+		compatible = "pwm-leds";
+
+		pwm_a4: pwm_a4 {
+			pwms = <&pwm4 2 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+			label = "A4/D4/PB7 TIM4_CH2 50%";
+		};
+	};
+
+	aliases {
+		baten = &bat_en;
+		pwm-a4 = &pwm_a4;
+	};
+};
+
+&zephyr_udc0 {
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "XIAO STM32C5 USB CDC ACM";
+	};
+};
+
+/* D4/PB7 is the XIAO A4 header pin. Disable I2C1 so PB7 can be TIM4_CH2 PWM. */
+&i2c1 {
+	status = "disabled";
+};
+
+&timers4 {
+	st,prescaler = <143>;
+	status = "okay";
+
+	pwm4: pwm {
+		pinctrl-0 = <&tim4_ch2_pb7>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+};
+
+&adc1 {
+	pinctrl-0 = <&adc1_in0_pa0 &adc1_in1_pa1 &adc1_in2_pa2 &adc1_in3_pa3
+		     &adc1_in4_pa4>;
+	pinctrl-names = "default";
+	vref-mv = <3300>;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@3 {
+		reg = <3>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+		zephyr,resolution = <12>;
+	};
+};

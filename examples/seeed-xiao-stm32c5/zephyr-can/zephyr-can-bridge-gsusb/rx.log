@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "D:\workspace\platform-seeedboards\examples\seeed-xiao-stm32c5\zephyr-can-bridge-gsusb\fd_roundtrip.py", line 31, in <module>
+    bus = can.Bus(interface="candle", channel=ch, fd=True,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\seeed\.platformio\penv\Lib\site-packages\can\util.py", line 392, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\seeed\.platformio\penv\Lib\site-packages\can\interface.py", line 137, in Bus
+    bus = cls(channel, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\seeed\.platformio\penv\Lib\site-packages\candle\candle_bus.py", line 78, in __init__
+    self._channels = {i: self._device[i] for i in self._channel_numbers}
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\seeed\.platformio\penv\Lib\site-packages\candle\candle_bus.py", line 78, in <dictcomp>
+    self._channels = {i: self._device[i] for i in self._channel_numbers}
+                         ~~~~~~~~~~~~^^^
+IndexError

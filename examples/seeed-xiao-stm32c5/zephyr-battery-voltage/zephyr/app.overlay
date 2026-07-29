@@ -1,0 +1,31 @@
+/ {
+	battery_adc_ctrl {
+		compatible = "gpio-leds";
+
+		bat_en: bat_en {
+			gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>;
+			label = "BAT_EN/PE2";
+		};
+	};
+
+	zephyr,user {
+		io-channels = <&adc1 4>;
+	};
+
+	aliases {
+		baten = &bat_en;
+	};
+};
+
+&adc1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 289)>;
+		zephyr,resolution = <12>;
+	};
+};

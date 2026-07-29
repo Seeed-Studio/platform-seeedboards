@@ -1,0 +1,153 @@
+/*
+ * GPIO all-pins test.
+ *
+ * USB CDC stays active on PA11/PA12. Header pins D0-D15 are released from
+ * board default peripherals and exposed as gpio-leds entries for convenient
+ * gpio_dt_spec lookup.
+ */
+
+/ {
+	gpio_all_pins_test {
+		compatible = "gpio-leds";
+
+		gpio_d0: gpio_d0 {
+			gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+			label = "D0/PA0";
+		};
+
+		gpio_d1: gpio_d1 {
+			gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;
+			label = "D1/PA1";
+		};
+
+		gpio_d2: gpio_d2 {
+			gpios = <&gpioa 2 GPIO_ACTIVE_HIGH>;
+			label = "D2/PA2";
+		};
+
+		gpio_d3: gpio_d3 {
+			gpios = <&gpioa 3 GPIO_ACTIVE_HIGH>;
+			label = "D3/PA3";
+		};
+
+		gpio_d4: gpio_d4 {
+			gpios = <&gpiob 7 GPIO_ACTIVE_HIGH>;
+			label = "D4/PB7";
+		};
+
+		gpio_d5: gpio_d5 {
+			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
+			label = "D5/PB6";
+		};
+
+		gpio_d6: gpio_d6 {
+			gpios = <&gpioa 9 GPIO_ACTIVE_HIGH>;
+			label = "D6/PA9";
+		};
+
+		gpio_d7: gpio_d7 {
+			gpios = <&gpioa 10 GPIO_ACTIVE_HIGH>;
+			label = "D7/PA10";
+		};
+
+		gpio_d8: gpio_d8 {
+			gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
+			label = "D8/PA15";
+		};
+
+		gpio_d9: gpio_d9 {
+			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;
+			label = "D9/PB0";
+		};
+
+		gpio_d10: gpio_d10 {
+			gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
+			label = "D10/PB15";
+		};
+
+		gpio_d11: gpio_d11 {
+			gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;
+			label = "D11/PB8";
+		};
+
+		gpio_d12: gpio_d12 {
+			gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;
+			label = "D12/PB9";
+		};
+
+		gpio_d13: gpio_d13 {
+			gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>;
+			label = "D13/PB5";
+		};
+
+		gpio_d14: gpio_d14 {
+			gpios = <&gpiob 13 GPIO_ACTIVE_HIGH>;
+			label = "D14/PB13";
+		};
+
+		gpio_d15: gpio_d15 {
+			gpios = <&gpiob 14 GPIO_ACTIVE_HIGH>;
+			label = "D15/PB14/CAN_STB";
+		};
+
+		gpio_swdio: gpio_swdio {
+			gpios = <&gpioa 13 GPIO_ACTIVE_HIGH>;
+			label = "SWDIO/PA13";
+		};
+
+		gpio_swclk: gpio_swclk {
+			gpios = <&gpioa 14 GPIO_ACTIVE_HIGH>;
+			label = "SWCLK/PA14";
+		};
+
+		gpio_boot0: gpio_boot0 {
+			gpios = <&gpioh 2 GPIO_ACTIVE_HIGH>;
+			label = "BOOT0/PH2";
+		};
+	};
+
+	aliases {
+		gpio-d0 = &gpio_d0;
+		gpio-d1 = &gpio_d1;
+		gpio-d2 = &gpio_d2;
+		gpio-d3 = &gpio_d3;
+		gpio-d4 = &gpio_d4;
+		gpio-d5 = &gpio_d5;
+		gpio-d6 = &gpio_d6;
+		gpio-d7 = &gpio_d7;
+		gpio-d8 = &gpio_d8;
+		gpio-d9 = &gpio_d9;
+		gpio-d10 = &gpio_d10;
+		gpio-d11 = &gpio_d11;
+		gpio-d12 = &gpio_d12;
+		gpio-d13 = &gpio_d13;
+		gpio-d14 = &gpio_d14;
+		gpio-d15 = &gpio_d15;
+		gpio-swdio = &gpio_swdio;
+		gpio-swclk = &gpio_swclk;
+		gpio-boot0 = &gpio_boot0;
+	};
+};
+
+&usart1 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&adc1 {
+	status = "disabled";
+};
+
+&fdcan2 {
+	status = "disabled";
+};
+
+&zephyr_udc0 {
+	cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "XIAO STM32C5 USB CDC ACM";
+	};
+};

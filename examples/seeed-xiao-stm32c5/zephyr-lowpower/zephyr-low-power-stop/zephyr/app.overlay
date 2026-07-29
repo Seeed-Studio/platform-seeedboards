@@ -1,0 +1,13 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Low-power STOP current measurement keeps non-test peripherals disabled.
+ */
+
+&xspi1 {
+	status = "disabled";
+};
+
+&ext_flash {
+	status = "disabled";
+};

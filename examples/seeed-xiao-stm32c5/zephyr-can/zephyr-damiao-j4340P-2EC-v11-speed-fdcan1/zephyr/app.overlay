@@ -1,0 +1,26 @@
+/*
+ * This sample uses the XIAO connector FDCAN1 pins with an external CAN
+ * transceiver instead of the board-default FDCAN2 transceiver.
+ *
+ * D11 / PB8 -> FDCAN1_RX
+ * D12 / PB9 -> FDCAN1_TX
+ */
+/ {
+	chosen {
+		zephyr,canbus = &fdcan1;
+	};
+
+	aliases {
+		can0 = &fdcan1;
+	};
+};
+
+&fdcan1 {
+	pinctrl-0 = <&fdcan1_rx_pb8 &fdcan1_tx_pb9>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&fdcan2 {
+	status = "disabled";
+};

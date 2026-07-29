@@ -1,0 +1,37 @@
+#include <zephyr/dt-bindings/pwm/pwm.h>
+
+&adc1 {
+	status = "disabled";
+};
+
+&timers2 {
+	st,prescaler = <143>;
+	status = "okay";
+
+	pwm2: pwm {
+		pinctrl-0 = <&tim2_ch1_pa0 &tim2_ch2_pa1 &tim2_ch3_pa2>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+};
+
+/ {
+	pwm_duty_test {
+		compatible = "pwm-leds";
+
+		pwm_d0: pwm_d0 {
+			pwms = <&pwm2 1 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+			label = "D0 PA0 TIM2_CH1 25%";
+		};
+
+		pwm_d1: pwm_d1 {
+			pwms = <&pwm2 2 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+			label = "D1 PA1 TIM2_CH2 50%";
+		};
+
+		pwm_d2: pwm_d2 {
+			pwms = <&pwm2 3 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+			label = "D2 PA2 TIM2_CH3 75%";
+		};
+	};
+};
