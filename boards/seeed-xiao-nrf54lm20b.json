@@ -8,7 +8,7 @@
         "bootloader": {
           "header_len": "0x800",
           "flash_alignment": "16",
-          "slot_size": "0x1BD400",
+          "slot_size": "0x1BE000",
           "app_version": "0.0.1",
           "signature_key_file": "root-ed25519.pem",
           "pure": "true"
