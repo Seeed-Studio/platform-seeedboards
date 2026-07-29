@@ -4,7 +4,15 @@
       "f_cpu": "128000000L",
       "mcu": "nrf54lm20a",
       "zephyr": {
-        "variant": "xiao_nrf54lm20b/nrf54lm20b/cpuapp"
+        "variant": "xiao_nrf54lm20b/nrf54lm20b/cpuapp",
+        "bootloader": {
+          "header_len": "0x800",
+          "flash_alignment": "16",
+          "slot_size": "0x1BD400",
+          "app_version": "0.0.1",
+          "signature_key_file": "root-ed25519.pem",
+          "pure": "true"
+        }
       }
     },
     "connectivity": [

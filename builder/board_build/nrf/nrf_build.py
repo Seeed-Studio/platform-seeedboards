@@ -52,6 +52,43 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
         env.Replace(UPLOAD_PORT=basename(env.subst("$UPLOAD_PORT")))
 
 
+def WaitForDfuPort(target, source, env):  # pylint: disable=W0613,W0621
+    import time
+    # MCUboot firmware-loader DFU. The loader (when the board is in DFU mode)
+    # enumerates a USB CDC ACM port. Respect an explicit upload_port (ini
+    # `upload_port=` or --upload-port); otherwise auto-detect the loader CDC by
+    # its VID:PID (NCS loader default 0x2FE3:0x0004). We deliberately do NOT use
+    # WaitForNewSerialPort: it fails when the board is already in DFU mode at
+    # upload time, because the port is not "new" relative to the snapshot.
+    explicit = env.subst("$UPLOAD_PORT")
+    if explicit:
+        print("Using configured DFU port: %s" % explicit)
+        return
+    print(
+        "Enter USB DFU mode: press+hold Button 0 (P0.09) and reset the "
+        "board. Auto-detecting the loader CDC (VID 2FE3:0004)..."
+    )
+    port = None
+    for _ in range(60):
+        for p in list_serial_ports():
+            if "2FE3:0004" in (p.get("hwid") or "").upper():
+                port = p.get("port")
+                break
+        if port:
+            break
+        time.sleep(1)
+    if not port:
+        sys.stderr.write(
+            "Error: could not auto-detect the DFU port. Put the board in DFU "
+            "mode (press+hold Button 0 P0.09 + reset), then retry, or set the "
+            "port explicitly: `upload_port = COMxx` in platformio.ini or "
+            "`pio run -t upload --upload-port COMxx`.\n"
+        )
+        env.Exit(1)
+    env.Replace(UPLOAD_PORT=port)
+    print("DFU port detected: %s" % env.subst("$UPLOAD_PORT"))
+
+
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
@@ -280,18 +317,17 @@ else:
             join("$BUILD_DIR", "${PROGNAME}"),
             env.ElfToHex(join("$BUILD_DIR", "${PROGNAME}"), target_elf))
     elif "nrfutil-mcumgr" == upload_protocol:
-        # For MCUboot serial upload over USB CDC ACM, prefer the signed
-        # binary from sysbuild.  Fallback chain covers different build
-        # configurations that may produce different output names.
-        signed_bin = join("$BUILD_DIR", "zephyr", "zephyr.signed.bin")
-        app_update = join("$BUILD_DIR", "zephyr", "app_update.bin")
-        if isfile(env.subst(signed_bin)):
-            target_firm = signed_bin
-        elif isfile(env.subst(app_update)):
-            target_firm = app_update
-        else:
-            target_firm = env.ElfToBin(
-                join("$BUILD_DIR", "${PROGNAME}"), target_elf)
+        # Produce a signed MCUboot image (zephyr.signed.bin) for USB CDC ACM
+        # upload via nrfutil mcu-manager. env.MCUbootImage runs imgtool sign
+        # using the board's header_len/flash_alignment/slot_size + signature
+        # key; it returns None (-> unsigned fallback) when the board does not
+        # declare imgtool params, so non-mcuboot boards are unaffected.
+        unsigned_bin = env.ElfToBin(
+            join("$BUILD_DIR", "${PROGNAME}"), target_elf)
+        signed_bin = env.MCUbootImage(
+            join("$BUILD_DIR", "zephyr", "zephyr.signed.bin"),
+            unsigned_bin)
+        target_firm = signed_bin if signed_bin else unsigned_bin
     elif "nrfjprog" == upload_protocol:
         target_firm = env.ElfToHex(
             join("$BUILD_DIR", "${PROGNAME}"), target_elf)
@@ -446,12 +482,13 @@ elif upload_protocol == "nrfutil-mcumgr":
             "serial",
             "image-upload",
             "--serial-port", '"$UPLOAD_PORT"',
+            "--timeout", "120",
             "--firmware",
         ],
         UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"'
     )
     upload_actions = [
-        env.VerboseAction(env.AutodetectUploadPort, "Looking for upload port..."),
+        env.VerboseAction(WaitForDfuPort, "Waiting for DFU port (press P0.09 + reset)..."),
         env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")
     ]
 
