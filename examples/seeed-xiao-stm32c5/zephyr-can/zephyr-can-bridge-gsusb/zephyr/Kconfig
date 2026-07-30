@@ -87,9 +87,6 @@ configdefault USB_SELF_POWERED
 configdefault USB_MAX_POWER
 	default CANNECTIVITY_USB_MAX_POWER
 
-configdefault USB_DEVICE_GS_USB_MAX_CHANNELS
-	default CANNECTIVITY_MAX_CHANNELS
-
 configdefault USB_DEVICE_BOS
 	default y
 
