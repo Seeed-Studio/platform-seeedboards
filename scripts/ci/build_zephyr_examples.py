@@ -39,6 +39,7 @@ def main(argv: list[str]) -> int:
         log_dir=args.log_dir,
         tail_lines=args.tail,
         quiet=args.quiet,
+        firmware_out=args.firmware_out,
     )
 
 
