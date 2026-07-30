@@ -34,6 +34,8 @@
       "maximum_ram_size": 524288,
       "maximum_size": 2084864,
       "protocol": "nrfutil-mcumgr",
+      "use_1200bps_touch": true,
+      "wait_for_upload_port": true,
       "pyocd_target": "nrf54lm20a",
       "pyocd_frequency": 4000000,
       "protocols": [

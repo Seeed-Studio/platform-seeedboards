@@ -89,6 +89,34 @@ def WaitForDfuPort(target, source, env):  # pylint: disable=W0613,W0621
     print("DFU port detected: %s" % env.subst("$UPLOAD_PORT"))
 
 
+def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
+    """Find the nRF54LM20B CDC by VID:PID (2886:0058), touch 1200, wait for
+    the loader's new port. Replaces BeforeUpload's autodetect (which can pick
+    a wrong port like a CH340) with an explicit VID:PID filter.
+    """
+    explicit = env.subst("$UPLOAD_PORT")
+    if not explicit:
+        port = None
+        for p in list_serial_ports():
+            hwid = (p.get("hwid") or "").upper()
+            if "VID:PID=2886:8013" in hwid:
+                port = p.get("port")
+                break
+        if not port:
+            sys.stderr.write(
+                "Error: could not find nRF54LM20B CDC port "
+                "(VID:PID=2886:0058). Connect the board.\n")
+            env.Exit(1)
+        env.Replace(UPLOAD_PORT=port)
+        explicit = env.subst("$UPLOAD_PORT")
+
+    print("Touching %s at 1200 baud → DFU..." % explicit)
+    before_ports = list_serial_ports()
+    env.TouchSerialPort("$UPLOAD_PORT", 1200)
+    env.Replace(UPLOAD_PORT=env.WaitForNewSerialPort(before_ports))
+    print("Loader port: %s" % env.subst("$UPLOAD_PORT"))
+
+
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
@@ -485,11 +513,13 @@ elif upload_protocol == "nrfutil-mcumgr":
             "--timeout", "120",
             "--firmware",
         ],
-        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"'
+        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"',
+        RESETCMD='$UPLOADER mcu-manager serial reset --serial-port "$UPLOAD_PORT" --timeout 60'
     )
     upload_actions = [
-        env.VerboseAction(WaitForDfuPort, "Waiting for DFU port (press P0.09 + reset)..."),
-        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")
+        env.VerboseAction(DfuUpload1200, "1200bps touch → DFU..."),
+        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE"),
+        env.VerboseAction("$RESETCMD", "Resetting device...")
     ]
 
 elif upload_protocol == "sam-ba":
