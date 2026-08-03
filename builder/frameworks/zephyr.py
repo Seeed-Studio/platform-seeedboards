@@ -593,6 +593,38 @@ def _ensure_module(label, cache_dir, remote, revision, override_env, local_dir):
     return os.path.normpath(cache_dir)
 
 
+def _patch_xiao_dfu_quiet(framework_dir):
+    """Silence the xiao_dfu_reset per-event debug printk.
+
+    The module prints "[xiao_dfu] msg type=... baud=..." on EVERY CDC ACM
+    line-coding event (every host serial-port open/close), flooding the console
+    in normal use. Neuter the two deferred debug work submissions so they never
+    fire; the real "1200 touch" LOG_INF (actual DFU entry) in the callback is
+    untouched.
+    """
+    src = join(framework_dir, "_pio", "modules", "xiao_dfu_reset",
+               "src", "xiao_dfu_reset.c")
+    if not os.path.isfile(src):
+        return
+    with open(src, "r", encoding="utf-8") as fp:
+        text = fp.read()
+    subs = {
+        "k_work_submit(&xiao_dfu_init_work);":
+            "/* XIAO: armed-notification printk silenced (console spam) */",
+        "k_work_submit(&xiao_dfu_dbg_work);":
+            "/* XIAO: per-event debug printk silenced (console spam) */",
+    }
+    changed = False
+    for old, new in subs.items():
+        if old in text:
+            text = text.replace(old, new)
+            changed = True
+    if changed:
+        with open(src, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO: silenced xiao_dfu_reset per-event debug printk")
+
+
 def _patch_edge_impulse_sdk(ei_dir):
     """Stop the Edge Impulse SDK from building Espressif (ESP32) sources on ARM.
 
@@ -691,6 +723,7 @@ _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
+_patch_xiao_dfu_quiet(framework_dir)
 _provision_edge_ai()
 
 SConscript(
