@@ -1,0 +1,21 @@
+/* XIAO nRF54LM20B Edge AI — gesture recognition (LOCAL, no Bluetooth).
+ *
+ * Console stays on the board-default USB CDC ACM (cdc_acm_uart): the AT control
+ * port and the 1200-bps DFU trigger both rely on it, so we do NOT redirect to
+ * UART21. The board already provides the USB-DFU partition layout and the IMU
+ * (lsm6ds3tr-c) + LDO1 power path; we only enable the Axon NPU node, mark the
+ * IMU for deferred init (the app powers LDO1 before initializing the sensor),
+ * and let the IMU code own the LDO1 enable (remove regulator-boot-on). */
+
+&lsm6ds3tr_c {
+	zephyr,deferred-init;
+	status = "okay";
+};
+
+&imu_vdd {
+	/delete-property/ regulator-boot-on;
+};
+
+&axon {
+	status = "okay";
+};

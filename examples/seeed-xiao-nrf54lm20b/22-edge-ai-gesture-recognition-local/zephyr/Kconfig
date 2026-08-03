@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+config LED_NOTIFICATION_BLINK
+	bool "Notification LED blink on event only"
+	help
+	  Blink the status LED only when a connection or mode event occurs.
+
+config DATA_COLLECTION_MODE
+	bool "Enable data collection mode (do not run inference)"
+
+config NRF_EDGEAI_GESTURE_RECOGNITION_MODEL_AXON
+	bool "Use the official Axon NPU model"
+	depends on SOC_NRF54LM20B
+	select NRF_AXON
+	default y
+
+choice BLE_MODE
+	prompt "BLE mode"
+	default BLE_MODE_HID if !DATA_COLLECTION_MODE
+	default BLE_MODE_NUS if DATA_COLLECTION_MODE
+
+config BLE_MODE_NONE
+	bool "No Bluetooth LE"
+
+config BLE_MODE_HID
+	bool "BLE HID keyboard emulation"
+	depends on !DATA_COLLECTION_MODE
+	depends on BT
+	select BT_HIDS
+	select BT_DIS
+	select BT_DIS_PNP
+	select BT_BAS
+
+config BLE_MODE_NUS
+	bool "BLE Nordic UART Service"
+	depends on DATA_COLLECTION_MODE
+	depends on BT
+	select BT_NUS
+	select BT_DIS
+	select BT_DIS_PNP
+	select BT_BAS
+
+config BLE_MODE_GATT_CUSTOM
+	bool "BLE custom GATT inference results"
+	depends on !DATA_COLLECTION_MODE
+	depends on BT
+	select BT_BAS
+	select BT_DIS
+	select BT_DIS_PNP
+
+endchoice
+
+# NOTE: the upstream HID-only Kconfig (BLE_MITM_AUTH and the BT_HIDS_DEFAULT_PERM
+# choice) is intentionally dropped here — this is the local-detection build
+# (CONFIG_BLE_MODE_NONE), which has no Bluetooth, and those symbols reference
+# NCS-only BT_HIDS Kconfig entries that are undefined under framework Zephyr.
+
+source "Kconfig.zephyr"
