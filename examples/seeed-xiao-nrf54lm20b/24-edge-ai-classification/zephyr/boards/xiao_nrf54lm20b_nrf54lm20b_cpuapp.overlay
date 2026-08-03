@@ -1,0 +1,10 @@
+/* XIAO nRF54LM20B Edge AI — Axon parcel-state classification.
+ *
+ * Console stays on the board-default USB CDC ACM (cdc_acm_uart); we deliberately
+ * do NOT redirect it to UART21 and do NOT disable the USB stack, so the
+ * platform's 1200-bps DFU trigger keeps working. The only hardware change
+ * needed is enabling the Axon NPU node. */
+
+&axon {
+	status = "okay";
+};

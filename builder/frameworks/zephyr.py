@@ -370,6 +370,52 @@ def _patch_platformio_framework_package_name(framework_dir, framework_package_na
             fp.write(text)
 
 
+def _patch_platformio_prebuilt_lib_linking(framework_dir):
+    """Make PlatformIO link prebuilt static archives from modules correctly.
+
+    PIO's stock codemodel parser (scripts/platformio/platformio-build.py) turns
+    an absolute-path `.a` link fragment into a bare basename passed to the
+    linker, plus a `-L<dir>`. ld does NOT search `-L` for bare filenames, so
+    module prebuilt archives (e.g. sdk-edge-ai's Axon / nRF EdgeAI libraries)
+    fail to link with "No such file or directory". Emit `-l<name>` instead so
+    the `-L` search path actually resolves them. Only affects absolute-path
+    `.a` archives (branch 4); relative archives (branch 5) are untouched.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    old = (
+        '                link_args["project_libs"]["standard_libs"].extend(\n'
+        '                    [\n'
+        '                        os.path.basename(lib)\n'
+        '                        for lib in args\n'
+        '                        if lib.endswith(".a")\n'
+        '                    ]\n'
+        '                )'
+    )
+    new = (
+        '                link_args["project_libs"]["standard_libs"].extend(\n'
+        '                    [\n'
+        '                        ("-l" + os.path.basename(lib)[:-2][3:])\n'
+        '                        if os.path.basename(lib).startswith("lib")\n'
+        '                        else os.path.basename(lib)\n'
+        '                        for lib in args\n'
+        '                        if lib.endswith(".a")\n'
+        '                    ]\n'
+        '                )'
+    )
+
+    if old in text and new not in text:
+        text = text.replace(old, new)
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("Patched PlatformIO: prebuilt-archive linking (-l form for abs .a)")
+
+
 def _is_commit_hash(value):
     return value and re.match(r"[0-9a-f]{7,}$", value) is not None
 
@@ -470,6 +516,170 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
     print("Pre-install complete.")
 
 
+# ---------------------------------------------------------------------------
+# Edge AI (sdk-edge-ai) integration
+#
+# edge-AI samples reuse Nordic's Edge AI Add-on (sdk-edge-ai v2.1.0), a Zephyr
+# module whose heavy lifting is prebuilt static archives (Axon NPU driver +
+# nRF EdgeAI runtime). It is registered only for samples that opt in via
+# `CONFIG_NRF_EDGEAI=y` in prj.conf, so non-edge-AI samples (e.g. zephyr-blink)
+# are unaffected. The module source is provisioned three ways, in order:
+#   1. XIAO_EDGE_AI_DIR / XIAO_EDGE_IMPULSE_DIR env override (local clone)
+#   2. a developer's local clone at the well-known NCS add-on path
+#   3. a one-time git clone (tag) into the framework cache (turnkey, 方案 3)
+# This keeps the integration off the (live) framework package and off the shared
+# board JSON, and reproducible on a fresh machine.
+# ---------------------------------------------------------------------------
+
+_EDGE_AI_REMOTE = "https://github.com/nrfconnect/sdk-edge-ai.git"
+_EDGE_AI_REVISION = "v2.1.0"
+_EDGE_AI_CACHE = join(framework_dir, "_pio", "modules", "sdk-edge-ai")
+_EDGE_AI_LOCAL = "D:/workspace/ncs/edge_add_on_2/edge-ai"
+
+_EDGE_IMPULSE_REMOTE = "https://github.com/edgeimpulse/edge-impulse-sdk-zephyr.git"
+_EDGE_IMPULSE_REVISION = "v1.88.1"
+_EDGE_IMPULSE_CACHE = join(framework_dir, "_pio", "modules", "edge-impulse-sdk-zephyr")
+_EDGE_IMPULSE_LOCAL = "D:/workspace/ncs/edge_add_on_2/modules/edge-impulse-sdk-zephyr"
+
+
+def _prj_conf_has(token):
+    """True if the project's prj.conf contains the given CONFIG token."""
+    project_dir = env.subst("$PROJECT_DIR")
+    for rel in ("zephyr/prj.conf", "prj.conf"):
+        conf = join(project_dir, rel)
+        if os.path.isfile(conf):
+            try:
+                with open(conf, "r", encoding="utf-8", errors="ignore") as fp:
+                    if token in fp.read():
+                        return True
+            except OSError:
+                pass
+    return False
+
+
+def _is_edge_ai_sample():
+    # An edge-AI sample opts in via either the nRF EdgeAI runtime or the bare
+    # Axon NPU driver (e.g. person_detection uses CONFIG_NRF_AXON directly).
+    return _prj_conf_has("CONFIG_NRF_EDGEAI=y") or _prj_conf_has(
+        "CONFIG_NRF_AXON=y"
+    )
+
+
+def _ensure_module(label, cache_dir, remote, revision, override_env, local_dir):
+    """Return a valid module root (with zephyr/module.yml), cloning on demand.
+
+    Order: env override -> local dev clone -> cached clone -> git fetch.
+    """
+    marker = join(cache_dir, "zephyr", "module.yml")
+
+    override = os.environ.get(override_env, "")
+    if override and os.path.isfile(join(override, "zephyr", "module.yml")):
+        return os.path.normpath(override)
+
+    if local_dir and os.path.isfile(join(local_dir, "zephyr", "module.yml")):
+        return os.path.normpath(local_dir)
+
+    if os.path.isfile(marker):
+        return os.path.normpath(cache_dir)
+
+    print(f"XIAO Edge AI: cloning {label} {revision} -> {cache_dir}")
+    if os.path.isdir(cache_dir):
+        shutil.rmtree(cache_dir, ignore_errors=True)
+    if not _git_clone_with_retry(remote, cache_dir, revision):
+        return None
+    if not os.path.isfile(marker):
+        print(f"XIAO Edge AI: {label} cloned but zephyr/module.yml missing")
+        return None
+    return os.path.normpath(cache_dir)
+
+
+def _patch_edge_impulse_sdk(ei_dir):
+    """Stop the Edge Impulse SDK from building Espressif (ESP32) sources on ARM.
+
+    Its ARM branch globs "*.s" under the whole SDK; on case-insensitive Windows
+    that also matches the ESP32 Xtensa "*.S" files (porting/espressif/ESP-NN),
+    which (a) are wrong-target assembly for Cortex-M and (b) produce object
+    paths longer than Windows MAX_PATH (260). Exclude the espressif tree. This
+    mirrors how the upstream ESP32 branch already excludes it.
+    """
+    cmake = join(ei_dir, "edge-impulse-sdk", "cmake", "zephyr", "CMakeLists.txt")
+    if not os.path.isfile(cmake):
+        return
+    with open(cmake, "r", encoding="utf-8") as fp:
+        text = fp.read()
+    old = '        RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}" "*.s")\n'
+    new = (
+        '        # XIAO nRF54LM20B: exclude the Espressif (ESP32) tree so its\n'
+        '        # Xtensa .S is not built for ARM (Windows "*.s" matches "*.S")\n'
+        '        # and the object path stays under Windows MAX_PATH (260).\n'
+        '        RECURSIVE_FIND_FILE_EXCLUDE_DIR(EI_SOURCE_FILES '
+        '"${EI_SDK_FOLDER}" "espressif" "*.s")\n'
+    )
+    if old in text and new not in text:
+        text = text.replace(old, new)
+        with open(cmake, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO Edge AI: patched edge-impulse-sdk to exclude ESP32 sources (ARM)")
+
+    # The EXCLUDE_DIR macro matches ".*\/<dir>\/.*" with forward slashes, which
+    # never matches Windows backslash paths -> excludes silently no-op on
+    # Windows. Normalise to forward slashes before matching.
+    utils_cmake = join(ei_dir, "edge-impulse-sdk", "cmake", "utils.cmake")
+    if os.path.isfile(utils_cmake):
+        with open(utils_cmake, "r", encoding="utf-8") as fp:
+            utext = fp.read()
+        u_old = '    IF (file_path MATCHES ".*\\/${exclude_dir}\\/.*")\n'
+        u_new = (
+            '    STRING(REPLACE "\\\\" "/" _fp_norm "${file_path}")\n'
+            '    IF (_fp_norm MATCHES ".*/${exclude_dir}/.*")\n'
+        )
+        if u_old in utext and u_new not in utext:
+            utext = utext.replace(u_old, u_new)
+            with open(utils_cmake, "w", encoding="utf-8") as fp:
+                fp.write(utext)
+            print("XIAO Edge AI: patched edge-impulse-sdk EXCLUDE_DIR macro (Win path-sep)")
+
+
+def _provision_edge_ai():
+    """Register sdk-edge-ai (and edge-impulse-sdk-zephyr if needed) as Zephyr
+    modules for edge-AI samples before the Zephyr build runs."""
+    if not _is_edge_ai_sample():
+        return
+
+    ea_dir = _ensure_module(
+        "sdk-edge-ai", _EDGE_AI_CACHE, _EDGE_AI_REMOTE, _EDGE_AI_REVISION,
+        "XIAO_EDGE_AI_DIR", _EDGE_AI_LOCAL)
+    if not ea_dir:
+        print("XIAO Edge AI: sdk-edge-ai not available (set XIAO_EDGE_AI_DIR or "
+              "allow network for the one-time clone); skipping registration.")
+        return
+
+    modules = [ea_dir]
+    # The hello_ei sample (26) also needs the Edge Impulse SDK Zephyr module.
+    if _prj_conf_has("CONFIG_EDGE_IMPULSE_SDK=y"):
+        ei_dir = _ensure_module(
+            "edge-impulse-sdk-zephyr", _EDGE_IMPULSE_CACHE,
+            _EDGE_IMPULSE_REMOTE, _EDGE_IMPULSE_REVISION,
+            "XIAO_EDGE_IMPULSE_DIR", _EDGE_IMPULSE_LOCAL)
+        if ei_dir:
+            _patch_edge_impulse_sdk(ei_dir)
+            modules.append(ei_dir)
+        else:
+            print("XIAO Edge AI: edge-impulse-sdk-zephyr not available; "
+                  "sample 26 (hello_ei) will fail to build.")
+
+    existing = env.get("PIO_NCS_MODULES", "")
+    ordered = existing.split(";") + modules if existing else list(modules)
+    seen, deduped = set(), []
+    for m in ordered:
+        if m and m not in seen:
+            seen.add(m)
+            deduped.append(m)
+    env["PIO_NCS_MODULES"] = ";".join(deduped)
+    os.environ["XIAO_EDGE_AI_DIR"] = ea_dir
+    print(f"XIAO Edge AI: registered modules -> {env['PIO_NCS_MODULES']}")
+
+
 # Pre-install west dependencies with retry before platformio-build.py runs
 # This ensures they exist when install-deps.py checks, avoiding its
 # destructive clean_up() on any single failure.
@@ -480,6 +690,8 @@ _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
 _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
+_patch_platformio_prebuilt_lib_linking(framework_dir)
+_provision_edge_ai()
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")

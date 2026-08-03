@@ -67,12 +67,14 @@ function Find-JLinkSerial {
     Write-Host "Searching for JLink probe..."
     $out = (& $NrfutilExe device list 2>&1 | Out-String)
     $s = [regex]::Matches($out, '(\d{12,})') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
-    if ($s.Count -eq 1) { Write-Host "  Found: $($s[0])"; return $s[0] }
-    if ($s.Count -gt 1) {
+    if ($s -and $s.Count -ge 1) {
+        if ($s.Count -eq 1) { Write-Host "  Found: $($s[0])"; return $s[0] }
         for ($i=0; $i -lt $s.Count; $i++) { Write-Host "  [$i] $($s[$i])" }
-        return $s[[int]](Read-Host "Select probe [0-$($s.Count-1)]")
+        $idx = Read-Host "Select probe [0-$($s.Count-1)]"
+        return $s[[int]$idx]
     }
-    throw "No JLink detected. Use -SerialNumber."
+    Write-Host "  Serial not parsed, using --traits jlink auto-select."
+    return ""
 }
 
 function Find-Objcopy {
@@ -106,6 +108,9 @@ if (-not $AppBin)   { $AppBin   = Join-Path $fwDir 'app.signed.bin' }
 $nrf = Find-Nrfutil
 $sn  = Find-JLinkSerial -NrfutilExe $nrf -Requested $SerialNumber
 
+# Probe selector: serial if known, else --traits jlink
+if ($sn) { $probe = @('--serial-number', $sn) } else { $probe = @('--traits', 'jlink') }
+
 Write-Host ""
 Write-Host "╔═══════════════════════════════════════════╗"
 Write-Host "║  XIAO nRF54LM20B Factory Provisioning    ║"
@@ -121,7 +126,7 @@ if (-not (Test-Path -LiteralPath $MergedHex)) {
     throw "USB_DFU.hex not found: $MergedHex`nCopy it to $fwDir\USB_DFU.hex"
 }
 Write-Host "  $MergedHex (ERASE_ALL)"
-& $nrf device program --serial-number $sn --family nrf54l `
+& $nrf device program @probe --family nrf54l `
     --firmware $MergedHex --swd-clock-frequency 1000 `
     --options "chip_erase_mode=ERASE_ALL,reset=RESET_SYSTEM,verify=VERIFY_READ"
 if ($LASTEXITCODE -ne 0) { throw "Step 1 failed." }
@@ -134,13 +139,13 @@ if (-not (Test-Path -LiteralPath $KmuKey)) {
     Write-Host "  ⚠ keyfile.json not found — skipping. (OK if already provisioned.)"
 } else {
     Write-Host "  $KmuKey"
-    & $nrf device x-provision-keys --key-file $KmuKey --serial-number $sn --family nrf54l 2>&1 | ForEach-Object { Write-Host "  $_" }
+    & $nrf device x-provision-keys --key-file $KmuKey @probe --family nrf54l 2>&1 | ForEach-Object { Write-Host "  $_" }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  ⚠ Non-zero exit (may already be provisioned — continuing.)"
     } else {
         Write-Host "  ✓ KMU key provisioned."
     }
-    & $nrf device reset --serial-number $sn --reset-kind RESET_SYSTEM 2>&1 | Out-Null
+    & $nrf device reset @probe --reset-kind RESET_SYSTEM 2>&1 | Out-Null
 }
 Write-Host ""
 
@@ -151,7 +156,7 @@ if (-not (Test-Path -LiteralPath $AppBin)) {
 }
 Write-Host "  $AppBin → slot0 @ $Slot0Address (ERASE_NONE)"
 $appHex = Convert-BinToHex -Bin $AppBin -Offset $Slot0Address
-& $nrf device program --serial-number $sn --family nrf54l `
+& $nrf device program @probe --family nrf54l `
     --firmware $appHex --swd-clock-frequency 1000 `
     --options "chip_erase_mode=ERASE_NONE,reset=RESET_SYSTEM,verify=VERIFY_READ"
 if ($LASTEXITCODE -ne 0) { throw "Step 3 failed." }
