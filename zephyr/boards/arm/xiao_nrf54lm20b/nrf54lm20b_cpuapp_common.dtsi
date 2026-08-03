@@ -71,34 +71,28 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
+		/* OLD bootloader layout: matches the shipped 24 KiB no-log mcuboot
+		 * and the USB firmware-loader DFU scheme (mcuboot + slot0 app + slot1
+		 * loader + storage). Keep in sync with the framework package copy and
+		 * with commit 897a65e (imgtool slot_size = 0x1BE000 = 1784 KiB). */
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x0 DT_SIZE_K(68)>;
+			reg = <0x0 DT_SIZE_K(24)>;
 		};
 
-		slot0_partition: partition@11000 {
+		slot0_partition: partition@6000 {
 			label = "image-0";
-			reg = <0x11000 DT_SIZE_K(448)>;
+			reg = <0x6000 DT_SIZE_K(1784)>;
 		};
 
-		slot0_ns_partition: partition@81000 {
-			label = "image-0-nonsecure";
-			reg = <0x81000 DT_SIZE_K(448)>;
-		};
-
-		slot1_partition: partition@f1000 {
+		slot1_partition: partition@1c4000 {
 			label = "image-1";
-			reg = <0xf1000 DT_SIZE_K(448)>;
+			reg = <0x1c4000 DT_SIZE_K(116)>;
 		};
 
-		slot1_ns_partition: partition@161000 {
-			label = "image-1-nonsecure";
-			reg = <0x161000 DT_SIZE_K(448)>;
-		};
-
-		storage_partition: partition@1d1000 {
+		storage_partition: partition@1e1000 {
 			label = "storage";
-			reg = <0x1d1000 DT_SIZE_K(36)>;
+			reg = <0x1e1000 DT_SIZE_K(16)>;
 		};
 	};
 };
