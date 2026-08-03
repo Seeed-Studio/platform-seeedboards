@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menu "Wakeword and Keyword Spotting application"
+
+choice APP_MODE
+	prompt "Application mode"
+	default APP_MODE_WW_GATED_KWS
+
+config APP_MODE_WW_GATED_KWS
+	bool "Wakeword-gated keyword spotting mode"
+	help
+	  Run keyword spotting model only after wakeword was detected. After configurable duration
+	  without any keyword spotted switch back to wakeword detection.
+
+config APP_MODE_WW_ONLY
+	bool "Wakeword detection only mode"
+	help
+	  Run wakeword detection continuously without switching to keyword spotting.
+
+config APP_MODE_KWS_ONLY
+	bool "Keyword spotting only mode"
+	help
+	  Run keyword spotting continuously without the need to detect wakeword first.
+
+endchoice
+
+config WW_PROBABILITY_THRESHOLD
+	int "Wakeword probability threshold"
+	range 0 1000
+	default 990
+
+config WW_HISTORY_SIZE
+	int "Size of wakeword predictions history"
+	range 1 32
+	default 20
+
+config WW_COUNT_THRESHOLD
+	int "Threshold for wakeword detection from predictions history"
+	range 1 WW_HISTORY_SIZE
+	default 15
+
+config KWS_PERIOD_MS
+	int "Length of keyword spotting window in wakeword-gated mode"
+	default 3000
+
+config KWS_EMA_ALPHA
+	int "Exponential moving average coefficient for class probability"
+	range 0 1000
+	default 120
+
+endmenu
+
+source "Kconfig.zephyr"
