@@ -1,7 +1,7 @@
 # XIAO nRF54LM20B — PIO 开发环境信息
 
 > 完整环境清单,可传递给其他 agent / 新开发者。
-> 最后更新:2026-07-31
+> 最后更新:2026-08-03
 
 ## 核心路径
 
@@ -107,10 +107,15 @@ config CDC_ACM_SERIAL_PRODUCT_STRING  string default "XIAO_NRF54LM20B"
 ```
 
 **`builder/board_build/nrf/nrf_build.py`:**
-- `DfuUpload1200()`: 按 VID:PID 2886:8013 找口 → touch 1200 → wait for new port
-- `WaitForDfuPort()`: 按键模式 fallback(VID 2FE3:0004 loader 口)
+- `DfuUpload1200()`: 统一 DFU 口解析器(防砖)。按优先级解析:
+  - 显式 `upload_port` → 按 VID:PID 判断是 loader 还是 app
+  - loader CDC(2886:0013)已在 → 板子已在 DFU(手动 P0.09+复位 / 空槽 NO_APPLICATION)→ **直接用,跳过 1200 touch**(防砖快速路径)
+  - app CDC(2886:8013)在 → touch 1200 → 轮询只认 loader CDC(2886:0013)
+  - 都不在 → 提示"按住 P0.09+复位"并轮询等 loader CDC(60s)
+- 常量:`_APP_CDC_VIDPID=2886:8013`、`_LOADER_CDC_VIDPIDS=("2886:0013",)`(元组,可加 legacy loader VID:PID)
 - `RESETCMD`: `nrfutil mcu-manager serial reset` (upload 后自动复位)
 - `--timeout 120`
+- (旧 `WaitForDfuPort()` 已删,逻辑并入 `DfuUpload1200` 第 4 分支)
 
 **`scripts/factory_flash/factory_provision.ps1`:** 出厂 3 步(合并固件 → KMU → PIO app),自包含搜索工具
 **`scripts/factory_flash/factory_flash.ps1`:** 通用 SWD 烧录(单独固件)
@@ -122,7 +127,8 @@ config CDC_ACM_SERIAL_PRODUCT_STRING  string default "XIAO_NRF54LM20B"
 
 | 参数 | 值 |
 |---|---|
-| **USB VID:PID** | `0x2886:0x8013` (Seeed) |
+| **USB VID:PID (app)** | `0x2886:0x8013` (framework Kconfig `CDC_ACM_SERIAL_PID`) |
+| **USB VID:PID (DFU loader)** | `0x2886:0x0013` (loader usb_mcumgr,出厂 hex `scripts/factory_flash/firmware/USB_DFU.hex` 内 device descriptor @0x1D2BAD) |
 | **USB 设备名** | `XIAO_NRF54LM20B` |
 | **签名算法** | Ed25519 PURE (imgtool `--pure`, TLV 0x25) |
 | **签名密钥** | `root-ed25519.pem` (公钥 d4b31ba4..., 在 KMU OTP) |
@@ -161,7 +167,18 @@ cd D:\workspace\xiao_nrf54lm20b\platform-seeedboards\scripts\factory_flash
 ```powershell
 cd D:\workspace\xiao_nrf54lm20b\platform-seeedboards\examples\seeed-xiao-nrf54lm20b\zephyr-blink
 pio run -t upload -e seeed-xiao-nrf54lm20b
-# → DfuUpload1200: 找 VID 2886:8013 → touch 1200 → app 复位进 loader → 等新口 → mcumgr 上传 → auto-reset
+# → DfuUpload1200: app CDC(2886:8013)在 → touch 1200 → 轮询认 loader CDC(2886:0013) → mcumgr 上传 → auto-reset
+```
+
+### 防砖恢复(app 崩溃 / 空 slot,无 app CDC)
+
+不用 SWD,直接 PIO 恢复:
+
+```powershell
+pio run -t upload -e seeed-xiao-nrf54lm20b
+# 此时板子无 app CDC(2886:8013)。按住 Button0 / P0.09 + 复位进 DFU(loader 跑起来,出 2886:0013)
+# → DfuUpload1200: 检测到 loader CDC 已在 → 直接用、跳过 touch → mcumgr 上传好 app → reset 起来
+# (若上传时还没按键,PIO 会提示并轮询等 2886:0013 出现,60s 超时)
 ```
 
 ### 工厂恢复/单独 SWD 烧录
