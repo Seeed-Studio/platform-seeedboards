@@ -14,4 +14,24 @@ config BOOTLOADER_MCUBOOT
 
 source "boards/common/usb/Kconfig.cdc_acm_serial.defconfig"
 
+# The cdc_acm_serial.defconfig sourced above enables SERIAL/CONSOLE/USB stack
+# but does NOT set the CDC ACM VID/PID/product string -- those otherwise fall
+# back to Zephyr's stock 0x2fe3:0x0004 ("CDC ACM serial backend") defined in
+# subsys/usb/device_next/app/Kconfig.cdc_acm_serial. Override them here to the
+# Seeed identity the platform auto-DFU expects (builder/board_build/nrf/
+# nrf_build.py _APP_CDC_VIDPID = "2886:8013"), so the 1200-bps touch path can
+# find the app CDC. Board Kconfig.defconfig is sourced before subsys, so these
+# defaults take precedence. Do not remove without updating nrf_build.py too.
+config CDC_ACM_SERIAL_VID
+	hex
+	default 0x2886
+
+config CDC_ACM_SERIAL_PID
+	hex
+	default 0x8013
+
+config CDC_ACM_SERIAL_PRODUCT_STRING
+	string
+	default "XIAO_NRF54LM20B"
+
 endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP

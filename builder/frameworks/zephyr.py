@@ -625,6 +625,61 @@ def _patch_xiao_dfu_quiet(framework_dir):
         print("XIAO: silenced xiao_dfu_reset per-event debug printk")
 
 
+def _patch_cdc_vidpid(framework_dir):
+    """Force the XIAO nRF54LM20B app CDC to Seeed 0x2886:0x8013.
+
+    The VID/PID override belongs in the board's Kconfig.defconfig, but the
+    board-copy step is 'missing-only' for Zephyr >=4.4 (see commit f629163),
+    so a framework copy made before the override was added is never refreshed
+    and the device enumerates with Zephyr's stock 0x2fe3:0x0004 -- which the
+    1200-bps DFU upload path (nrf_build.py _APP_CDC_VIDPID="2886:8013") cannot
+    find, so auto-flashing falls back to manual DFU. Inject the override into
+    the framework's copied Kconfig.defconfig on every build (idempotent), so
+    new and existing installs both get 2886:8013 without touching the
+    missing-only copy logic.
+    """
+    path = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
+                "Kconfig.defconfig")
+    if not os.path.isfile(path):
+        return
+    with open(path, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    # Fresh copy from a platform source that already carries the override ->
+    # nothing to do (idempotent on repeat builds too).
+    if "CDC_ACM_SERIAL_PID" in text:
+        return
+
+    override = (
+        "\n"
+        "config CDC_ACM_SERIAL_VID\n"
+        "\thex\n"
+        "\tdefault 0x2886\n"
+        "\n"
+        "config CDC_ACM_SERIAL_PID\n"
+        "\thex\n"
+        "\tdefault 0x8013\n"
+        "\n"
+        "config CDC_ACM_SERIAL_PRODUCT_STRING\n"
+        "\tstring\n"
+        "\tdefault \"XIAO_NRF54LM20B\"\n"
+    )
+    src_line = 'source "boards/common/usb/Kconfig.cdc_acm_serial.defconfig"'
+    if src_line in text:
+        text = text.replace(src_line, src_line + override, 1)
+    elif "endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP" in text:
+        text = text.replace(
+            "endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP",
+            override + "endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP", 1)
+    else:
+        # Unrecognised file shape; leave it untouched rather than corrupt it.
+        return
+
+    with open(path, "w", encoding="utf-8") as fp:
+        fp.write(text)
+    print("XIAO: ensured CDC ACM VID:PID = 2886:8013 in board Kconfig.defconfig")
+
+
 def _patch_edge_impulse_sdk(ei_dir):
     """Stop the Edge Impulse SDK from building Espressif (ESP32) sources on ARM.
 
@@ -724,6 +779,7 @@ _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
 _patch_xiao_dfu_quiet(framework_dir)
+_patch_cdc_vidpid(framework_dir)
 _provision_edge_ai()
 
 SConscript(
