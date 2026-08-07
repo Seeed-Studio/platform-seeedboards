@@ -1,0 +1,8 @@
+/* XIAO nRF54LM20B Edge AI — hello Edge Impulse (Axon NPU).
+ * Console stays on the board-default USB CDC ACM; we do NOT redirect to UART21
+ * or disable the USB stack, so the 1200-bps DFU trigger keeps working. Only the
+ * Axon NPU node is enabled. */
+
+&axon {
+	status = "okay";
+};

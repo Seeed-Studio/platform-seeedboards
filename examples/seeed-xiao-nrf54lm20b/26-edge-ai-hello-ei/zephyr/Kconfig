@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menu "XIAO Hello Edge Impulse"
+
+config HELLO_EI_DATA_BUF_SIZE
+	int "Input-data buffer size in float values"
+	default 512
+
+endmenu
+
+source "Kconfig.zephyr"

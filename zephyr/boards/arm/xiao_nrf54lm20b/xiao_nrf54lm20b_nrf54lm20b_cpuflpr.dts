@@ -5,12 +5,12 @@
  */
 
 /dts-v1/;
-#include <nordic/nrf54lm20a_cpuflpr.dtsi>
-#include "xiao_nrf54lm20b_nrf54lm20a-common.dtsi"
+#include <nordic/nrf54lm20b_cpuflpr.dtsi>
+#include "xiao_nrf54lm20b_nrf54lm20b-common.dtsi"
 
 / {
-	model = "Seeed XIAO nRF54LM20B nRF54LM20A FLPR MCU";
-	compatible = "seeed,xiao_nrf54lm20b_nrf54lm20a-cpuflpr";
+	model = "Seeed XIAO nRF54LM20B FLPR MCU";
+	compatible = "seeed,xiao_nrf54lm20b_nrf54lm20b-cpuflpr";
 
 	chosen {
 		zephyr,code-partition = &cpuflpr_code_partition;

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menu "XIAO offline person detection"
+
+config SCORE_THRESHOLD
+	int "Model score threshold, in per mille"
+	range 0 1000
+	default 250
+	help
+	  Confidence threshold used to retain person detections.
+
+config IOU_THRESHOLD
+	int "Boxes IoU threshold, in per mille"
+	range 0 1000
+	default 450
+	help
+	  Non-maximum suppression overlap threshold.
+
+endmenu
+
+source "Kconfig.zephyr"

@@ -2,9 +2,17 @@
     "build": {
       "cpu": "cortex-m33",
       "f_cpu": "128000000L",
-      "mcu": "nrf54lm20a",
+      "mcu": "nrf54lm20b",
       "zephyr": {
-        "variant": "xiao_nrf54lm20b/nrf54lm20a/cpuapp"
+        "variant": "xiao_nrf54lm20b/nrf54lm20b/cpuapp",
+        "bootloader": {
+          "header_len": "0x800",
+          "flash_alignment": "16",
+          "slot_size": "0x1BE000",
+          "app_version": "0.0.1",
+          "signature_key_file": "root-ed25519.pem",
+          "pure": "true"
+        }
       }
     },
     "connectivity": [
@@ -26,6 +34,8 @@
       "maximum_ram_size": 524288,
       "maximum_size": 2084864,
       "protocol": "nrfutil-mcumgr",
+      "use_1200bps_touch": true,
+      "wait_for_upload_port": true,
       "pyocd_target": "nrf54lm20a",
       "pyocd_frequency": 4000000,
       "protocols": [
