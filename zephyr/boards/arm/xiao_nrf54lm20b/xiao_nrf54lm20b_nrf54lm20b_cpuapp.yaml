@@ -1,16 +1,23 @@
 # Copyright (c) 2025 Seeed Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-identifier: xiao_nrf54lm20b/nrf54lm20a/cpuflpr
-name: XIAO nRF54LM20B-nRF54LM20A-Fast-Lightweight-Peripheral-Processor
+identifier: xiao_nrf54lm20b/nrf54lm20b/cpuapp
+name: XIAO nRF54LM20B Application
 type: mcu
-arch: riscv
+arch: arm
 toolchain:
+  - gnuarmemb
   - zephyr
 sysbuild: true
-ram: 96
-flash: 96
+ram: 512
+flash: 449
 supported:
+  - adc
   - counter
+  - dmic
   - gpio
+  - i2c
+  - i2s
+  - pwm
+  - spi
   - watchdog
