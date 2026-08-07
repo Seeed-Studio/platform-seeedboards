@@ -603,36 +603,33 @@ def _ensure_module(label, cache_dir, remote, revision, override_env, local_dir):
     return os.path.normpath(cache_dir)
 
 
-def _patch_xiao_dfu_quiet(framework_dir):
-    """Silence the xiao_dfu_reset per-event debug printk.
+def _provision_xiao_dfu_module(framework_dir):
+    """Refresh the 20B DFU module and board retention configuration.
 
-    The module prints "[xiao_dfu] msg type=... baud=..." on EVERY CDC ACM
-    line-coding event (every host serial-port open/close), flooding the console
-    in normal use. Neuter the two deferred debug work submissions so they never
-    fire; the real "1200 touch" LOG_INF (actual DFU entry) in the callback is
-    untouched.
+    Framework board files are copied only when missing, and the framework
+    package is cached by PlatformIO. Refresh both inputs on every 20B build so
+    UART line control, boot-mode retention, and diagnostic output stay in sync
+    with the platform repository.
     """
-    src = join(framework_dir, "_pio", "modules", "xiao_dfu_reset",
-               "src", "xiao_dfu_reset.c")
-    if not os.path.isfile(src):
-        return
-    with open(src, "r", encoding="utf-8") as fp:
-        text = fp.read()
-    subs = {
-        "k_work_submit(&xiao_dfu_init_work);":
-            "/* XIAO: armed-notification printk silenced (console spam) */",
-        "k_work_submit(&xiao_dfu_dbg_work);":
-            "/* XIAO: per-event debug printk silenced (console spam) */",
-    }
-    changed = False
-    for old, new in subs.items():
-        if old in text:
-            text = text.replace(old, new)
-            changed = True
-    if changed:
-        with open(src, "w", encoding="utf-8") as fp:
-            fp.write(text)
-        print("XIAO: silenced xiao_dfu_reset per-event debug printk")
+    source_module = join(platform_dir, "zephyr", "modules", "xiao_dfu_reset")
+    target_module = join(framework_dir, "_pio", "modules", "xiao_dfu_reset")
+    source_board = join(platform_dir, "zephyr", "boards", "arm",
+                        "xiao_nrf54lm20b", "nrf54lm20b_cpuapp_common.dtsi")
+    target_board = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
+                        "nrf54lm20b_cpuapp_common.dtsi")
+
+    if not os.path.isdir(source_module):
+        raise RuntimeError("Missing bundled xiao_dfu_reset module")
+    if os.path.isdir(target_module):
+        shutil.rmtree(target_module)
+    elif os.path.exists(target_module):
+        os.remove(target_module)
+    shutil.copytree(source_module, target_module)
+
+    if not os.path.isfile(source_board):
+        raise RuntimeError("Missing XIAO nRF54LM20B board DTSI")
+    shutil.copyfile(source_board, target_board)
+    print("XIAO: refreshed 20B DFU module and boot-mode retention in framework")
 
 
 def _patch_cdc_vidpid(framework_dir):
@@ -788,7 +785,7 @@ _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
-_patch_xiao_dfu_quiet(framework_dir)
+_provision_xiao_dfu_module(framework_dir)
 _patch_cdc_vidpid(framework_dir)
 _provision_edge_ai()
 
