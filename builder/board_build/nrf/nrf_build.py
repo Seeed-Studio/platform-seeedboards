@@ -18,9 +18,12 @@ import json
 import os
 import shutil
 import site
-from platform import system
+import tarfile
+import tempfile
+from platform import machine, system
 from os import makedirs
 from os.path import isdir, isfile, join, basename
+from urllib.request import urlretrieve
 
 from SCons.Script import (ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild,
                           Builder, Default, DefaultEnvironment)
@@ -211,29 +214,114 @@ def _ensure_pyocd_installed():
     ])
 
 
-def _ensure_nrfutil_installed():
-    """Ensure Nordic nrfutil CLI is available for MCUboot serial upload.
+_NRFUTIL_VERSION = "8.2.0"
+_NRFUTIL_MCUMGR_VERSION = "0.9.0"
+_NRFUTIL_DOWNLOAD_URL = "https://developer.nordicsemi.com/.pc-tools/nrfutil/%s-%s-%s.tar.gz"
 
-    Note: This is NOT Adafruit nrfutil (which PlatformIO ships as
-    tool-adafruit-nrfutil).  Nordic nrfutil is a separate Python package
-    that provides the 'mcu-manager' sub-command for MCUboot serial
-    recovery over USB CDC ACM.
-    """
-    if shutil.which("nrfutil"):
-        return
-    print("[INFO] Installing Nordic nrfutil (mcu-manager)...")
-    python_exe = env.subst("$PYTHONEXE")
+
+def _nrfutil_target():
+    """Return Nordic's target triple for the host running PlatformIO."""
+    host_os = system().lower()
+    host_machine = machine().lower()
+    if host_os == "windows" and host_machine in ("amd64", "x86_64"):
+        return "x86_64-pc-windows-msvc"
+    if host_os == "linux" and host_machine in ("amd64", "x86_64"):
+        return "x86_64-unknown-linux-gnu"
+    if host_os == "darwin" and host_machine in ("arm64", "aarch64"):
+        return "aarch64-apple-darwin"
+    if host_os == "darwin" and host_machine in ("x86_64", "amd64"):
+        return "x86_64-apple-darwin"
+    return None
+
+
+def _nrfutil_supports_mcumgr(executable, process_env=None):
     try:
-        subprocess.check_call([
-            python_exe, "-m", "pip", "install", "--upgrade", "nrfutil"
-        ])
-    except subprocess.CalledProcessError:
+        subprocess.check_call(
+            [executable, "mcu-manager", "serial", "image-upload", "--help"],
+            env=process_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
+def _safe_extract_tarball(tarball_path, destination):
+    """Extract an official nrfutil archive without permitting path traversal."""
+    destination = os.path.realpath(destination)
+    with tarfile.open(tarball_path, "r:gz") as archive:
+        for member in archive.getmembers():
+            member_path = os.path.realpath(join(destination, member.name))
+            if member_path != destination and not member_path.startswith(destination + os.sep):
+                raise RuntimeError("Unsafe path in nrfutil archive: %s" % member.name)
+        archive.extractall(destination)
+
+
+def _ensure_nrfutil_installed():
+    """Return nrfutil v8 with mcu-manager without altering PlatformIO's venv.
+
+    The legacy PyPI ``nrfutil`` package is capped at v5 and depends on Click
+    7, while PlatformIO Core needs Click 8.  Nordic's v8 CLI is a standalone
+    executable, so keep it in PlatformIO's tool cache rather than using pip.
+    """
+    system_nrfutil = shutil.which("nrfutil")
+    if system_nrfutil and _nrfutil_supports_mcumgr(system_nrfutil):
+        return system_nrfutil
+
+    target = _nrfutil_target()
+    if not target:
         sys.stderr.write(
-            "Error: Failed to install Nordic nrfutil.\n"
-            "Please install manually: pip install nrfutil\n"
-            "Note: This is NOT the same as Adafruit nrfutil.\n"
-        )
+            "Error: automatic Nordic nrfutil installation is unsupported on "
+            "%s/%s. Install nrfutil 8 with the mcu-manager command manually.\n" %
+            (system(), machine()))
         env.Exit(1)
+
+    nrfutil_home = join(env.subst("$PROJECT_CORE_DIR"), "nrfutil")
+    install_root = join(nrfutil_home, "nrfutil-%s-%s" % (_NRFUTIL_VERSION, target))
+    executable = join(
+        install_root, "nrfutil-%s-%s" % (target, _NRFUTIL_VERSION), "data", "bin",
+        "nrfutil.exe" if system() == "Windows" else "nrfutil")
+    marker = join(install_root, "mcu-manager-%s.installed" % _NRFUTIL_MCUMGR_VERSION)
+    process_env = os.environ.copy()
+    process_env["NRFUTIL_HOME"] = nrfutil_home
+
+    try:
+        if not isfile(executable):
+            print("[INFO] Installing Nordic nrfutil %s (mcu-manager %s)..." %
+                  (_NRFUTIL_VERSION, _NRFUTIL_MCUMGR_VERSION))
+            makedirs(nrfutil_home, exist_ok=True)
+            temporary_dir = tempfile.mkdtemp(prefix="nrfutil-", dir=nrfutil_home)
+            try:
+                core_archive = join(temporary_dir, "nrfutil-core.tar.gz")
+                urlretrieve(_NRFUTIL_DOWNLOAD_URL % (
+                    "nrfutil", target, _NRFUTIL_VERSION), core_archive)
+                _safe_extract_tarball(core_archive, install_root)
+            finally:
+                shutil.rmtree(temporary_dir, ignore_errors=True)
+
+        if system() != "Windows":
+            os.chmod(executable, 0o755)
+
+        if not isfile(marker):
+            temporary_dir = tempfile.mkdtemp(prefix="nrfutil-", dir=nrfutil_home)
+            try:
+                mcumgr_archive = join(temporary_dir, "mcu-manager.tar.gz")
+                urlretrieve(_NRFUTIL_DOWNLOAD_URL % (
+                    "nrfutil-mcu-manager", target, _NRFUTIL_MCUMGR_VERSION), mcumgr_archive)
+                subprocess.check_call(
+                    [executable, "install", "--tarball", mcumgr_archive], env=process_env)
+                with open(marker, "w", encoding="utf-8") as marker_file:
+                    marker_file.write("%s\n" % _NRFUTIL_MCUMGR_VERSION)
+            finally:
+                shutil.rmtree(temporary_dir, ignore_errors=True)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        sys.stderr.write("Error: failed to install Nordic nrfutil: %s\n" % exc)
+        env.Exit(1)
+
+    if not _nrfutil_supports_mcumgr(executable, process_env):
+        sys.stderr.write("Error: Nordic nrfutil mcu-manager installation is incomplete.\n")
+        env.Exit(1)
+
+    env["ENV"]["NRFUTIL_HOME"] = nrfutil_home
+    return executable
 
 env.Replace(
     AR="arm-none-eabi-ar",
@@ -542,10 +630,15 @@ elif upload_protocol == "nrfutil-mcumgr":
     # The board must have MCUboot with serial recovery enabled and the
     # device must be in serial recovery mode (via WAIT_FOR_DFU window,
     # GPIO button press, or no-application fallback).
-    _ensure_nrfutil_installed()
+    # Do not install an upload-only tool during a normal build.  Besides
+    # avoiding unnecessary downloads in CI, this keeps compilation isolated
+    # from the host's tool-installation state.
+    nrfutil_executable = "nrfutil"
+    if "upload" in COMMAND_LINE_TARGETS:
+        nrfutil_executable = _ensure_nrfutil_installed()
 
     env.Replace(
-        UPLOADER="nrfutil",
+        UPLOADER=nrfutil_executable,
         UPLOADERFLAGS=[
             "mcu-manager",
             "serial",
