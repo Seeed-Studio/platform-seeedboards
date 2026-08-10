@@ -68,6 +68,13 @@ include(FetchContent)
 FetchContent_Declare(edge_impulse URL "${EDGE_IMPULSE_MODEL_ZIP}")
 FetchContent_MakeAvailable(edge_impulse)
 
+# The model archive contains the generated Edge Impulse SDK implementation,
+# including the model-specific run_classifier() definition.
+add_subdirectory(
+  "${edge_impulse_SOURCE_DIR}/edge-impulse-sdk/cmake/zephyr"
+  "${CMAKE_BINARY_DIR}/edge-impulse-sdk-model"
+)
+
 if(CONFIG_NRF_AXON)
   zephyr_compile_definitions(NRF_AXON_MODEL_NAME=${CONFIG_NRF_AXON_MODEL_NAME})
   zephyr_include_directories(${edge_impulse_SOURCE_DIR})

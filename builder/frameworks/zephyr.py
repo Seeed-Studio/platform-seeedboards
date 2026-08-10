@@ -422,7 +422,7 @@ def _patch_platformio_prebuilt_lib_linking(framework_dir):
 
 
 def _patch_platformio_extra_modules(framework_dir):
-    """Discover XIAO-provisioned Zephyr modules from the framework cache.
+    """Discover XIAO-provisioned Zephyr modules from cache and overrides.
 
     Edge AI is installed by this platform, rather than by a user's west
     manifest. Register valid cached modules directly so a clean installation
@@ -435,8 +435,9 @@ def _patch_platformio_extra_modules(framework_dir):
     with open(build_py, "r", encoding="utf-8") as fp:
         text = fp.read()
 
-    marker = "    # Auto-add the xiao_dfu_reset module"
-    addition = (
+    legacy_marker = "    # Auto-add the xiao_dfu_reset module"
+    cmake_marker = '    cmake_cmd.extend(["-D", "ZEPHYR_MODULES=" + ";".join(modules)])'
+    cached_addition = (
         "    # Auto-add XIAO-provisioned Zephyr modules. These are not in a\n"
         "    # project's west manifest, so discover them from the framework cache.\n"
         "    for _xiao_module in (\"sdk-edge-ai\", \"edge-impulse-sdk-zephyr\"):\n"
@@ -449,11 +450,36 @@ def _patch_platformio_extra_modules(framework_dir):
         "                       for module in modules):\n"
         "                modules.append(_mod_unix)\n\n"
     )
-    if marker in text and addition not in text:
+
+    override_addition = (
+        "    # Honor explicit Edge AI module overrides. The SCons environment\n"
+        "    # is not inherited by this standalone build helper, whereas these\n"
+        "    # variables are exported for CI and local developer builds.\n"
+        "    for _xiao_override in (\"XIAO_EDGE_AI_DIR\", \"XIAO_EDGE_IMPULSE_DIR\"):\n"
+        "        _xiao_module_dir = os.environ.get(_xiao_override, \"\")\n"
+        "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
+        "            _mod_unix = fs.to_unix_path(_xiao_module_dir)\n"
+        "            if not any(os.path.normcase(os.path.normpath(module)) ==\n"
+        "                       os.path.normcase(os.path.normpath(_xiao_module_dir))\n"
+        "                       for module in modules):\n"
+        "                modules.append(_mod_unix)\n\n"
+    )
+
+    changed = False
+    for addition in (cached_addition, override_addition):
+        if addition in text:
+            continue
+        # Existing local framework caches have the legacy marker. A pristine
+        # package, as used by CI, has only the CMake module-list statement.
+        marker = legacy_marker if legacy_marker in text else cmake_marker
+        if marker not in text:
+            continue
         text = text.replace(marker, addition + marker, 1)
+        changed = True
+    if changed:
         with open(build_py, "w", encoding="utf-8") as fp:
             fp.write(text)
-        print("XIAO Edge AI: enabled framework-cached Zephyr module discovery")
+        print("XIAO Edge AI: enabled Zephyr module discovery")
 
 
 def _is_commit_hash(value):
