@@ -421,6 +421,41 @@ def _patch_platformio_prebuilt_lib_linking(framework_dir):
         print("Patched PlatformIO: prebuilt-archive linking (-l form for abs .a)")
 
 
+def _patch_platformio_extra_modules(framework_dir):
+    """Discover XIAO-provisioned Zephyr modules from the framework cache.
+
+    Edge AI is installed by this platform, rather than by a user's west
+    manifest. Register valid cached modules directly so a clean installation
+    and a CMake reconfigure do not depend solely on a transient SCons variable.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    marker = "    # Auto-add the xiao_dfu_reset module"
+    addition = (
+        "    # Auto-add XIAO-provisioned Zephyr modules. These are not in a\n"
+        "    # project's west manifest, so discover them from the framework cache.\n"
+        "    for _xiao_module in (\"sdk-edge-ai\", \"edge-impulse-sdk-zephyr\"):\n"
+        "        _xiao_module_dir = os.path.join(\n"
+        "            FRAMEWORK_DIR, \"_pio\", \"modules\", _xiao_module)\n"
+        "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
+        "            _mod_unix = fs.to_unix_path(_xiao_module_dir)\n"
+        "            if not any(os.path.normcase(os.path.normpath(module)) ==\n"
+        "                       os.path.normcase(os.path.normpath(_xiao_module_dir))\n"
+        "                       for module in modules):\n"
+        "                modules.append(_mod_unix)\n\n"
+    )
+    if marker in text and addition not in text:
+        text = text.replace(marker, addition + marker, 1)
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO Edge AI: enabled framework-cached Zephyr module discovery")
+
+
 def _is_commit_hash(value):
     return value and re.match(r"[0-9a-f]{7,}$", value) is not None
 
@@ -534,22 +569,19 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
 # nRF EdgeAI runtime). It is registered only for samples that opt in via
 # `CONFIG_NRF_EDGEAI=y` in prj.conf, so non-edge-AI samples (e.g. zephyr-blink)
 # are unaffected. The module source is provisioned three ways, in order:
-#   1. XIAO_EDGE_AI_DIR / XIAO_EDGE_IMPULSE_DIR env override (local clone)
-#   2. a developer's local clone at the well-known NCS add-on path
-#   3. a one-time git clone (tag) into the framework cache (turnkey, 方案 3)
+#   1. XIAO_EDGE_AI_DIR / XIAO_EDGE_IMPULSE_DIR explicit developer override
+#   2. a one-time git clone (fixed revision) into the framework cache
 # This keeps the integration off the (live) framework package and off the shared
 # board JSON, and reproducible on a fresh machine.
 # ---------------------------------------------------------------------------
 
 _EDGE_AI_REMOTE = "https://github.com/nrfconnect/sdk-edge-ai.git"
-_EDGE_AI_REVISION = "v2.1.0"
+_EDGE_AI_REVISION = "3733b1b87c41fb560be1f2a2de646b4e405f156d"  # v2.1.0
 _EDGE_AI_CACHE = join(framework_dir, "_pio", "modules", "sdk-edge-ai")
-_EDGE_AI_LOCAL = "D:/workspace/ncs/edge_add_on_2/edge-ai"
 
 _EDGE_IMPULSE_REMOTE = "https://github.com/edgeimpulse/edge-impulse-sdk-zephyr.git"
-_EDGE_IMPULSE_REVISION = "v1.88.1"
+_EDGE_IMPULSE_REVISION = "69a6b8fcc23515b9d148c9a1459cb53d5efe4801"  # v1.88.1
 _EDGE_IMPULSE_CACHE = join(framework_dir, "_pio", "modules", "edge-impulse-sdk-zephyr")
-_EDGE_IMPULSE_LOCAL = "D:/workspace/ncs/edge_add_on_2/modules/edge-impulse-sdk-zephyr"
 
 
 def _prj_conf_has(token):
@@ -575,19 +607,19 @@ def _is_edge_ai_sample():
     )
 
 
-def _ensure_module(label, cache_dir, remote, revision, override_env, local_dir):
+def _ensure_module(label, cache_dir, remote, revision, override_env):
     """Return a valid module root (with zephyr/module.yml), cloning on demand.
 
-    Order: env override -> local dev clone -> cached clone -> git fetch.
+    Order: explicit developer override -> cached clone -> git fetch.
+
+    The default never relies on a machine-specific NCS directory: a first build
+    on Windows, Linux, macOS, or CI downloads the pinned upstream revision.
     """
     marker = join(cache_dir, "zephyr", "module.yml")
 
     override = os.environ.get(override_env, "")
     if override and os.path.isfile(join(override, "zephyr", "module.yml")):
         return os.path.normpath(override)
-
-    if local_dir and os.path.isfile(join(local_dir, "zephyr", "module.yml")):
-        return os.path.normpath(local_dir)
 
     if os.path.isfile(marker):
         return os.path.normpath(cache_dir)
@@ -742,7 +774,7 @@ def _provision_edge_ai():
 
     ea_dir = _ensure_module(
         "sdk-edge-ai", _EDGE_AI_CACHE, _EDGE_AI_REMOTE, _EDGE_AI_REVISION,
-        "XIAO_EDGE_AI_DIR", _EDGE_AI_LOCAL)
+        "XIAO_EDGE_AI_DIR")
     if not ea_dir:
         print("XIAO Edge AI: sdk-edge-ai not available (set XIAO_EDGE_AI_DIR or "
               "allow network for the one-time clone); skipping registration.")
@@ -754,7 +786,7 @@ def _provision_edge_ai():
         ei_dir = _ensure_module(
             "edge-impulse-sdk-zephyr", _EDGE_IMPULSE_CACHE,
             _EDGE_IMPULSE_REMOTE, _EDGE_IMPULSE_REVISION,
-            "XIAO_EDGE_IMPULSE_DIR", _EDGE_IMPULSE_LOCAL)
+            "XIAO_EDGE_IMPULSE_DIR")
         if ei_dir:
             _patch_edge_impulse_sdk(ei_dir)
             modules.append(ei_dir)
@@ -785,6 +817,7 @@ _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
+_patch_platformio_extra_modules(framework_dir)
 _provision_xiao_dfu_module(framework_dir)
 _patch_cdc_vidpid(framework_dir)
 _provision_edge_ai()
