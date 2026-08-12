@@ -375,6 +375,87 @@ def _patch_platformio_framework_package_name(framework_dir, framework_package_na
             fp.write(text)
 
 
+def _patch_platformio_mcuboot_signing(framework_dir):
+    """Enable board-declared MCUboot signing for normal upload builds.
+
+    PlatformIO's stock ``MCUbootImage`` command only runs when the user
+    explicitly requests ``-t mcuboot-image``.  An upload build therefore
+    silently sends the unsigned ELF-to-bin conversion even when the board
+    declares all MCUboot image parameters.  Apply this small, idempotent
+    framework compatibility patch after every package install so a clean
+    Registry download behaves exactly like a maintained local installation.
+
+    A board key such as ``root-ed25519.pem`` is a framework-bundled file, not
+    a project-relative path.  Resolve it in MCUboot's bundled key directory
+    before falling back to PlatformIO's legacy RSA default.  The board's
+    ``pure`` setting is also passed through to imgtool: MCUboot built with
+    ``BOOT_SIGNATURE_TYPE_PURE`` rejects an otherwise valid Ed25519 image
+    without its IMAGE_TLV_PURE (0x25) marker.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    opt_in_gate = (
+        '    if "mcuboot-image" not in COMMAND_LINE_TARGETS:\\n'
+        '        return None\\n\\n'
+    )
+    key_resolution_old = (
+        '    if not os.path.isabs(signature_key_file) and not os.path.isfile(\\n'
+        '        signature_key_file\\n'
+        '    ):\\n'
+        '        print(\\n'
+        '            "Warning: MCUboot signature key is not specified! "\\n'
+        '            "The default `root-rsa-2048.pem` will be used!"\\n'
+        '        )\\n\\n'
+        '        signature_key_file = os.path.join(\\n'
+        '            FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", "root-rsa-2048.pem"\\n'
+        '        )\\n'
+    )
+    key_resolution_new = (
+        '    if not os.path.isabs(signature_key_file) and not os.path.isfile(\\n'
+        '        signature_key_file\\n'
+        '    ):\\n'
+        '        bundled_key = os.path.join(\\n'
+        '            FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", signature_key_file\\n'
+        '        ) if signature_key_file else ""\\n'
+        '        if bundled_key and os.path.isfile(bundled_key):\\n'
+        '            signature_key_file = bundled_key\\n'
+        '        else:\\n'
+        '            print(\\n'
+        '                "Warning: MCUboot signature key is not specified! "\\n'
+        '                "The default `root-rsa-2048.pem` will be used!"\\n'
+        '            )\\n'
+        '            signature_key_file = os.path.join(\\n'
+        '                FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", "root-rsa-2048.pem"\\n'
+        '            )\\n'
+    )
+    pure_marker = (
+        '    if board.get("build.zephyr.bootloader.pure", False):\n'
+        '        cmd.append("--pure")\n\n'
+    )
+    sign_marker = '    if signature_key:\n'
+
+    changed = False
+    if opt_in_gate in text:
+        text = text.replace(opt_in_gate, "", 1)
+        changed = True
+    if key_resolution_old in text:
+        text = text.replace(key_resolution_old, key_resolution_new, 1)
+        changed = True
+    if pure_marker not in text and sign_marker in text:
+        text = text.replace(sign_marker, pure_marker + sign_marker, 1)
+        changed = True
+
+    if changed:
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO: enabled default MCUboot signing for board-declared images")
+
+
 def _patch_platformio_prebuilt_lib_linking(framework_dir):
     """Make PlatformIO link prebuilt static archives from modules correctly.
 
@@ -842,6 +923,7 @@ _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
 _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
+_patch_platformio_mcuboot_signing(framework_dir)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
 _patch_platformio_extra_modules(framework_dir)
 _provision_xiao_dfu_module(framework_dir)
