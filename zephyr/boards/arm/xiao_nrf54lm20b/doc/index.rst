@@ -7,8 +7,7 @@ Overview
 ========
 
 The XIAO nRF54LM20B is a compact development board from Seeed Technology based on the
-Nordic nRF54LM20B SoC. The nRF54LM20B is identical to the nRF54LM20A silicon except for
-the absence of the NPU (Neural Processing Unit).
+Nordic nRF54LM20B SoC with the Axon NPU (Neural Processing Unit).
 
 Hardware
 ========

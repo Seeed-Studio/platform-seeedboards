@@ -3,7 +3,7 @@ board:
   full_name: XIAO nRF54LM20B
   vendor: seeed
   socs:
-  - name: nrf54lm20a
+  - name: nrf54lm20b
     variants:
     - name: xip
       cpucluster: cpuflpr
@@ -16,9 +16,9 @@ runners:
       run: first
       groups:
       - boards:
-        - xiao_nrf54lm20b/nrf54lm20a/cpuapp
-        - xiao_nrf54lm20b/nrf54lm20a/cpuflpr
-        - xiao_nrf54lm20b/nrf54lm20a/cpuflpr/xip
+        - xiao_nrf54lm20b/nrf54lm20b/cpuapp
+        - xiao_nrf54lm20b/nrf54lm20b/cpuflpr
+        - xiao_nrf54lm20b/nrf54lm20b/cpuflpr/xip
     '--erase':
     - runners:
       - nrfjprog
@@ -27,9 +27,9 @@ runners:
       run: first
       groups:
       - boards:
-        - xiao_nrf54lm20b/nrf54lm20a/cpuapp
-        - xiao_nrf54lm20b/nrf54lm20a/cpuflpr
-        - xiao_nrf54lm20b/nrf54lm20a/cpuflpr/xip
+        - xiao_nrf54lm20b/nrf54lm20b/cpuapp
+        - xiao_nrf54lm20b/nrf54lm20b/cpuflpr
+        - xiao_nrf54lm20b/nrf54lm20b/cpuflpr/xip
     '--reset':
     - runners:
       - nrfjprog
@@ -38,6 +38,6 @@ runners:
       run: last
       groups:
       - boards:
-        - xiao_nrf54lm20b/nrf54lm20a/cpuapp
-        - xiao_nrf54lm20b/nrf54lm20a/cpuflpr
-        - xiao_nrf54lm20b/nrf54lm20a/cpuflpr/xip
+        - xiao_nrf54lm20b/nrf54lm20b/cpuapp
+        - xiao_nrf54lm20b/nrf54lm20b/cpuflpr
+        - xiao_nrf54lm20b/nrf54lm20b/cpuflpr/xip

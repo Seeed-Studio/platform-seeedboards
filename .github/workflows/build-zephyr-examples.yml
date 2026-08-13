@@ -17,6 +17,7 @@ on:
       - 'examples/zephyr-*/**'
       - 'examples/seeed-xiao-stm32c5/**'
       - 'examples/xiao_nrf54lm20a_ble/**'
+      - 'examples/seeed-xiao-nrf54lm20b/**'
   pull_request:
     paths:
       - '.github/workflows/build-zephyr-examples.yml'
@@ -32,6 +33,7 @@ on:
       - 'examples/zephyr-*/**'
       - 'examples/seeed-xiao-stm32c5/**'
       - 'examples/xiao_nrf54lm20a_ble/**'
+      - 'examples/seeed-xiao-nrf54lm20b/**'
   workflow_dispatch:
 
 jobs:
@@ -70,7 +72,27 @@ jobs:
       - name: Install PlatformIO
         run: python -m pip install --upgrade pip platformio rich-click intelhex
 
+      # The platform also obtains these dependencies automatically on a user's
+      # first Edge AI build. Check them out explicitly in CI so the test is
+      # deterministic and does not rely on a runtime clone or a runner cache.
+      - name: Checkout nRF Edge AI
+        uses: actions/checkout@v4
+        with:
+          repository: nrfconnect/sdk-edge-ai
+          ref: 3733b1b87c41fb560be1f2a2de646b4e405f156d # v2.1.0
+          path: .ci-deps/sdk-edge-ai
+
+      - name: Checkout Edge Impulse SDK
+        uses: actions/checkout@v4
+        with:
+          repository: edgeimpulse/edge-impulse-sdk-zephyr
+          ref: 69a6b8fcc23515b9d148c9a1459cb53d5efe4801 # v1.88.1
+          path: .ci-deps/edge-impulse-sdk-zephyr
+
       - name: Build Zephyr examples (all envs)
+        env:
+          XIAO_EDGE_AI_DIR: ${{ github.workspace }}/.ci-deps/sdk-edge-ai
+          XIAO_EDGE_IMPULSE_DIR: ${{ github.workspace }}/.ci-deps/edge-impulse-sdk-zephyr
         run: python scripts/ci/build_zephyr_examples.py --log-dir .pio-ci-logs/zephyr --firmware-out dist/firmware --quiet
 
       - name: Upload Zephyr build logs

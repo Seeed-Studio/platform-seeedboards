@@ -18,9 +18,12 @@ import json
 import os
 import shutil
 import site
-from platform import system
+import tarfile
+import tempfile
+from platform import machine, system
 from os import makedirs
 from os.path import isdir, isfile, join, basename
+from urllib.request import urlretrieve
 
 from SCons.Script import (ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild,
                           Builder, Default, DefaultEnvironment)
@@ -50,6 +53,112 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
     if ("/" in env.subst("$UPLOAD_PORT") and
             env.subst("$UPLOAD_PROTOCOL") == "sam-ba"):
         env.Replace(UPLOAD_PORT=basename(env.subst("$UPLOAD_PORT")))
+
+
+# USB CDC identities for the nRF54LM20B three-image (firmware-loader) layout.
+# DFU is performed by the loader image (usb_mcumgr, slot1), NOT by mcuboot, so
+# when the board is in DFU mode the *loader's* CDC is what enumerates.
+#   APP_CDC    : the running user app (Seeed VID 0x2886, CDC_ACM_SERIAL_PID
+#                0x8013, set in the framework board Kconfig).
+#   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID 0x0013, baked into
+#                scripts/factory_flash/firmware/USB_DFU.hex). Listed as a tuple
+#                so a legacy loader VID:PID can be added in one line if needed.
+_APP_CDC_VIDPID = "2886:8013"
+_LOADER_CDC_VIDPIDS = ("2886:0013",)
+
+
+def _find_port_by_vidpid(vidpid, ports=None):
+    ports = ports if ports is not None else list_serial_ports()
+    for p in ports:
+        if vidpid in (p.get("hwid") or "").upper():
+            return p.get("port")
+    return None
+
+
+def _find_loader_port(ports=None):
+    for vidpid in _LOADER_CDC_VIDPIDS:
+        port = _find_port_by_vidpid(vidpid, ports)
+        if port:
+            return port
+    return None
+
+
+def _wait_for_loader_port(timeout=60):
+    import time
+    for _ in range(timeout):
+        port = _find_loader_port()
+        if port:
+            return port
+        time.sleep(1)
+    return None
+
+
+def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
+    """Resolve the DFU (loader) upload port for the nRF54LM20B.
+
+    Handles every board state so a crashed/empty app never bricks the device:
+      1) an explicit upload_port (--upload-port / `upload_port =`) is honored;
+         its role is detected by VID:PID;
+      2) the loader CDC is already present (board already in DFU via Button 0
+         + reset, or via the empty-slot NO_APPLICATION auto-loader) -> use it
+         directly and skip the 1200-bps touch (the anti-brick fast path);
+      3) the app CDC is present (healthy app) -> touch 1200 to reboot into the
+         loader, then poll for the loader CDC (matching its VID:PID only, not
+         WaitForNewSerialPort's "any new port", so other USB devices cannot be
+         grabbed by mistake);
+      4) nothing recognized -> prompt the user to enter DFU manually and poll
+         for the loader CDC.
+    """
+    explicit = env.subst("$UPLOAD_PORT")
+
+    # (1) Explicit port: detect its role by VID:PID.
+    if explicit:
+        if explicit == _find_loader_port():
+            print("Configured port %s is the DFU loader; using it directly."
+                  % explicit)
+            return
+        # Otherwise treat it as the app port -> fall through to the touch path.
+    else:
+        # (2) Loader CDC already present -> board already in DFU mode.
+        loader_port = _find_loader_port()
+        if loader_port:
+            env.Replace(UPLOAD_PORT=loader_port)
+            print("Board already in DFU mode; using loader port %s."
+                  % loader_port)
+            return
+
+    # (3) App CDC present -> touch 1200 -> poll for the loader CDC.
+    app_port = explicit or _find_port_by_vidpid(_APP_CDC_VIDPID)
+    if app_port:
+        env.Replace(UPLOAD_PORT=app_port)
+        print("Touching %s at 1200 baud → DFU..." % app_port)
+        env.TouchSerialPort("$UPLOAD_PORT", 1200)
+        loader_port = _wait_for_loader_port(60)
+        if not loader_port:
+            sys.stderr.write(
+                "Error: the board did not enter DFU mode after the 1200-bps "
+                "touch. Hold Button 0 (P0.09) and press reset, then retry.\n")
+            env.Exit(1)
+        env.Replace(UPLOAD_PORT=loader_port)
+        print("Loader port: %s" % env.subst("$UPLOAD_PORT"))
+        return
+
+    # (4) Nothing recognized -> prompt manual DFU and poll for the loader CDC.
+    sys.stdout.write(
+        "No app CDC (VID:PID=2886:8013) found. To recover, hold Button 0 "
+        "(P0.09) and press reset to enter DFU mode. Waiting for the DFU "
+        "loader CDC (VID:PID=2886:0013)...\n")
+    sys.stdout.flush()
+    port = _wait_for_loader_port(60)
+    if not port:
+        sys.stderr.write(
+            "Error: could not find the DFU port. Put the board in DFU mode "
+            "(hold Button 0 / P0.09 + reset) and retry, or set the port "
+            "explicitly: `upload_port = COMxx` in platformio.ini or "
+            "`pio run -t upload --upload-port COMxx`.\n")
+        env.Exit(1)
+    env.Replace(UPLOAD_PORT=port)
+    print("DFU port detected: %s" % env.subst("$UPLOAD_PORT"))
 
 
 env = DefaultEnvironment()
@@ -105,29 +214,114 @@ def _ensure_pyocd_installed():
     ])
 
 
-def _ensure_nrfutil_installed():
-    """Ensure Nordic nrfutil CLI is available for MCUboot serial upload.
+_NRFUTIL_VERSION = "8.2.0"
+_NRFUTIL_MCUMGR_VERSION = "0.9.0"
+_NRFUTIL_DOWNLOAD_URL = "https://developer.nordicsemi.com/.pc-tools/nrfutil/%s-%s-%s.tar.gz"
 
-    Note: This is NOT Adafruit nrfutil (which PlatformIO ships as
-    tool-adafruit-nrfutil).  Nordic nrfutil is a separate Python package
-    that provides the 'mcu-manager' sub-command for MCUboot serial
-    recovery over USB CDC ACM.
-    """
-    if shutil.which("nrfutil"):
-        return
-    print("[INFO] Installing Nordic nrfutil (mcu-manager)...")
-    python_exe = env.subst("$PYTHONEXE")
+
+def _nrfutil_target():
+    """Return Nordic's target triple for the host running PlatformIO."""
+    host_os = system().lower()
+    host_machine = machine().lower()
+    if host_os == "windows" and host_machine in ("amd64", "x86_64"):
+        return "x86_64-pc-windows-msvc"
+    if host_os == "linux" and host_machine in ("amd64", "x86_64"):
+        return "x86_64-unknown-linux-gnu"
+    if host_os == "darwin" and host_machine in ("arm64", "aarch64"):
+        return "aarch64-apple-darwin"
+    if host_os == "darwin" and host_machine in ("x86_64", "amd64"):
+        return "x86_64-apple-darwin"
+    return None
+
+
+def _nrfutil_supports_mcumgr(executable, process_env=None):
     try:
-        subprocess.check_call([
-            python_exe, "-m", "pip", "install", "--upgrade", "nrfutil"
-        ])
-    except subprocess.CalledProcessError:
+        subprocess.check_call(
+            [executable, "mcu-manager", "serial", "image-upload", "--help"],
+            env=process_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
+def _safe_extract_tarball(tarball_path, destination):
+    """Extract an official nrfutil archive without permitting path traversal."""
+    destination = os.path.realpath(destination)
+    with tarfile.open(tarball_path, "r:gz") as archive:
+        for member in archive.getmembers():
+            member_path = os.path.realpath(join(destination, member.name))
+            if member_path != destination and not member_path.startswith(destination + os.sep):
+                raise RuntimeError("Unsafe path in nrfutil archive: %s" % member.name)
+        archive.extractall(destination)
+
+
+def _ensure_nrfutil_installed():
+    """Return nrfutil v8 with mcu-manager without altering PlatformIO's venv.
+
+    The legacy PyPI ``nrfutil`` package is capped at v5 and depends on Click
+    7, while PlatformIO Core needs Click 8.  Nordic's v8 CLI is a standalone
+    executable, so keep it in PlatformIO's tool cache rather than using pip.
+    """
+    system_nrfutil = shutil.which("nrfutil")
+    if system_nrfutil and _nrfutil_supports_mcumgr(system_nrfutil):
+        return system_nrfutil
+
+    target = _nrfutil_target()
+    if not target:
         sys.stderr.write(
-            "Error: Failed to install Nordic nrfutil.\n"
-            "Please install manually: pip install nrfutil\n"
-            "Note: This is NOT the same as Adafruit nrfutil.\n"
-        )
+            "Error: automatic Nordic nrfutil installation is unsupported on "
+            "%s/%s. Install nrfutil 8 with the mcu-manager command manually.\n" %
+            (system(), machine()))
         env.Exit(1)
+
+    nrfutil_home = join(env.subst("$PROJECT_CORE_DIR"), "nrfutil")
+    install_root = join(nrfutil_home, "nrfutil-%s-%s" % (_NRFUTIL_VERSION, target))
+    executable = join(
+        install_root, "nrfutil-%s-%s" % (target, _NRFUTIL_VERSION), "data", "bin",
+        "nrfutil.exe" if system() == "Windows" else "nrfutil")
+    marker = join(install_root, "mcu-manager-%s.installed" % _NRFUTIL_MCUMGR_VERSION)
+    process_env = os.environ.copy()
+    process_env["NRFUTIL_HOME"] = nrfutil_home
+
+    try:
+        if not isfile(executable):
+            print("[INFO] Installing Nordic nrfutil %s (mcu-manager %s)..." %
+                  (_NRFUTIL_VERSION, _NRFUTIL_MCUMGR_VERSION))
+            makedirs(nrfutil_home, exist_ok=True)
+            temporary_dir = tempfile.mkdtemp(prefix="nrfutil-", dir=nrfutil_home)
+            try:
+                core_archive = join(temporary_dir, "nrfutil-core.tar.gz")
+                urlretrieve(_NRFUTIL_DOWNLOAD_URL % (
+                    "nrfutil", target, _NRFUTIL_VERSION), core_archive)
+                _safe_extract_tarball(core_archive, install_root)
+            finally:
+                shutil.rmtree(temporary_dir, ignore_errors=True)
+
+        if system() != "Windows":
+            os.chmod(executable, 0o755)
+
+        if not isfile(marker):
+            temporary_dir = tempfile.mkdtemp(prefix="nrfutil-", dir=nrfutil_home)
+            try:
+                mcumgr_archive = join(temporary_dir, "mcu-manager.tar.gz")
+                urlretrieve(_NRFUTIL_DOWNLOAD_URL % (
+                    "nrfutil-mcu-manager", target, _NRFUTIL_MCUMGR_VERSION), mcumgr_archive)
+                subprocess.check_call(
+                    [executable, "install", "--tarball", mcumgr_archive], env=process_env)
+                with open(marker, "w", encoding="utf-8") as marker_file:
+                    marker_file.write("%s\n" % _NRFUTIL_MCUMGR_VERSION)
+            finally:
+                shutil.rmtree(temporary_dir, ignore_errors=True)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        sys.stderr.write("Error: failed to install Nordic nrfutil: %s\n" % exc)
+        env.Exit(1)
+
+    if not _nrfutil_supports_mcumgr(executable, process_env):
+        sys.stderr.write("Error: Nordic nrfutil mcu-manager installation is incomplete.\n")
+        env.Exit(1)
+
+    env["ENV"]["NRFUTIL_HOME"] = nrfutil_home
+    return executable
 
 env.Replace(
     AR="arm-none-eabi-ar",
@@ -280,18 +474,17 @@ else:
             join("$BUILD_DIR", "${PROGNAME}"),
             env.ElfToHex(join("$BUILD_DIR", "${PROGNAME}"), target_elf))
     elif "nrfutil-mcumgr" == upload_protocol:
-        # For MCUboot serial upload over USB CDC ACM, prefer the signed
-        # binary from sysbuild.  Fallback chain covers different build
-        # configurations that may produce different output names.
-        signed_bin = join("$BUILD_DIR", "zephyr", "zephyr.signed.bin")
-        app_update = join("$BUILD_DIR", "zephyr", "app_update.bin")
-        if isfile(env.subst(signed_bin)):
-            target_firm = signed_bin
-        elif isfile(env.subst(app_update)):
-            target_firm = app_update
-        else:
-            target_firm = env.ElfToBin(
-                join("$BUILD_DIR", "${PROGNAME}"), target_elf)
+        # Produce a signed MCUboot image (zephyr.signed.bin) for USB CDC ACM
+        # upload via nrfutil mcu-manager. env.MCUbootImage runs imgtool sign
+        # using the board's header_len/flash_alignment/slot_size + signature
+        # key; it returns None (-> unsigned fallback) when the board does not
+        # declare imgtool params, so non-mcuboot boards are unaffected.
+        unsigned_bin = env.ElfToBin(
+            join("$BUILD_DIR", "${PROGNAME}"), target_elf)
+        signed_bin = env.MCUbootImage(
+            join("$BUILD_DIR", "zephyr", "zephyr.signed.bin"),
+            unsigned_bin)
+        target_firm = signed_bin if signed_bin else unsigned_bin
     elif "nrfjprog" == upload_protocol:
         target_firm = env.ElfToHex(
             join("$BUILD_DIR", "${PROGNAME}"), target_elf)
@@ -437,22 +630,30 @@ elif upload_protocol == "nrfutil-mcumgr":
     # The board must have MCUboot with serial recovery enabled and the
     # device must be in serial recovery mode (via WAIT_FOR_DFU window,
     # GPIO button press, or no-application fallback).
-    _ensure_nrfutil_installed()
+    # Do not install an upload-only tool during a normal build.  Besides
+    # avoiding unnecessary downloads in CI, this keeps compilation isolated
+    # from the host's tool-installation state.
+    nrfutil_executable = "nrfutil"
+    if "upload" in COMMAND_LINE_TARGETS:
+        nrfutil_executable = _ensure_nrfutil_installed()
 
     env.Replace(
-        UPLOADER="nrfutil",
+        UPLOADER=nrfutil_executable,
         UPLOADERFLAGS=[
             "mcu-manager",
             "serial",
             "image-upload",
             "--serial-port", '"$UPLOAD_PORT"',
+            "--timeout", "120",
             "--firmware",
         ],
-        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"'
+        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"',
+        RESETCMD='$UPLOADER mcu-manager serial reset --serial-port "$UPLOAD_PORT" --timeout 60'
     )
     upload_actions = [
-        env.VerboseAction(env.AutodetectUploadPort, "Looking for upload port..."),
-        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")
+        env.VerboseAction(DfuUpload1200, "Preparing DFU port..."),
+        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE"),
+        env.VerboseAction("$RESETCMD", "Resetting device...")
     ]
 
 elif upload_protocol == "sam-ba":

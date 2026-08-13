@@ -375,6 +375,194 @@ def _patch_platformio_framework_package_name(framework_dir, framework_package_na
             fp.write(text)
 
 
+def _patch_platformio_mcuboot_signing(framework_dir):
+    """Enable board-declared MCUboot signing for normal upload builds.
+
+    PlatformIO's stock ``MCUbootImage`` command only runs when the user
+    explicitly requests ``-t mcuboot-image``.  An upload build therefore
+    silently sends the unsigned ELF-to-bin conversion even when the board
+    declares all MCUboot image parameters.  Apply this small, idempotent
+    framework compatibility patch after every package install so a clean
+    Registry download behaves exactly like a maintained local installation.
+
+    A board key such as ``root-ed25519.pem`` is a framework-bundled file, not
+    a project-relative path.  Resolve it in MCUboot's bundled key directory
+    before falling back to PlatformIO's legacy RSA default.  The board's
+    ``pure`` setting is also passed through to imgtool: MCUboot built with
+    ``BOOT_SIGNATURE_TYPE_PURE`` rejects an otherwise valid Ed25519 image
+    without its IMAGE_TLV_PURE (0x25) marker.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    opt_in_gate = (
+        '    if "mcuboot-image" not in COMMAND_LINE_TARGETS:\\n'
+        '        return None\\n\\n'
+    )
+    key_resolution_old = (
+        '    if not os.path.isabs(signature_key_file) and not os.path.isfile(\\n'
+        '        signature_key_file\\n'
+        '    ):\\n'
+        '        print(\\n'
+        '            "Warning: MCUboot signature key is not specified! "\\n'
+        '            "The default `root-rsa-2048.pem` will be used!"\\n'
+        '        )\\n\\n'
+        '        signature_key_file = os.path.join(\\n'
+        '            FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", "root-rsa-2048.pem"\\n'
+        '        )\\n'
+    )
+    key_resolution_new = (
+        '    if not os.path.isabs(signature_key_file) and not os.path.isfile(\\n'
+        '        signature_key_file\\n'
+        '    ):\\n'
+        '        bundled_key = os.path.join(\\n'
+        '            FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", signature_key_file\\n'
+        '        ) if signature_key_file else ""\\n'
+        '        if bundled_key and os.path.isfile(bundled_key):\\n'
+        '            signature_key_file = bundled_key\\n'
+        '        else:\\n'
+        '            print(\\n'
+        '                "Warning: MCUboot signature key is not specified! "\\n'
+        '                "The default `root-rsa-2048.pem` will be used!"\\n'
+        '            )\\n'
+        '            signature_key_file = os.path.join(\\n'
+        '                FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", "root-rsa-2048.pem"\\n'
+        '            )\\n'
+    )
+    pure_marker = (
+        '    if board.get("build.zephyr.bootloader.pure", False):\n'
+        '        cmd.append("--pure")\n\n'
+    )
+    sign_marker = '    if signature_key:\n'
+
+    changed = False
+    if opt_in_gate in text:
+        text = text.replace(opt_in_gate, "", 1)
+        changed = True
+    if key_resolution_old in text:
+        text = text.replace(key_resolution_old, key_resolution_new, 1)
+        changed = True
+    if pure_marker not in text and sign_marker in text:
+        text = text.replace(sign_marker, pure_marker + sign_marker, 1)
+        changed = True
+
+    if changed:
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO: enabled default MCUboot signing for board-declared images")
+
+
+def _patch_platformio_prebuilt_lib_linking(framework_dir):
+    """Make PlatformIO link prebuilt static archives from modules correctly.
+
+    PIO's stock codemodel parser (scripts/platformio/platformio-build.py) turns
+    an absolute-path `.a` link fragment into a bare basename passed to the
+    linker, plus a `-L<dir>`. ld does NOT search `-L` for bare filenames, so
+    module prebuilt archives (e.g. sdk-edge-ai's Axon / nRF EdgeAI libraries)
+    fail to link with "No such file or directory". Emit `-l<name>` instead so
+    the `-L` search path actually resolves them. Only affects absolute-path
+    `.a` archives (branch 4); relative archives (branch 5) are untouched.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    old = (
+        '                link_args["project_libs"]["standard_libs"].extend(\n'
+        '                    [\n'
+        '                        os.path.basename(lib)\n'
+        '                        for lib in args\n'
+        '                        if lib.endswith(".a")\n'
+        '                    ]\n'
+        '                )'
+    )
+    new = (
+        '                link_args["project_libs"]["standard_libs"].extend(\n'
+        '                    [\n'
+        '                        ("-l" + os.path.basename(lib)[:-2][3:])\n'
+        '                        if os.path.basename(lib).startswith("lib")\n'
+        '                        else os.path.basename(lib)\n'
+        '                        for lib in args\n'
+        '                        if lib.endswith(".a")\n'
+        '                    ]\n'
+        '                )'
+    )
+
+    if old in text and new not in text:
+        text = text.replace(old, new)
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("Patched PlatformIO: prebuilt-archive linking (-l form for abs .a)")
+
+
+def _patch_platformio_extra_modules(framework_dir):
+    """Discover XIAO-provisioned Zephyr modules from cache and overrides.
+
+    Edge AI is installed by this platform, rather than by a user's west
+    manifest. Register valid cached modules directly so a clean installation
+    and a CMake reconfigure do not depend solely on a transient SCons variable.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    legacy_marker = "    # Auto-add the xiao_dfu_reset module"
+    cmake_marker = '    cmake_cmd.extend(["-D", "ZEPHYR_MODULES=" + ";".join(modules)])'
+    cached_addition = (
+        "    # Auto-add XIAO-provisioned Zephyr modules. These are not in a\n"
+        "    # project's west manifest, so discover them from the framework cache.\n"
+        "    for _xiao_module in (\"sdk-edge-ai\", \"edge-impulse-sdk-zephyr\"):\n"
+        "        _xiao_module_dir = os.path.join(\n"
+        "            FRAMEWORK_DIR, \"_pio\", \"modules\", _xiao_module)\n"
+        "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
+        "            _mod_unix = fs.to_unix_path(_xiao_module_dir)\n"
+        "            if not any(os.path.normcase(os.path.normpath(module)) ==\n"
+        "                       os.path.normcase(os.path.normpath(_xiao_module_dir))\n"
+        "                       for module in modules):\n"
+        "                modules.append(_mod_unix)\n\n"
+    )
+
+    override_addition = (
+        "    # Honor explicit Edge AI module overrides. The SCons environment\n"
+        "    # is not inherited by this standalone build helper, whereas these\n"
+        "    # variables are exported for CI and local developer builds.\n"
+        "    for _xiao_override in (\"XIAO_EDGE_AI_DIR\", \"XIAO_EDGE_IMPULSE_DIR\"):\n"
+        "        _xiao_module_dir = os.environ.get(_xiao_override, \"\")\n"
+        "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
+        "            _mod_unix = fs.to_unix_path(_xiao_module_dir)\n"
+        "            if not any(os.path.normcase(os.path.normpath(module)) ==\n"
+        "                       os.path.normcase(os.path.normpath(_xiao_module_dir))\n"
+        "                       for module in modules):\n"
+        "                modules.append(_mod_unix)\n\n"
+    )
+
+    changed = False
+    for addition in (cached_addition, override_addition):
+        if addition in text:
+            continue
+        # Existing local framework caches have the legacy marker. A pristine
+        # package, as used by CI, has only the CMake module-list statement.
+        marker = legacy_marker if legacy_marker in text else cmake_marker
+        if marker not in text:
+            continue
+        text = text.replace(marker, addition + marker, 1)
+        changed = True
+    if changed:
+        with open(build_py, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO Edge AI: enabled Zephyr module discovery")
+
+
 def _is_commit_hash(value):
     return value and re.match(r"[0-9a-f]{7,}$", value) is not None
 
@@ -480,6 +668,251 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
     print("Pre-install complete.")
 
 
+# ---------------------------------------------------------------------------
+# Edge AI (sdk-edge-ai) integration
+#
+# edge-AI samples reuse Nordic's Edge AI Add-on (sdk-edge-ai v2.1.0), a Zephyr
+# module whose heavy lifting is prebuilt static archives (Axon NPU driver +
+# nRF EdgeAI runtime). It is registered only for samples that opt in via
+# `CONFIG_NRF_EDGEAI=y` in prj.conf, so non-edge-AI samples (e.g. zephyr-blink)
+# are unaffected. The module source is provisioned three ways, in order:
+#   1. XIAO_EDGE_AI_DIR / XIAO_EDGE_IMPULSE_DIR explicit developer override
+#   2. a one-time git clone (fixed revision) into the framework cache
+# This keeps the integration off the (live) framework package and off the shared
+# board JSON, and reproducible on a fresh machine.
+# ---------------------------------------------------------------------------
+
+_EDGE_AI_REMOTE = "https://github.com/nrfconnect/sdk-edge-ai.git"
+_EDGE_AI_REVISION = "3733b1b87c41fb560be1f2a2de646b4e405f156d"  # v2.1.0
+_EDGE_AI_CACHE = join(framework_dir, "_pio", "modules", "sdk-edge-ai")
+
+_EDGE_IMPULSE_REMOTE = "https://github.com/edgeimpulse/edge-impulse-sdk-zephyr.git"
+_EDGE_IMPULSE_REVISION = "69a6b8fcc23515b9d148c9a1459cb53d5efe4801"  # v1.88.1
+_EDGE_IMPULSE_CACHE = join(framework_dir, "_pio", "modules", "edge-impulse-sdk-zephyr")
+
+
+def _prj_conf_has(token):
+    """True if the project's prj.conf contains the given CONFIG token."""
+    project_dir = env.subst("$PROJECT_DIR")
+    for rel in ("zephyr/prj.conf", "prj.conf"):
+        conf = join(project_dir, rel)
+        if os.path.isfile(conf):
+            try:
+                with open(conf, "r", encoding="utf-8", errors="ignore") as fp:
+                    if token in fp.read():
+                        return True
+            except OSError:
+                pass
+    return False
+
+
+def _is_edge_ai_sample():
+    # An edge-AI sample opts in via either the nRF EdgeAI runtime or the bare
+    # Axon NPU driver (e.g. person_detection uses CONFIG_NRF_AXON directly).
+    return _prj_conf_has("CONFIG_NRF_EDGEAI=y") or _prj_conf_has(
+        "CONFIG_NRF_AXON=y"
+    )
+
+
+def _ensure_module(label, cache_dir, remote, revision, override_env):
+    """Return a valid module root (with zephyr/module.yml), cloning on demand.
+
+    Order: explicit developer override -> cached clone -> git fetch.
+
+    The default never relies on a machine-specific NCS directory: a first build
+    on Windows, Linux, macOS, or CI downloads the pinned upstream revision.
+    """
+    marker = join(cache_dir, "zephyr", "module.yml")
+
+    override = os.environ.get(override_env, "")
+    if override and os.path.isfile(join(override, "zephyr", "module.yml")):
+        return os.path.normpath(override)
+
+    if os.path.isfile(marker):
+        return os.path.normpath(cache_dir)
+
+    print(f"XIAO Edge AI: cloning {label} {revision} -> {cache_dir}")
+    if os.path.isdir(cache_dir):
+        shutil.rmtree(cache_dir, ignore_errors=True)
+    if not _git_clone_with_retry(remote, cache_dir, revision):
+        return None
+    if not os.path.isfile(marker):
+        print(f"XIAO Edge AI: {label} cloned but zephyr/module.yml missing")
+        return None
+    return os.path.normpath(cache_dir)
+
+
+def _provision_xiao_dfu_module(framework_dir):
+    """Refresh the 20B DFU module and board retention configuration.
+
+    Framework board files are copied only when missing, and the framework
+    package is cached by PlatformIO. Refresh both inputs on every 20B build so
+    UART line control, boot-mode retention, and diagnostic output stay in sync
+    with the platform repository.
+    """
+    source_module = join(platform_dir, "zephyr", "modules", "xiao_dfu_reset")
+    target_module = join(framework_dir, "_pio", "modules", "xiao_dfu_reset")
+    source_board = join(platform_dir, "zephyr", "boards", "arm",
+                        "xiao_nrf54lm20b", "nrf54lm20b_cpuapp_common.dtsi")
+    target_board = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
+                        "nrf54lm20b_cpuapp_common.dtsi")
+
+    if not os.path.isdir(source_module):
+        raise RuntimeError("Missing bundled xiao_dfu_reset module")
+    if os.path.isdir(target_module):
+        shutil.rmtree(target_module)
+    elif os.path.exists(target_module):
+        os.remove(target_module)
+    shutil.copytree(source_module, target_module)
+
+    if not os.path.isfile(source_board):
+        raise RuntimeError("Missing XIAO nRF54LM20B board DTSI")
+    shutil.copyfile(source_board, target_board)
+    print("XIAO: refreshed 20B DFU module and boot-mode retention in framework")
+
+
+def _patch_cdc_vidpid(framework_dir):
+    """Force the XIAO nRF54LM20B app CDC to Seeed 0x2886:0x8013.
+
+    The VID/PID override belongs in the board's Kconfig.defconfig, but the
+    board-copy step is 'missing-only' for Zephyr >=4.4 (see commit f629163),
+    so a framework copy made before the override was added is never refreshed
+    and the device enumerates with Zephyr's stock 0x2fe3:0x0004 -- which the
+    1200-bps DFU upload path (nrf_build.py _APP_CDC_VIDPID="2886:8013") cannot
+    find, so auto-flashing falls back to manual DFU. Inject the override into
+    the framework's copied Kconfig.defconfig on every build (idempotent), so
+    new and existing installs both get 2886:8013 without touching the
+    missing-only copy logic.
+    """
+    path = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
+                "Kconfig.defconfig")
+    if not os.path.isfile(path):
+        return
+    with open(path, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    # Fresh copy from a platform source that already carries the override ->
+    # nothing to do (idempotent on repeat builds too).
+    if "CDC_ACM_SERIAL_PID" in text:
+        return
+
+    override = (
+        "\n"
+        "config CDC_ACM_SERIAL_VID\n"
+        "\thex\n"
+        "\tdefault 0x2886\n"
+        "\n"
+        "config CDC_ACM_SERIAL_PID\n"
+        "\thex\n"
+        "\tdefault 0x8013\n"
+        "\n"
+        "config CDC_ACM_SERIAL_PRODUCT_STRING\n"
+        "\tstring\n"
+        "\tdefault \"XIAO_NRF54LM20B\"\n"
+    )
+    src_line = 'source "boards/common/usb/Kconfig.cdc_acm_serial.defconfig"'
+    if src_line in text:
+        text = text.replace(src_line, src_line + override, 1)
+    elif "endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP" in text:
+        text = text.replace(
+            "endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP",
+            override + "endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP", 1)
+    else:
+        # Unrecognised file shape; leave it untouched rather than corrupt it.
+        return
+
+    with open(path, "w", encoding="utf-8") as fp:
+        fp.write(text)
+    print("XIAO: ensured CDC ACM VID:PID = 2886:8013 in board Kconfig.defconfig")
+
+
+def _patch_edge_impulse_sdk(ei_dir):
+    """Stop the Edge Impulse SDK from building Espressif (ESP32) sources on ARM.
+
+    Its ARM branch globs "*.s" under the whole SDK; on case-insensitive Windows
+    that also matches the ESP32 Xtensa "*.S" files (porting/espressif/ESP-NN),
+    which (a) are wrong-target assembly for Cortex-M and (b) produce object
+    paths longer than Windows MAX_PATH (260). Exclude the espressif tree. This
+    mirrors how the upstream ESP32 branch already excludes it.
+    """
+    cmake = join(ei_dir, "edge-impulse-sdk", "cmake", "zephyr", "CMakeLists.txt")
+    if not os.path.isfile(cmake):
+        return
+    with open(cmake, "r", encoding="utf-8") as fp:
+        text = fp.read()
+    old = '        RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}" "*.s")\n'
+    new = (
+        '        # XIAO nRF54LM20B: exclude the Espressif (ESP32) tree so its\n'
+        '        # Xtensa .S is not built for ARM (Windows "*.s" matches "*.S")\n'
+        '        # and the object path stays under Windows MAX_PATH (260).\n'
+        '        RECURSIVE_FIND_FILE_EXCLUDE_DIR(EI_SOURCE_FILES '
+        '"${EI_SDK_FOLDER}" "espressif" "*.s")\n'
+    )
+    if old in text and new not in text:
+        text = text.replace(old, new)
+        with open(cmake, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print("XIAO Edge AI: patched edge-impulse-sdk to exclude ESP32 sources (ARM)")
+
+    # The EXCLUDE_DIR macro matches ".*\/<dir>\/.*" with forward slashes, which
+    # never matches Windows backslash paths -> excludes silently no-op on
+    # Windows. Normalise to forward slashes before matching.
+    utils_cmake = join(ei_dir, "edge-impulse-sdk", "cmake", "utils.cmake")
+    if os.path.isfile(utils_cmake):
+        with open(utils_cmake, "r", encoding="utf-8") as fp:
+            utext = fp.read()
+        u_old = '    IF (file_path MATCHES ".*\\/${exclude_dir}\\/.*")\n'
+        u_new = (
+            '    STRING(REPLACE "\\\\" "/" _fp_norm "${file_path}")\n'
+            '    IF (_fp_norm MATCHES ".*/${exclude_dir}/.*")\n'
+        )
+        if u_old in utext and u_new not in utext:
+            utext = utext.replace(u_old, u_new)
+            with open(utils_cmake, "w", encoding="utf-8") as fp:
+                fp.write(utext)
+            print("XIAO Edge AI: patched edge-impulse-sdk EXCLUDE_DIR macro (Win path-sep)")
+
+
+def _provision_edge_ai():
+    """Register sdk-edge-ai (and edge-impulse-sdk-zephyr if needed) as Zephyr
+    modules for edge-AI samples before the Zephyr build runs."""
+    if not _is_edge_ai_sample():
+        return
+
+    ea_dir = _ensure_module(
+        "sdk-edge-ai", _EDGE_AI_CACHE, _EDGE_AI_REMOTE, _EDGE_AI_REVISION,
+        "XIAO_EDGE_AI_DIR")
+    if not ea_dir:
+        print("XIAO Edge AI: sdk-edge-ai not available (set XIAO_EDGE_AI_DIR or "
+              "allow network for the one-time clone); skipping registration.")
+        return
+
+    modules = [ea_dir]
+    # The hello_ei sample (26) also needs the Edge Impulse SDK Zephyr module.
+    if _prj_conf_has("CONFIG_EDGE_IMPULSE_SDK=y"):
+        ei_dir = _ensure_module(
+            "edge-impulse-sdk-zephyr", _EDGE_IMPULSE_CACHE,
+            _EDGE_IMPULSE_REMOTE, _EDGE_IMPULSE_REVISION,
+            "XIAO_EDGE_IMPULSE_DIR")
+        if ei_dir:
+            _patch_edge_impulse_sdk(ei_dir)
+            modules.append(ei_dir)
+        else:
+            print("XIAO Edge AI: edge-impulse-sdk-zephyr not available; "
+                  "sample 26 (hello_ei) will fail to build.")
+
+    existing = env.get("PIO_NCS_MODULES", "")
+    ordered = existing.split(";") + modules if existing else list(modules)
+    seen, deduped = set(), []
+    for m in ordered:
+        if m and m not in seen:
+            seen.add(m)
+            deduped.append(m)
+    env["PIO_NCS_MODULES"] = ";".join(deduped)
+    os.environ["XIAO_EDGE_AI_DIR"] = ea_dir
+    print(f"XIAO Edge AI: registered modules -> {env['PIO_NCS_MODULES']}")
+
+
 # Pre-install west dependencies with retry before platformio-build.py runs
 # This ensures they exist when install-deps.py checks, avoiding its
 # destructive clean_up() on any single failure.
@@ -490,6 +923,12 @@ _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
 _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
+_patch_platformio_mcuboot_signing(framework_dir)
+_patch_platformio_prebuilt_lib_linking(framework_dir)
+_patch_platformio_extra_modules(framework_dir)
+_provision_xiao_dfu_module(framework_dir)
+_patch_cdc_vidpid(framework_dir)
+_provision_edge_ai()
 
 if board_name == "seeed-xiao-stm32c5":
     # Copy every bundled Zephyr module under zephyr/modules/ into the framework

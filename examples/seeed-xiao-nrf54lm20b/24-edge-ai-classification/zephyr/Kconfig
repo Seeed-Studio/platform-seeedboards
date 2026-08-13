@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menu "XIAO Edge AI classification"
+
+config NRF_EDGEAI_CLASSIFICATION_MODEL_AXON
+	bool "Use the Axon NPU model"
+	default y
+	depends on SOC_NRF54LM20B
+	select NRF_AXON
+	help
+	  Use the NPU model from Nordic's official classification sample.
+
+endmenu
+
+source "Kconfig.zephyr"
