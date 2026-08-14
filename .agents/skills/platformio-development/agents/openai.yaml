@@ -1,0 +1,4 @@
+interface:
+  display_name: "PlatformIO Development"
+  short_description: "Develop PlatformIO changes through a fork branch."
+  default_prompt: "Use $platformio-development to develop this change through my fork branch."
