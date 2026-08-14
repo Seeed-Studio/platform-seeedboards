@@ -505,9 +505,11 @@ def _patch_platformio_prebuilt_lib_linking(framework_dir):
 def _patch_platformio_extra_modules(framework_dir):
     """Discover XIAO-provisioned Zephyr modules from cache and overrides.
 
-    Edge AI is installed by this platform, rather than by a user's west
+    These modules are installed by this platform, rather than by a user's west
     manifest. Register valid cached modules directly so a clean installation
     and a CMake reconfigure do not depend solely on a transient SCons variable.
+    In particular, xiao_dfu_reset implements the nRF54LM20B application's
+    1200-bps USB CDC touch callback and must be present in every clean install.
     """
     build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
     if not os.path.isfile(build_py):
@@ -518,10 +520,14 @@ def _patch_platformio_extra_modules(framework_dir):
 
     legacy_marker = "    # Auto-add the xiao_dfu_reset module"
     cmake_marker = '    cmake_cmd.extend(["-D", "ZEPHYR_MODULES=" + ";".join(modules)])'
+    old_cached_module_tuple = (
+        '    for _xiao_module in ("sdk-edge-ai", "edge-impulse-sdk-zephyr"):'
+    )
     cached_addition = (
         "    # Auto-add XIAO-provisioned Zephyr modules. These are not in a\n"
         "    # project's west manifest, so discover them from the framework cache.\n"
-        "    for _xiao_module in (\"sdk-edge-ai\", \"edge-impulse-sdk-zephyr\"):\n"
+        "    for _xiao_module in (\"xiao_dfu_reset\", \"sdk-edge-ai\",\n"
+        "                         \"edge-impulse-sdk-zephyr\"):\n"
         "        _xiao_module_dir = os.path.join(\n"
         "            FRAMEWORK_DIR, \"_pio\", \"modules\", _xiao_module)\n"
         "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
@@ -547,6 +553,18 @@ def _patch_platformio_extra_modules(framework_dir):
     )
 
     changed = False
+    # Upgrade framework caches patched by the older Edge AI integration. Those
+    # scripts discover only the Edge AI modules and therefore silently omit the
+    # DFU callback after a clean PlatformIO installation.
+    if old_cached_module_tuple in text:
+        text = text.replace(
+            old_cached_module_tuple,
+            '    for _xiao_module in ("xiao_dfu_reset", "sdk-edge-ai",\n'
+            '                         "edge-impulse-sdk-zephyr"):',
+            1,
+        )
+        changed = True
+
     for addition in (cached_addition, override_addition):
         if addition in text:
             continue
