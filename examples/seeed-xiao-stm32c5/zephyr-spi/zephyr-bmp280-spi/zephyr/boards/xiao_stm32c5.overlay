@@ -1,0 +1,18 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+&spi3 {
+	/*
+	 * CS is sample-specific: it uses XIAO D3 / PA3 here, rather than a
+	 * board-wide SPI chip-select assignment. Change this GPIO for your wiring.
+	 */
+	cs-gpios = <&gpioa 3 GPIO_ACTIVE_LOW>;
+
+	bmp280: bmp280@0 {
+		compatible = "bosch,bme280";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+		status = "okay";
+	};
+};
