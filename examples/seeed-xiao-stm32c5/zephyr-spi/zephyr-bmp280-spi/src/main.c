@@ -15,7 +15,7 @@
 static void print_sensor_value(const char *name, const struct sensor_value *value,
 			       const char *unit)
 {
-	int32_t fraction = ABS(value->val2);
+	int32_t fraction = value->val2 < 0 ? -value->val2 : value->val2;
 
 	if (value->val1 == 0 && value->val2 < 0) {
 		printk("%s: -0.%06d %s\n", name, fraction, unit);
