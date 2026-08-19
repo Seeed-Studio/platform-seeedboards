@@ -129,6 +129,7 @@
 		status = "disabled";
 	};
 
+
 	/*
 	 * USB DRD FS controller (USB_DRD_FS).
 	 * Base: 0x40016000, PMA: 0x40016400, IRQ: 62, Clock: APB2 bit 24.
@@ -287,6 +288,12 @@
 		irq-gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+};
+
+&spi3 {
+	pinctrl-0 = <&spi3_sck_pe2 &spi3_miso_pb0 &spi3_mosi_pb15>;
+	pinctrl-names = "default";
+	status = "okay";
 };
 
 &adc1 {
