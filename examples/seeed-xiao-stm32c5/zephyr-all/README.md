@@ -10,7 +10,7 @@ Small bring-up sample with only:
 - IMU accel/gyro raw readout using the LSM6DS3TR-C INT1 data-ready GPIO interrupt
 - CAN FD two-board test at 1 Mbps arbitration / 8 Mbps data, using normal-mode FD+BRS frames at 2 fps
 - Node A sends standard ID `0x701` and checks `0x702`; node B sends `0x702` and checks `0x701`
-- Battery voltage readout through BAT_EN/PE2 and BAT_Reading/PA4
+- Battery voltage readout through BAT_EN/PA15 and BAT_Reading/PA4
 - External flash erase/write/read/verify every 5 seconds
 
 Build node A for the first board:

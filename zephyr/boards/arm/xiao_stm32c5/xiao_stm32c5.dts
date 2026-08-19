@@ -40,6 +40,7 @@
 		flash1 = &ext_flash;
 		imu0 = &lsm6ds3tr_c;
 		imu-heater = &imu_heater_pwm;
+		baten = &bat_en;
 	};
 
 	leds: leds {
@@ -57,6 +58,16 @@
 		imu_heater_pwm: imu_heater_pwm {
 			pwms = <&pwm1 1 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
 			label = "IMU Heater PWM";
+		};
+	};
+
+	/* BAT_EN controls the on-board battery-voltage divider. */
+	battery_adc_ctrl: battery-adc-ctrl {
+		compatible = "gpio-leds";
+
+		bat_en: bat-en {
+			gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
+			label = "BAT_EN/PA15";
 		};
 	};
 
