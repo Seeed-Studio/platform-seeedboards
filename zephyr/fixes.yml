@@ -66,3 +66,13 @@ boards:
         applies_to: ["4.4.0"]
         baseline_sha: "0bf20f12282191169efeaa650549ffad3b168fc4b49a797d29f844da3adcf474"
         reason: flash-stm32-xspi-c 对应的头文件，随驱动一起 override。
+
+      - id: cmake-gnu-ld-version-windows
+        type: patch
+        path: 0002-cmake-handle-gnu-ld-version-on-windows.patch
+        target: cmake/modules/FindGnuLd.cmake
+        applies_to: ["4.4.0"]
+        reason: >
+          PlatformIO 的 GNU Arm Embedded GCC 8 在 Windows 中把 ld.bfd --version
+          输出写到 stderr；Zephyr 4.4.0 只检查 stdout，继而以空参数调用
+          string(REGEX)，使首次 CMake 配置失败。
