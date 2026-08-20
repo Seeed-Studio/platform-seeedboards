@@ -118,17 +118,17 @@ int main(void)
 
 	LOG_INF("DMIC sample");
 
-	if (!device_is_ready(dmic_dev)) {
-		LOG_ERR("%s is not ready", dmic_dev->name);
-		return 0;
-	}
-
 #ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
 	ret = enable_dmic_power();
 	if (ret < 0) {
 		return 0;
 	}
 #endif
+
+	if (!device_is_ready(dmic_dev)) {
+		LOG_ERR("%s is not ready", dmic_dev->name);
+		return 0;
+	}
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = SAMPLE_BIT_WIDTH,

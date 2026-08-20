@@ -1,4 +1,6 @@
 
+#include <zephyr/dt-bindings/regulator/npm13xx.h>
+
 dmic_dev: &pdm20 {
 	status = "okay";
 };
@@ -16,9 +18,11 @@ dmic_dev: &pdm20 {
 &pmic {
 	regulators {
 		dmic_vdd: LDO1 {
+			/delete-property/ regulator-boot-on;
+			regulator-init-microvolt = <3300000>;
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
-			regulator-boot-on;
+			regulator-initial-mode = <NPM13XX_LDSW_MODE_LDO>;
 		};
 	};
 };

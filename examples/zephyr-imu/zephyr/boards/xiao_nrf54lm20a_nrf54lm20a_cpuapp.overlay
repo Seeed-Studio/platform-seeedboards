@@ -1,3 +1,5 @@
+#include <zephyr/dt-bindings/regulator/npm13xx.h>
+
 &pmic_i2c {
 	sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
 	scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
@@ -7,9 +9,11 @@
 &pmic {
 	regulators {
 		imu_vdd: LDO1 {
+			/delete-property/ regulator-boot-on;
+			regulator-init-microvolt = <3300000>;
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
-			regulator-boot-on;
+			regulator-initial-mode = <NPM13XX_LDSW_MODE_LDO>;
 		};
 	};
 };
