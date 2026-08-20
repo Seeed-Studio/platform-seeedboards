@@ -89,14 +89,9 @@ def _get_framework_version():
 
 
 def _board_copy_mode():
-    version = _get_framework_version()
-    try:
-        major, minor, _patch = [int(part) for part in version.split(".")]
-    except ValueError:
-        return "refresh"
-
-    if (major, minor) >= (4, 4):
-        return "missing-only"
+    # The framework package is persistent across PlatformIO projects. Refresh
+    # every bundled board so changes in this platform package (DTS, pinctrl,
+    # Kconfig, or board metadata) are not hidden by a stale framework copy.
     return "refresh"
 
 
