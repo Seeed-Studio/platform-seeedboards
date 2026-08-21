@@ -12,7 +12,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-#define UART_DEVICE_NODE DT_CHOSEN(zephyr_shell_uart)
+/* The echo path is deliberately the physical 1 Mbps USART1 on PA9/PA10.
+ * Console output remains on the board's USB CDC ACM device.
+ */
+#define UART_DEVICE_NODE DT_NODELABEL(usart1)
 
 static const struct device *const uart_dev = DEVICE_DT_GET(UART_DEVICE_NODE);
 

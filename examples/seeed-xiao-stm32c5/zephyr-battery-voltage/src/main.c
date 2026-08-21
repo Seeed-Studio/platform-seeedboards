@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Battery voltage ADC test for XIAO STM32C5.
- * Schematic: BAT_Reading/PA4 -> ADC1_IN4, BAT_EN/PE2 enables the divider,
+ * Schematic: BAT_Reading/PA4 -> ADC1_IN4, BAT_EN/PA15 enables the divider,
  * and battery voltage = ADC sampling voltage * 2.0.
  */
 
@@ -83,7 +83,7 @@ int main(void)
 	printk("============================================\n");
 	printk("Hardware mapping:\n");
 	printk("  BAT_Reading/PA4 -> ADC1_IN4\n");
-	printk("  BAT_EN/PE2      -> GPIO output active-high\n");
+	printk("  BAT_EN/PA15     -> GPIO output active-high\n");
 	printk("  Formula         -> battery_mV = adc_mV * %d / %d\n",
 	       BATTERY_DIVIDER_NUM, BATTERY_DIVIDER_DEN);
 	printk("  Samples         -> %d-sample average every %d ms\n",

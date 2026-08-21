@@ -164,19 +164,14 @@ int main(void)
 	const struct device *const dev = DEVICE_DT_GET(IMU_NODE);
 	int ret;
 
-	/* On nrf54lm20a, enable power_en + imu_vdd before accessing IMU.
-	 * On nrf54l15, these nodes don't exist; function returns immediately.
-	 */
-	ret = enable_imu_power();
-	if (ret < 0) {
-		LOG_ERR("Failed to enable IMU power: %d", ret);
-		return 0;
-	}
-
-	/* On nrf54lm20a, IMU has zephyr,deferred-init; must init manually.
-	 * On nrf54l15, device auto-inits at boot; device_is_ready() is true.
-	 */
 	if (!device_is_ready(dev)) {
+		/* On nrf54lm20a, enable power_en + imu_vdd before deferred IMU init. */
+		ret = enable_imu_power();
+		if (ret < 0) {
+			LOG_ERR("Failed to enable IMU power: %d", ret);
+			return 0;
+		}
+
 		ret = device_init(dev);
 		if (ret < 0 && ret != -EALREADY) {
 			LOG_ERR("Failed to initialize %s: %d", dev->name, ret);

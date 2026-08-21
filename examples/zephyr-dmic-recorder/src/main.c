@@ -231,19 +231,19 @@ int main(void)
 {
     int ret;
 
-	// Check if all required devices are ready
-    if (!device_is_ready(dmic_dev) || !device_is_ready(led.port) ||
-        !device_is_ready(button.port) || !device_is_ready(console_dev)) {
-        LOG_ERR("A required device is not ready.");
-        return -ENODEV;
-    }
-
 #ifdef CONFIG_BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
     ret = enable_dmic_power();
     if (ret < 0) {
         return ret;
     }
 #endif
+
+	// Check if all required devices are ready
+    if (!device_is_ready(dmic_dev) || !device_is_ready(led.port) ||
+        !device_is_ready(button.port) || !device_is_ready(console_dev)) {
+        LOG_ERR("A required device is not ready.");
+        return -ENODEV;
+    }
 
 	// Configure DMIC channel mapping
     dmic_config.channel.req_chan_map_lo = dmic_build_channel_map(0, 0, PDM_CHAN_LEFT);

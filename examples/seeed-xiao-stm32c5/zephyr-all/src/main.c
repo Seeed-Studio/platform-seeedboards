@@ -1374,7 +1374,7 @@ static void print_status(uint32_t loop_count, uint32_t dtr, uint32_t baudrate,
 		if (ret < 0) {
 			cdc_printf("  Battery     : read failed (%d)\r\n", ret);
 		} else {
-			cdc_printf("  Sense path  : BAT_EN/PE2 + BAT_Reading/PA4 ADC1_IN4\r\n");
+		cdc_printf("  Sense path  : BAT_EN/PA15 + BAT_Reading/PA4 ADC1_IN4\r\n");
 			cdc_printf("  Reading     : raw=%4u, adc=%4d mV, battery=%4d mV (%d.%03d V)\r\n",
 				   raw, adc_mv, battery_mv, battery_mv / 1000,
 				   battery_mv % 1000);

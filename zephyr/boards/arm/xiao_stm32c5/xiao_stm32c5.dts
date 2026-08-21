@@ -24,15 +24,6 @@
 	model = "Seeed XIAO STM32C5";
 	compatible = "seeed,xiao-stm32c5";
 
-	chosen {
-		zephyr,console = &usart1;
-		zephyr,shell-uart = &usart1;
-		zephyr,sram = &sram1;
-		zephyr,flash = &flash0;
-		zephyr,code-partition = &slot0_partition;
-		zephyr,canbus = &fdcan2;
-	};
-
 	aliases {
 		led0 = &user_led;
 		watchdog0 = &iwdg;
@@ -40,6 +31,7 @@
 		flash1 = &ext_flash;
 		imu0 = &lsm6ds3tr_c;
 		imu-heater = &imu_heater_pwm;
+		baten = &bat_en;
 	};
 
 	leds: leds {
@@ -57,6 +49,16 @@
 		imu_heater_pwm: imu_heater_pwm {
 			pwms = <&pwm1 1 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
 			label = "IMU Heater PWM";
+		};
+	};
+
+	/* BAT_EN controls the on-board battery-voltage divider. */
+	battery_adc_ctrl: battery-adc-ctrl {
+		compatible = "gpio-leds";
+
+		bat_en: bat-en {
+			gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
+			label = "BAT_EN/PA15";
 		};
 	};
 
@@ -129,6 +131,7 @@
 		status = "disabled";
 	};
 
+
 	/*
 	 * USB DRD FS controller (USB_DRD_FS).
 	 * Base: 0x40016000, PMA: 0x40016400, IRQ: 62, Clock: APB2 bit 24.
@@ -156,6 +159,21 @@
 		clocks = <&rcc STM32_CLOCK(APB2, 24)>,
 			 <&rcc STM32_SRC_CK48 CK48_SEL(2)>;
 		status = "okay";
+
+		/* Host-facing virtual serial port and default Zephyr console. */
+		cdc_acm_uart0: cdc_acm_uart0 {
+			compatible = "zephyr,cdc-acm-uart";
+			label = "Zephyr USB CDC-ACM";
+		};
+	};
+
+	chosen {
+		zephyr,console = &cdc_acm_uart0;
+		zephyr,shell-uart = &cdc_acm_uart0;
+		zephyr,sram = &sram1;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,canbus = &fdcan2;
 	};
 
 	/*
@@ -289,6 +307,12 @@
 	};
 };
 
+&spi3 {
+	pinctrl-0 = <&spi3_sck_pe2 &spi3_miso_pb0 &spi3_mosi_pb15>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &adc1 {
 	pinctrl-0 = <&adc1_in0_pa0 &adc1_in1_pa1 &adc1_in2_pa2 &adc1_in3_pa3>;
 	pinctrl-names = "default";
@@ -373,13 +397,3 @@ xiao_can: &fdcan2 {};
 
 /* USB device controller alias (standard Zephyr UDC) */
 zephyr_udc0: &usb {};
-
-/* CDC ACM UART: host-facing virtual serial port. The 1200-bps UF2 trigger
- * (uf2_dfu_reset module) listens for SET_LINE_CODING on this interface.
- */
-&zephyr_udc0 {
-	cdc_acm_uart0 {
-		compatible = "zephyr,cdc-acm-uart";
-		label = "Zephyr USB CDC-ACM";
-	};
-};

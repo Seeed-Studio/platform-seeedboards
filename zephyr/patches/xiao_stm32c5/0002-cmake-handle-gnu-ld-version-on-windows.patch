@@ -1,0 +1,18 @@
+diff --git a/cmake/modules/FindGnuLd.cmake b/cmake/modules/FindGnuLd.cmake
+--- a/cmake/modules/FindGnuLd.cmake
++++ b/cmake/modules/FindGnuLd.cmake
+@@ -83,6 +83,12 @@ if(GNULD_LINKER)
+   if(${gnuld_status} EQUAL 0)
++    # GNU Arm Embedded GCC 8 on Windows writes --version to stderr.
++    if("${gnuld_version_output}" STREQUAL "")
++      set(gnuld_version_output "${gnuld_error_output}")
++    endif()
++
+@@ -94,7 +98,7 @@ if(GNULD_LINKER)
+     string(REGEX
+       MATCH "GNU ld (\\(.+\\)|version) ([0-9]+[.][0-9]+[.]?[0-9]*).*"
+-      out_var ${gnuld_version_output}
++      out_var "${gnuld_version_output}"
+     )
+     set(GNULD_VERSION_STRING ${CMAKE_MATCH_2} CACHE STRING "GNU ld version" FORCE)
+   endif()

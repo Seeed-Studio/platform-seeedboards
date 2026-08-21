@@ -3,6 +3,12 @@
 
 if BOARD_XIAO_STM32C5
 
+config CONSOLE
+	default y if !USBD_GS_USB
+
+config UART_CONSOLE
+	default y if !USBD_GS_USB
+
 config ROM_START_OFFSET
 	hex
 	default 0x8000 if BOOTLOADER_MCUBOOT
