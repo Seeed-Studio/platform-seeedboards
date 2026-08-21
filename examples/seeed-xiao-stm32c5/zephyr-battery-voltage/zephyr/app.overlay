@@ -1,4 +1,9 @@
 / {
+	chosen {
+		zephyr,console = &usart1;
+		zephyr,shell-uart = &usart1;
+	};
+
 	zephyr,user {
 		io-channels = <&adc1 4>;
 	};
