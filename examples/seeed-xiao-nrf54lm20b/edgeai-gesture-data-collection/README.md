@@ -209,8 +209,9 @@ If you use a ZIP, verify that it contains only the prepared dataset file.
 The `tools/prepare_dataset.py` helper performs this preparation automatically.
 It selects label directories, merges their recordings, converts the collector
 column names to the Nordic gesture schema, adds numeric class IDs and a
-`session_id` for each recording, and creates a ZIP with `dataset.csv` at its
-root.
+numeric `session_id` for each recording, and creates a ZIP with the matching
+CSV at its root. Numeric session IDs are intentional: Edge AI Lab requires all
+data values, including an optional session identifier, to be numeric.
 
 For example, to prepare only a small two-class smoke-test dataset:
 

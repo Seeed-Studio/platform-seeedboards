@@ -108,7 +108,7 @@ def discover_files(input_root: Path, labels: list[str] | None) -> dict[str, list
     return files_by_label
 
 
-def read_recording(path: Path, label: str, class_id: int, session_id: str) -> list[list[str]]:
+def read_recording(path: Path, label: str, class_id: int, session_id: int) -> list[list[str]]:
     with path.open("r", newline="", encoding="utf-8-sig", errors="replace") as stream:
         reader = csv.DictReader(stream)
         if reader.fieldnames is None:
@@ -137,7 +137,7 @@ def read_recording(path: Path, label: str, class_id: int, session_id: str) -> li
                     f"Label mismatch at {path}:{line_number}: "
                     f"folder={label!r}, row={source_label!r}"
                 )
-            rows.append(values + [str(class_id), session_id])
+            rows.append(values + [str(class_id), str(session_id)])
 
     if not rows:
         raise ValueError(f"Recording is empty: {path}")
@@ -157,8 +157,9 @@ def merge_dataset(
         if max_files_per_label is not None:
             files = files[:max_files_per_label]
         for path in files:
-            relative = path.relative_to(input_root).with_suffix("")
-            session_id = re.sub(r"[^A-Za-z0-9_-]+", "_", str(relative))
+            # Keep session_id numeric: Edge AI Lab validates every feature
+            # value as numeric, including an optional session identifier.
+            session_id = recording_count
             merged.extend(read_recording(path, label, class_map[label], session_id))
             recording_count += 1
     return merged, recording_count
