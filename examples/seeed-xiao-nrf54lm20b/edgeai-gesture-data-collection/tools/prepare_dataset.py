@@ -194,7 +194,8 @@ def main() -> int:
         csv_path = output_zip.with_name(output_zip.stem + ".csv")
         write_csv(csv_path, rows)
         with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.write(csv_path, arcname="dataset.csv")
+            # Edge AI Lab requires the CSV filename to match the ZIP basename.
+            archive.write(csv_path, arcname=csv_path.name)
         if not args.keep_csv:
             csv_path.unlink()
 

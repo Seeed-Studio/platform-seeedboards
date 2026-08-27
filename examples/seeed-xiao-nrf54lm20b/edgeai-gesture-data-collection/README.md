@@ -195,11 +195,12 @@ individual recording files one by one and expect them to be combined into one
 training dataset. The official documentation says to combine distributed CSV
 files before uploading because one model uses one dataset.
 
-The safest ZIP layout is a single final CSV at the archive root:
+The safest ZIP layout is a single final CSV at the archive root. The CSV base
+name must match the ZIP base name:
 
 ```text
 gesture_dataset.zip
-└── dataset.csv
+└── gesture_dataset.csv
 ```
 
 Avoid nesting the CSV under the local `gesture_dataset/swipe_left/` directory.
@@ -227,7 +228,7 @@ The command creates:
 ```text
 tools/gesture_dataset_upload.csv
 tools/gesture_dataset_upload.zip
-└── dataset.csv
+└── gesture_dataset_upload.csv
 ```
 
 Without `--labels`, all label directories are included. Without
