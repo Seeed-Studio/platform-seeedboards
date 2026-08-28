@@ -1,0 +1,20 @@
+/* XIAO nRF54LM20B official Data Forwarder adapter.
+ * The board USB CDC ACM endpoint is used as the framed UART transport.
+ * Session and sensor data therefore remain binary-compatible with Nordic's
+ * Data Collection Desktop / data_forwarder_host tool.
+ */
+
+ / {
+	chosen {
+		ncs,data-forwarder-uart = &cdc_acm_uart;
+	};
+};
+
+&lsm6ds3tr_c {
+	zephyr,deferred-init;
+	status = "okay";
+};
+
+&imu_vdd {
+	/delete-property/ regulator-boot-on;
+};
