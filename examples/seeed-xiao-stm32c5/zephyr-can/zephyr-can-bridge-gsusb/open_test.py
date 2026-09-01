@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Firmware A (gs_usb / CANnectivity) — Tier 1 open test.
-# 验 USB vendor-class 设备端 + WinUSB/libusb + python-can 控制通道，
-# 不发 CAN 帧、不需要 CAN 对端。
+# Verify the USB vendor-class device, WinUSB/libusb, and python-can control
+# path. This test does not transmit CAN frames and does not require a peer.
 #
-# 安装：  pip install "python-can[gs_usb]"
-# 运行：  python open_test.py                 # channel=0, bitrate=500000
-#         python open_test.py 0 250000        # 指定 channel / bitrate
+# Install: pip install "python-can[gs_usb]"
+# Usage:   python open_test.py                 # channel=0, bitrate=500000
+#          python open_test.py 0 250000        # explicit channel and bitrate
 
 import sys
 import can
@@ -23,23 +23,22 @@ except Exception as e:
     print("\nOPEN FAILED:", repr(e))
     low = str(e).lower()
     if any(k in low for k in ("bit", "clock", "timing", "sample", "brp", "tseg", "sjw")):
-        print("\n>> 已知坑：python-can 的 gs_usb 比特率换算只支持 48/80MHz 核心时钟")
-        print("   (python-can #1747)。STM32C5 FDCAN2 核心时钟多半不是这俩。")
-        print("   解法见 TEST_GUIDE.md §4 —— 把报错里的核心时钟值贴回去，我帮你把 FDCAN2 设成 48/80MHz。")
+        print("\n>> Verify that python-can supports the reported FDCAN kernel clock.")
+        print("   Some gs_usb timing calculations support only 48 or 80 MHz.")
+        print("   See TEST_GUIDE.md and verify the firmware clock configuration.")
     elif any(k in low for k in ("no device", "not found", "could not find", "no matching")):
-        print("\n>> 没找到 gs_usb 设备。检查：")
-        print("   - 板子烧的是固件 A（gs_usb），不是 B（SLCAN）；")
-        print("   - 设备管理器里 VID 1209:PID CA01 已加载 WinUSB（无黄色叹号），")
-        print("     有叹号就用 Zadig 把它设成 WinUSB；")
-        print('   - pip install "python-can[gs_usb]" 已装。')
+        print("\n>> No gs_usb device was found. Verify:")
+        print("   - the board is running the gs_usb firmware, not SLCAN;")
+        print("   - VID:PID 1209:CA01 uses the WinUSB driver;")
+        print("   - python-can gs_usb dependencies are installed.")
     else:
-        print("\n>> 未知错误，把上面整行贴回去。")
+        print("\n>> Unexpected error; retain the complete exception for diagnosis.")
     sys.exit(1)
 
 print("\nOPEN OK")
 print("  channel_info:", getattr(bus, "channel_info", "n/a"))
-print("\n通过：A 的设备端 + WinUSB/libusb + python-can 控制通道 OK（未发 CAN 帧）。")
-print("下一步：连第二个 CAN 节点，跑 loop.py 验 TX/RX。")
+print("\nPASS: USB device, WinUSB/libusb, and python-can control path are operational.")
+print("Next: connect a second CAN node and run loop.py to verify TX and RX.")
 
 try:
     bus.shutdown()

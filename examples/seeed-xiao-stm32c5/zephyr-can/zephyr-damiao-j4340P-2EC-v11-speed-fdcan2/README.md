@@ -1,4 +1,4 @@
-# XIAO STM32C5 Damiao DM-J4340P-2EC V1.1 24V Speed Sample FDCAN1
+# XIAO STM32C5 Damiao DM-J4340P-2EC V1.1 24V Speed Sample FDCAN2
 
 This sample controls a Damiao DM-J4340P-2EC V1.1 24V integrated motor/driver
 through Classic CAN at 1 Mbps. It uses Damiao speed mode and automatically
@@ -7,19 +7,16 @@ cycles through speed gears for CAN waveform observation.
 ## Wiring
 
 ```text
-XIAO D12 / PB9 / FDCAN1_TX  -> external CAN transceiver TXD
-XIAO D11 / PB8 / FDCAN1_RX  <- external CAN transceiver RXD
-XIAO GND                    -> external CAN transceiver GND -> motor GND / 24V-
-External transceiver CAN_H  -> motor CAN_H
-External transceiver CAN_L  -> motor CAN_L
-External transceiver VCC    -> 5V supply, if required by the transceiver board
-24V+                        -> motor VCC
-24V-                        -> motor GND
+XIAO on-board CAN_H -> motor CAN_H
+XIAO on-board CAN_L -> motor CAN_L
+XIAO GND            -> motor GND / 24V-
+24V+                -> motor VCC
+24V-                -> motor GND
 ```
 
-This sample selects FDCAN1 through `zephyr/app.overlay` and uses the XIAO
-connector logic pins with an external CAN transceiver. Do not connect MCU
-CAN_TX/CAN_RX logic pins directly to the motor CANH/CANL differential bus.
+This sample uses FDCAN2 with the XIAO on-board CAN transceiver (`RX=PB5`,
+`TX=PB13`). The board devicetree controls transceiver standby on PB14. Do not
+connect MCU CAN_TX/CAN_RX logic pins directly to the motor CANH/CANL bus.
 
 ## Speed Gears
 
@@ -65,7 +62,7 @@ parameters and does not send Damiao's "store parameters" command.
 ## Build
 
 ```powershell
-cd D:\workspace\platform-seeedboards\examples\seeed-xiao-stm32c5\zephyr-damiao-j4340P-2EC-v11-speed-fdcan1
+cd D:\workspace\platform-seeedboards\examples\seeed-xiao-stm32c5\zephyr-can\zephyr-damiao-j4340P-2EC-v11-speed-fdcan2
 pio run
 ```
 

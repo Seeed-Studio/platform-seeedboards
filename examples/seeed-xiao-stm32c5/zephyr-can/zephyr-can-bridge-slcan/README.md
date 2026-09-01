@@ -1,65 +1,107 @@
-# XIAO STM32C5 — SLCAN (Lawicel) USB<->CAN bridge
+# XIAO STM32C5 SLCAN USB-to-CAN/CAN FD Bridge
 
-Turns the XIAO STM32C5 into a **USB-to-CAN adapter** speaking the Lawicel
-**SLCAN** ASCII protocol over USB CDC ACM. One firmware, three host tools:
-
-| Host tool | How to connect |
-|---|---|
-| **python-can** (any OS) | `can.Bus(interface='slcan', channel='/dev/ttyACM0', bitrate=500000)` |
-| **SavvyCAN** (any OS) | *Add Connection → Lawicel / SLCAN*, pick the board's COM/tty port |
-| **SocketCAN** (Linux) | `slcand -o -s5 -c /dev/ttyACM0 can0 && sudo ip link set can0 up` |
-
-> Classic CAN only in this build — Lawicel SLCAN has no standard CAN-FD framing.
-> For CAN FD use the **gs_usb** firmware variant (firmware A, a.k.a. CANnectivity
-> port) which gives a native SocketCAN interface and efficient binary FD frames.
+This firmware turns the XIAO STM32C5 into a USB CDC SLCAN/LAWICEL adapter for
+SavvyCAN. It supports Classic CAN and the SavvyCAN CAN FD extension. The
+recommended CAN FD configuration is a 500 kbit/s nominal bitrate and a
+2 Mbit/s data bitrate.
 
 ## Hardware
 
-- CAN controller: on-board **FDCAN2** (RX=PB5 / TX=PB13), classic mode here.
-- Transceiver: on-board, standby = PB14 — managed automatically by the Zephyr
-  CAN driver via the board's `can_phy0` `phys` binding (no manual GPIO needed).
-- USB: the MCU's own USB DRD Full-Speed (PA11/PA12) → CDC ACM virtual serial.
+- CAN controller: on-board FDCAN2 (PB5 RX / PB13 TX)
+- CAN transceiver standby: PB14, controlled by the Zephyr CAN driver
+- Host interface: USB CDC ACM at 115200 baud
+- CAN bus: connect CANH to CANH, CANL to CANL, and GND to GND
+- Termination: use 120 ohm at each physical end of the CAN bus
 
-Wire CANH/CANL (and a 120 Ω terminator as needed) to the board's CAN pins.
+A real transmit test requires a second active CAN node to acknowledge frames.
+For the SavvyCAN peer test, flash this firmware to both XIAO boards.
 
-## Build & flash
+## Build and flash
 
 ```bash
-cd examples/seeed-xiao-stm32c5/zephyr-can-bridge-slcan
-pio run                       # build -> firmware.uf2
-pio run -t upload             # UF2 upload (double-tap RESET, or auto 1200-bps touch)
+pio run
+pio run -t upload
 ```
 
-## Bring-up sequence (SLCAN is request/response)
+The UF2 file is generated at:
 
-On power-up the CAN controller is **stopped** at a default 500 kbps. From the
-host, send (CR-terminated):
-
-```
-S5        select 500 kbps   (S0..S8 presets: 10k/20k/50k/100k/125k/250k/500k/800k/1M)
-O         go on-bus
-t1238DEADBEEFCAFE   send std frame id=0x123, dlc=8, data=...
-C         go off-bus
+```text
+.pio/build/seeed-xiao-stm32c5/firmware.uf2
 ```
 
-Success → `CR` (`\r`); error → `BEL` (`\x07`).
-Received frames appear as `tiiildd...\r` (std) or `TiiiiiiiiLdd...\r` (ext).
+## SavvyCAN configuration
 
-## Implemented Lawicel subset
+Use SavvyCAN V220 or later. Open **Connection -> Open Connection Window**, then
+add a **LAWICEL / SLCAN Serial** connection and select the XIAO serial port.
+Set the serial baud rate to **115200**.
 
-| Cmd | Action | Cmd | Action |
-|---|---|---|---|
-| `Sn` | set bitrate preset | `tiiildd` | TX std 11-bit |
-| `O` | open (on-bus) | `TiiiiiiiiLdd` | TX ext 29-bit |
-| `C` | close (off-bus) | `riiiL` / `RiiiiiiiiL` | TX RTR |
-| `V` | version | `N` | serial number |
-| `F` | flags | `Z`/`M`/`m`/`L`/`l` | accepted, no-op |
+In the bus settings, set the nominal CAN speed to **500000**, enable **CAN FD**,
+and set the CAN FD data speed to **2000000**. Leave **Listen Only** disabled,
+enable the bus, save the bus settings, and connect.
 
-## TODO / next
+SavvyCAN V220 may omit the CAN FD data-rate command because of an upstream
+LAWICEL connection bug. The firmware therefore defaults to CAN FD at 500 kbit/s
+nominal and 2 Mbit/s data rate. Both of these startup sequences are accepted:
 
-- [ ] CAN-FD via a SLCAN-FD extension (or rely on the gs_usb variant for FD).
-- [ ] Timestamp (`Z1`) — currently a no-op.
-- [ ] Acceptance filtering (`M`/`m`) — currently accept-all.
-- [ ] TX-drop accounting when the CDC ring backs up under CAN-FD burst load.
-- [ ] Factor the CAN<->transport core into a shared `can_bridge` module reused
-  by the gs_usb variant (firmware A).
+```text
+C
+S6
+Y2
+O
+```
+
+```text
+C
+S6
+O
+```
+
+`S6` selects the 500 kbit/s nominal bitrate. When present, `Y2` explicitly
+selects the 2 Mbit/s data bitrate. Omitting `Y2` retains the firmware's 2 Mbit/s
+default. Each accepted command is acknowledged by a carriage return; an invalid
+command returns BEL (`0x07`).
+
+## CAN FD frame format
+
+The firmware implements SavvyCAN's LAWICEL CAN FD extension:
+
+- `d`: standard-ID CAN FD frame without bit-rate switching
+- `b`: standard-ID CAN FD frame with bit-rate switching
+- `D`: extended-ID CAN FD frame without bit-rate switching
+- `B`: extended-ID CAN FD frame with bit-rate switching
+- `Y1`, `Y2`, `Y4`, `Y5`: select a 1, 2, 4, or 5 Mbit/s data bitrate
+
+The CAN FD DLC codes `9` through `F` represent 12, 16, 20, 24, 32, 48, and
+64 data bytes. Classic `t/T/r/R` frames remain supported.
+
+## Test with SavvyCAN and a second board
+
+Connect both boards to the same correctly terminated CAN bus and flash this
+firmware to both. Connect one board to SavvyCAN. Close every other program that
+may hold its serial port, then run the peer script on the other board:
+
+```text
+python -m pip install pyserial
+python savvycan_fd_peer.py send
+```
+
+SavvyCAN Bus Traffic should display IDs `0x200`, `0x201`, and `0x1ABCDE`.
+The `0x201` and `0x1ABCDE` test frames use bit-rate switching; the `0x201`
+frame carries 64 bytes.
+
+To test transmission from SavvyCAN, run:
+
+```text
+python savvycan_fd_peer.py receive
+```
+
+Then use SavvyCAN **Send Frames** to send a CAN FD frame. For example, use
+standard ID `0x123`, enable CAN FD and BRS, select 12 data bytes, and send
+`00 01 02 03 04 05 06 07 08 09 0A 0B`.
+
+## Notes
+
+SLCAN represents every byte with two ASCII characters, so its practical
+throughput is lower than a binary `gs_usb` adapter. It is suitable for SavvyCAN
+inspection and moderate CAN FD traffic, but sustained high bus utilization may
+overflow the USB text stream.

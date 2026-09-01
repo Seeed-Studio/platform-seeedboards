@@ -1,83 +1,79 @@
-# XIAO STM32C5 Damiao DM-J4340P-2EC V1.1 24V Speed Sample
+# DM-J4310-2EC V1.1 speed-mode CAN driver
 
-This sample controls a Damiao DM-J4340P-2EC V1.1 24V integrated motor/driver
-through Classic CAN at 1 Mbps. It uses Damiao speed mode and automatically
-cycles through speed gears for CAN waveform observation.
+Single-file Zephyr example that drives a **Damiao DM-J4310-2EC V1.1**
+24 V integrated motor over classic CAN at 1 Mbps, on the XIAO STM32C5.
+
+- Motor CAN ID: `0x007`
+- Master ID:    `0x017`
+- CAN bitrate:  1 Mbps (classic CAN 2.0B)
+- CAN controller: FDCAN2 (`RX=PB5`, `TX=PB13`)
+- CAN_STB (`PB14`): managed by the board-level transceiver node (`can_phy0`)
+- Console: USB CDC ACM virtual COM port (`printk`)
+- Demo: cycles speed gears `0 → 3 → 6 → 10 → 6 → 3 → 0` rad/s, 5 s per gear
 
 ## Wiring
 
-```text
-XIAO CAN_H  -> motor CAN_H
-XIAO CAN_L  -> motor CAN_L
-XIAO GND    -> motor GND / 24V-
-24V+        -> motor VCC
-24V-        -> motor GND
+Connect the differential bus only — do **not** wire the MCU CAN_TX/CAN_RX
+logic pins straight to the motor:
+
+```
+XIAO CANH  ->  motor CANH
+XIAO CANL  ->  motor CANL
+XIAO GND   ->  motor GND (24V-)
+24V+       ->  motor VCC
 ```
 
-Use the XIAO board CANH/CANL pins behind the CAN transceiver. Do not connect
-MCU CAN_TX/CAN_RX logic pins directly to the motor CANH/CANL differential bus.
+Use the CANH/CANL pads or terminal behind the XIAO's onboard transceiver.
+Add a **120 Ω terminator at each end** of the bus. The motor needs its own
+24 V supply.
 
-## Speed Gears
+## CAN protocol (Damiao speed mode)
 
-The DM-J4340P-2EC V1.1 24V manual lists rated speed as 120 rpm and no-load
-maximum speed as 200 rpm. This sample uses conservative test speeds below the
-rated speed:
+| Frame | CAN ID | Payload |
+| --- | --- | --- |
+| Speed command | `0x200 + motor_id` (`0x207`) | `D[0..3]` = `v_des` float32 LE (rad/s), DLC=4 |
+| Control cmd | `0x200 + motor_id` (`0x207`) | `D[0..6]` = `0xFF`, `D[7]` = cmd, DLC=8 |
+| Parameter write | `0x7FF` | `D[0..1]` = motor_id LE, `D[2]` = `0x55`, `D[3]` = reg, `D[4..7]` = u32 LE |
 
-| Gear | Speed | Approx rpm |
-| --- | ---: | ---: |
-| 0 | 0.0 rad/s | 0 rpm |
-| 1 | 3.0 rad/s | 28.6 rpm |
-| 2 | 6.0 rad/s | 57.3 rpm |
+Control commands (`D[7]`): `0xFC` = enable, `0xFD` = disable, `0xFB` = clear
+error. Startup writes `CTRL_MODE = 3` (speed mode) before enabling.
 
-The firmware advances one gear every 5 seconds:
+The **Master ID** (`0x017`) is a parameter stored in the motor and is used by
+the motor to address parameter/feedback responses back to this host; it does
+not appear in the speed-mode command frame IDs.
 
-```text
-0 -> 3 -> 6 -> 3 -> 0 rad/s
-```
-
-## CAN Protocol
-
-The sample assumes the motor is already configured to speed mode by the Damiao
-PC tool. In speed mode the command frame is:
-
-```text
-CAN ID: 0x200 + motor_id
-D[0..3]: v_des float, little-endian, rad/s
-DLC: 4
-```
-
-The default `DAMIAO_MOTOR_ID` is `1`.
-
-At startup the firmware writes only the runtime control mode over CAN:
-
-```text
-CTRL_MODE = 3       speed mode
-```
-
-The sample reads `ACC`, `DEC`, `MAX_SPD`, `VMAX`, `KP_ASR`, `KI_ASR`, `Deta`,
-and `VBus` for diagnostics, but does not write speed-loop or speed-limit
-parameters and does not send Damiao's "store parameters" command.
-
-## Build
+## Build & flash
 
 ```powershell
-cd D:\workspace\platform-seeedboards\examples\seeed-xiao-stm32c5\zephyr-damiao-j4340P-2EC-v11-speed
-pio run
+pio run -e seeed-xiao-stm32c5
 ```
 
-The build output includes:
+Flash the UF2 (`double-tap RESET` to enter bootloader, then copy
+`.pio\build\seeed-xiao-stm32c5\firmware.uf2` into the `XIAOC5BOOT` drive), or:
 
-```text
-.pio\build\seeed-xiao-stm32c5\firmware.uf2
+```powershell
+pio run -e seeed-xiao-stm32c5 -t upload
 ```
 
-## Notes
+## Monitor
 
-The MCU sends target speed commands only. Damiao's internal driver handles the
-motor commutation, current loop, velocity loop, encoder feedback, and protection.
-
-Reference manual used during setup:
-
-```text
-https://wiki.aifitlab.com/damiao-docs/dm-j4340p-2ec-v11-motor-instruction-manual
+```powershell
+pio device monitor -e seeed-xiao-stm32c5
 ```
+
+The XIAO enumerates a USB CDC ACM COM port. Logs print a `FB` line every 500 ms
+with decoded position / velocity / torque / temperatures.
+
+## Fixed speed instead of the gear sequence
+
+To drive a constant speed, replace the `gears[]` / `gear_sequence[]` tables
+with a single value and call `dm_send_speed(v)` in the loop. The command must
+be repeated faster than the motor's CAN-loss timeout (typically ≥ 200 Hz is
+safe; this example uses 50 Hz with a 500 ms timeout window).
+
+## References
+
+- Damiao DM-J4340P-2EC V1.1 manual (same protocol family):
+  https://wiki.aifitlab.com/damiao-docs/dm-j4340p-2ec-v11-motor-instruction-manual
+- Known-working reference project:
+  `D:\XIAO_test\XIAO_STM32C5\xiao_tft_can\zephyr-can`

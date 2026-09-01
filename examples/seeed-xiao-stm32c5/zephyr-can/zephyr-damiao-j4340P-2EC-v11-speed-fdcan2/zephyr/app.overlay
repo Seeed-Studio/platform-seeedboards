@@ -1,0 +1,4 @@
+/*
+ * No sample-specific devicetree override is required. The board configuration
+ * selects FDCAN2 and the on-board CAN transceiver through zephyr,canbus.
+ */

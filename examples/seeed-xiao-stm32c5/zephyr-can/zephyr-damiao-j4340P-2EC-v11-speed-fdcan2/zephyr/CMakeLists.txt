@@ -2,6 +2,6 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(xiao_stm32c5_damiao_j4340p_2ec_v11_speed_fdcan1)
+project(xiao_stm32c5_damiao_j4340p_2ec_v11_speed_fdcan2)
 
 target_sources(app PRIVATE ../src/main.c)
