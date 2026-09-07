@@ -822,14 +822,30 @@ elif upload_protocol in debug_tools:
         openocd_args.extend([
             "-c", "init; targets; halt; program {$SOURCE} verify reset; shutdown"
         ])
-    # 54l15 use hex to upload
+    # nRF54L RRAM uploads. A blank (mass-erased) chip has no vector table, so
+    # the core sits in LOCKUP when OpenOCD attaches; halt it before writing
+    # RRAM and verify the image afterwards. Without the verify a failed write
+    # still exits 0 and PlatformIO reports a false SUCCESS. See
+    # https://github.com/Seeed-Studio/platform-seeedboards/issues/69
     elif board.get("build.mcu") == "nrf54l15":
         openocd_args.extend([
-            "-c", "init; mww 0x5004b500 0x101; load_image {$SOURCE}; reset run; exit"
+            "-c", "init",
+            "-c", "reset halt",
+            "-c", "mww 0x5004b500 0x101; load_image {$SOURCE}",
+            "-c", "verify_image {$SOURCE}",
+            "-c", "reset run",
+            "-c", "shutdown"
         ])
     elif board.get("build.mcu") == "nrf54lm20a":
         openocd_args.extend([
-            "-c", "init; mww 0x5004e500 0x101; load_image {$SOURCE}; reset run; exit"
+            "-c", "init",
+            "-c", "reset halt",
+            # nrf54lm20a-load (defined in the board OpenOCD config) sets the
+            # RRAMC write-enable bit and writes the image straight into RRAM.
+            "-c", "nrf54lm20a-load {$SOURCE}",
+            "-c", "verify_image {$SOURCE}",
+            "-c", "reset run",
+            "-c", "shutdown"
         ])
     else:
        print("Warning! Uploading via OpenOCD is not yet supported for this MCU.")
