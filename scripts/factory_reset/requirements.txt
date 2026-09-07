@@ -1,0 +1,13 @@
+# Dependencies for the factory-reset / recover tools, installed by the
+# wrapper scripts into scripts/factory_reset/.venv.
+#
+# pyOCD is pinned to the Seeed-supported fork that carries working nRF54LM20A
+# flash support. Stock pyOCD (0.44.x/0.45.x) faults inside its flash algorithm
+# on nRF54LM20A -- see pyocd/pyOCD#2016 and
+# Seeed-Studio/platform-seeedboards#69.
+#
+# KEEP IN SYNC with _ensure_pyocd_installed() in
+# builder/board_build/nrf/nrf_build.py, which installs the exact same fork
+# for the PlatformIO upload path.
+pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable
+libusb

@@ -8,7 +8,9 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 FIRMWARE="${DIR}/firmware.hex"
 VENV_DIR="$DIR/.venv"
-DEP_MARKER="$VENV_DIR/.deps_installed"
+# Bump the marker to force a reinstall from requirements.txt; older venvs
+# still hold stock pyOCD, which faults on nRF54LM20A (issue #69).
+DEP_MARKER="$VENV_DIR/.deps_forked_pyocd_v1"
 REQ_PROBE="$1"
 EXTRA_ARGS=""
 if [ -n "$REQ_PROBE" ]; then
@@ -25,8 +27,8 @@ fi
 source "$VENV_DIR/bin/activate"
 
 if [ ! -f "$DEP_MARKER" ]; then
-    echo "[INFO] Installing dependencies into venv (pyocd libusb)..."
-    pip install pyocd libusb >/dev/null
+    echo "[INFO] Installing dependencies into venv (forked pyocd + libusb)..."
+    pip install -r "$DIR/requirements.txt" >/dev/null
     touch "$DEP_MARKER"
 else
     echo "[INFO] Dependencies already installed in venv."

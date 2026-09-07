@@ -3,7 +3,9 @@ setlocal EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
 set "VENV_DIR=%SCRIPT_DIR%.venv"
-set "DEP_MARKER=%VENV_DIR%\.dependencies_installed"
+REM Bump the marker to force a reinstall from requirements.txt; older venvs
+REM still hold stock pyOCD, which faults on nRF54LM20A (issue #69).
+set "DEP_MARKER=%VENV_DIR%\.deps_forked_pyocd_v1"
 
 if not exist "%VENV_DIR%" (
     echo Creating Python virtual environment...
@@ -20,8 +22,8 @@ echo Activating virtual environment...
 call "%VENV_DIR%\Scripts\activate.bat"
 
 if not exist "%DEP_MARKER%" (
-    echo Installing dependencies...
-    pip install pyocd libusb  
+    echo Installing dependencies from requirements.txt...
+    pip install -r "%SCRIPT_DIR%requirements.txt"
     if not errorlevel 1 (
         echo. > "%DEP_MARKER%"
     )
@@ -53,7 +55,7 @@ if errorlevel 1 (
     set "VENV_DIR=%SCRIPT_DIR%.venv"
     if not exist "%VENV_DIR%" python -m venv "%VENV_DIR%"
     call "%VENV_DIR%\Scripts\activate.bat"
-    pip install pyocd   libusb >nul
+    pip install -r "%SCRIPT_DIR%requirements.txt" >nul
 )
 
 python "%SCRIPT_DIR%reset_tool.py" --mode factory --firmware "%FIRMWARE%" %EXTRA_ARGS%
