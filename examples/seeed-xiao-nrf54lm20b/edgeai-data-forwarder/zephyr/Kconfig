@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menu "XIAO nRF54LM20B Edge AI Data Forwarder"
+
+config DATA_FWD_PROTO
+	bool "Data Forwarder protocol"
+	default y
+	select ENTROPY_GENERATOR if ENTROPY_NODE_ENABLED
+
+if DATA_FWD_PROTO
+
+config DATA_FWD_PROTO_ASCII_MODE
+	bool "ASCII compatibility mode"
+	default n
+
+
+config DATA_FWD_PROTO_RING_BUF_SIZE
+	int "Protocol ring buffer size (bytes)"
+	default 4096
+
+config DATA_FWD_PROTO_CRC
+	bool "Append CRC-16 to each frame"
+	default y
+	depends on CRC
+
+config DATA_FWD_PROTO_META_RESEND_S
+	int "Session metadata resend period (seconds)"
+	default 5
+	range 1 600
+
+config DATA_FWD_PROTO_MAX_CHANNELS
+	int "Maximum channel count"
+	default 6
+	range 1 255
+
+config DATA_FWD_PROTO_INT32_VALUES
+	bool "Use 32-bit integer channel values"
+	default y
+
+config DATA_FWD_TRANSPORT_UART
+	bool "USB CDC ACM UART transport"
+	default y
+	depends on SERIAL
+
+config DATA_FWD_SENSOR_LSM6DSL
+	bool "LSM6DS3TR-C (LSM6DSL-compatible) 6-axis IMU"
+	default y
+	depends on SENSOR
+	depends on LSM6DSL
+
+endif
+
+endmenu
+
+source "Kconfig.zephyr"

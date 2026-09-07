@@ -1,0 +1,32 @@
+; Copyright (c) 2026 Nordic Semiconductor ASA
+; SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+; Edge AI Add-on Data Forwarder message schema.
+; Any CBOR decoder can parse messages without prior schema knowledge.
+
+; --- Envelope: wraps every message ---
+envelope = {
+  "t" => "si" / "sd",                 ; message type: "si" = session info, "sd" = sensor data
+  "d" => session-info / sensor-data,  ; message payload
+}
+
+; --- Session info (sent at session start and periodically) ---
+; Idempotent: same sid + same contents on every resend.
+session-info = {
+  "sid"   => uint .size 4,        ; session ID (random at boot) - disambiguates
+                                  ; "same session, a resend" from "device rebooted, new session"
+  "hz"    => uint .size 2,        ; sampling rate in Hz
+  "ch"    => uint .size 1,        ; number of data channels
+  "ch_n"  => [+ tstr .size 0..5], ; names of data channels
+  "st"    => uint .size 1,        ; sensor type, app-defined
+  "dr"    => uint .size 4,        ; cumulative producer-side samples drop count
+  "name"  => tstr .size 0..31,    ; device name
+}
+
+; --- Sensor data (sent per sample at up to 1600 Hz) ---
+sensor-data = {
+  "seq" => uint .size 4,                ; data sequence number (wrapping), for packet loss detection
+  "ts"  => uint .size 4,                ; milliseconds since session start
+  "val" => [+ float32]/[+int .size 4],  ; sensor channel values (e.g. [ax, ay, az, gx, gy, gz])
+}
+

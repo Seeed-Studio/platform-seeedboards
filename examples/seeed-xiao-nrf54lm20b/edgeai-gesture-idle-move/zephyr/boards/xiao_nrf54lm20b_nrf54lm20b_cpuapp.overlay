@@ -1,0 +1,13 @@
+/* XIAO nRF54LM20B custom IMU gesture model. */
+&lsm6ds3tr_c {
+	zephyr,deferred-init;
+	status = "okay";
+};
+
+&imu_vdd {
+	/delete-property/ regulator-boot-on;
+};
+
+&axon {
+	status = "okay";
+};

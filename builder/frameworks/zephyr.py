@@ -724,10 +724,11 @@ def _prj_conf_has(token):
 
 def _is_edge_ai_sample():
     # An edge-AI sample opts in via either the nRF EdgeAI runtime or the bare
-    # Axon NPU driver (e.g. person_detection uses CONFIG_NRF_AXON directly).
+    # Axon NPU driver (e.g. person_detection uses CONFIG_NRF_AXON directly),
+    # or the official Edge AI Data Forwarder protocol.
     return _prj_conf_has("CONFIG_NRF_EDGEAI=y") or _prj_conf_has(
         "CONFIG_NRF_AXON=y"
-    )
+    ) or _prj_conf_has("CONFIG_DATA_FWD_PROTO=y")
 
 
 def _ensure_module(label, cache_dir, remote, revision, override_env):
