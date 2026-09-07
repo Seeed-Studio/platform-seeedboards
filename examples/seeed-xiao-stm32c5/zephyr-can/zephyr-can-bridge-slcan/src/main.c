@@ -11,9 +11,10 @@
  *   python-can : can.Bus(interface='slcan', channel='/dev/ttyACM0', bitrate=500000)
  *   SocketCAN : slcand -o -s5 -c /dev/ttyACM0 can0 && sudo ip link set can0 up
  *
- * Classic CAN only here: Lawicel SLCAN has no standard FD framing. For CAN FD
- * use the gs_usb firmware variant (firmware A / CANnectivity). Bitrate is set
- * by the S0..S8 Lawicel presets.
+ * CAN FD uses the SavvyCAN LAWICEL extension:
+ *   Y1/Y2/Y4/Y5 select the data bitrate (1/2/4/5 Mbit/s).
+ *   d/D are standard/extended FD frames without BRS.
+ *   b/B are standard/extended FD frames with BRS.
  *
  * Power-on default: bitrate 500 kbps, CAN stopped. Go on-bus with:
  *   S5\r   (select 500 kbps)   then   O\r   (open)
@@ -35,13 +36,14 @@
 
 #define CANBUS_NODE  DT_CHOSEN(zephyr_canbus)
 
-#define CDC_TX_RING_SIZE   1024U
-#define SLCAN_LINE_MAX      128U
+#define CDC_TX_RING_SIZE   2048U
+#define SLCAN_LINE_MAX      192U
 #define SLCAN_CMDQ_DEPTH      8U
 #define CMD_STACK           1536U
 #define CMD_PRIO               2U
 
 #define CAN_BITRATE_DEFAULT  500000U
+#define CAN_DATA_BITRATE_DEFAULT 2000000U
 
 /* Lawicel S0..S8 bitrates. */
 static const uint32_t slcan_presets[] = {
@@ -64,6 +66,11 @@ K_MSGQ_DEFINE(slcan_cmdq, sizeof(struct cmd_item), SLCAN_CMDQ_DEPTH, 4);
 
 static atomic_t can_started;
 static uint32_t can_bitrate = CAN_BITRATE_DEFAULT;
+static uint32_t can_data_bitrate = CAN_DATA_BITRATE_DEFAULT;
+/* SavvyCAN V220 may omit the Y command even when CAN FD is selected.
+ * Default to FD mode so its C/S6/O sequence still opens a 500k/2M bus.
+ * CAN_MODE_FD remains compatible with Classic CAN frames. */
+static bool can_fd_enabled = true;
 
 /* CDC RX line accumulator (touched only from the CDC ISR). */
 static uint8_t rx_line[SLCAN_LINE_MAX];
@@ -129,6 +136,47 @@ static void reply_err(void)
 	cdc_tx_push(&c, 1U);
 }
 
+static int configure_can(bool restart)
+{
+	bool was_started = atomic_get(&can_started) != 0;
+	int ret;
+
+	if (was_started) {
+		ret = can_stop(can_dev);
+		if (ret != 0 && ret != -EALREADY) {
+			return ret;
+		}
+		atomic_set(&can_started, 0);
+	}
+
+	ret = can_set_mode(can_dev, can_fd_enabled ? CAN_MODE_FD : CAN_MODE_NORMAL);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = can_set_bitrate(can_dev, can_bitrate);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (can_fd_enabled) {
+		ret = can_set_bitrate_data(can_dev, can_data_bitrate);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	if (restart || was_started) {
+		ret = can_start(can_dev);
+		if (ret == 0 || ret == -EALREADY) {
+			atomic_set(&can_started, 1);
+			return 0;
+		}
+	}
+
+	return ret;
+}
+
 /* ---- CAN RX -> SLCAN text ---- */
 
 static void can_rx_cb(const struct device *dev, struct can_frame *frame, void *user_data)
@@ -140,8 +188,14 @@ static void can_rx_cb(const struct device *dev, struct can_frame *frame, void *u
 	int n = 0;
 	bool ext = (frame->flags & CAN_FRAME_IDE) != 0U;
 	bool rtr = (frame->flags & CAN_FRAME_RTR) != 0U;
+	bool fd = (frame->flags & CAN_FRAME_FDF) != 0U;
+	bool brs = (frame->flags & CAN_FRAME_BRS) != 0U;
 
-	line[n++] = rtr ? (ext ? 'R' : 'r') : (ext ? 'T' : 't');
+	if (fd) {
+		line[n++] = brs ? (ext ? 'B' : 'b') : (ext ? 'D' : 'd');
+	} else {
+		line[n++] = rtr ? (ext ? 'R' : 'r') : (ext ? 'T' : 't');
+	}
 	n += put_hex(&line[n], ext ? frame->id : (frame->id & CAN_STD_ID_MASK),
 		    ext ? 8 : 3);
 	line[n++] = "0123456789ABCDEF"[frame->dlc & 0xFU];
@@ -176,25 +230,42 @@ static int parse_id(const char *s, int idw, uint32_t *out)
 	return 0;
 }
 
-static int slcan_send(const char *s, bool rtr)
+static int slcan_send(const char *s, size_t len, bool rtr)
 {
-	bool ext = (s[0] == 'T') || (s[0] == 'R');
+	bool ext = (s[0] == 'T') || (s[0] == 'R') ||
+		   (s[0] == 'D') || (s[0] == 'B');
+	bool fd = (s[0] == 'd') || (s[0] == 'b') ||
+		  (s[0] == 'D') || (s[0] == 'B');
+	bool brs = (s[0] == 'b') || (s[0] == 'B');
 	int idw = ext ? 8 : 3;
 	uint32_t id;
+	size_t header_len = 1U + (size_t)idw + 1U;
+
+	if (len < header_len || (fd && rtr)) {
+		return -1;
+	}
 
 	if (parse_id(s, idw, &id) < 0) {
 		return -1;
 	}
 
 	int dlcp = hexval(s[1 + idw]);
-	if (dlcp < 0 || dlcp > 8) {
+	if (dlcp < 0 || dlcp > (fd ? 15 : 8)) {
+		return -1;
+	}
+
+	uint8_t bytes = fd ? can_dlc_to_bytes((uint8_t)dlcp) : (uint8_t)dlcp;
+	size_t expected_len = header_len + (rtr ? 0U : (size_t)bytes * 2U);
+
+	if (len != expected_len || (ext && id > CAN_EXT_ID_MASK) ||
+	    (!ext && id > CAN_STD_ID_MASK)) {
 		return -1;
 	}
 
 	struct can_frame frame;
 
 	memset(&frame, 0, sizeof(frame));
-	frame.dlc = can_bytes_to_dlc((uint8_t)dlcp);
+	frame.dlc = (uint8_t)dlcp;
 	if (ext) {
 		frame.flags = CAN_FRAME_IDE;
 		frame.id = id & CAN_EXT_ID_MASK;
@@ -204,9 +275,18 @@ static int slcan_send(const char *s, bool rtr)
 	if (rtr) {
 		frame.flags |= CAN_FRAME_RTR;
 	}
+	if (fd) {
+		if (!can_fd_enabled) {
+			return -1;
+		}
+		frame.flags |= CAN_FRAME_FDF;
+		if (brs) {
+			frame.flags |= CAN_FRAME_BRS;
+		}
+	}
 
 	if (!rtr) {
-		for (int i = 0; i < dlcp; i++) {
+		for (uint8_t i = 0U; i < bytes; i++) {
 			int hi = hexval(s[1 + idw + 1 + i * 2]);
 			int lo = hexval(s[1 + idw + 1 + i * 2 + 1]);
 
@@ -240,10 +320,10 @@ static void cdc_isr(const struct device *dev, void *user_data)
 	uint8_t buf[64];
 	int len;
 
-	/* Zephyr 中断驱动 UART 标准模式：必须先 uart_irq_update + uart_irq_is_pending
-	 * 作外壳，否则 rx/tx ready 不上报（之前 CDC 对任何命令都无响应的根因）。 */
+	/* Zephyr interrupt-driven UART requires uart_irq_update() and
+	 * uart_irq_is_pending() before checking the RX/TX ready states. */
 	while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-		/* RX: 累积成行，CR/LF 结尾入队。Lawicel 大小写敏感，原样存（不 toupper）。 */
+		/* RX: accumulate a case-sensitive Lawicel command until CR/LF. */
 		if (uart_irq_rx_ready(dev)) {
 			len = uart_fifo_read(dev, buf, sizeof(buf));
 			for (int i = 0; i < len; i++) {
@@ -265,7 +345,7 @@ static void cdc_isr(const struct device *dev, void *user_data)
 			}
 		}
 
-		/* TX: 排空 ring buffer；空了就关 TX 中断。 */
+		/* TX: drain the ring buffer and disable the interrupt when empty. */
 		if (uart_irq_tx_ready(dev)) {
 			len = (int)ring_buf_get(&cdc_tx_rb, buf, sizeof(buf));
 			if (len == 0U) {
@@ -302,11 +382,7 @@ static void slcan_cmd_thread(void *a1, void *a2, void *a3)
 		switch (cmd) {
 		case 'O': /* open / go on-bus */
 			if (!atomic_get(&can_started)) {
-				ret = can_start(can_dev);
-				if (ret == 0 || ret == -EALREADY) {
-					atomic_set(&can_started, 1);
-					ret = 0;
-				}
+				ret = configure_can(true);
 			}
 			break;
 		case 'C': /* close / go off-bus */
@@ -325,17 +401,25 @@ static void slcan_cmd_thread(void *a1, void *a2, void *a3)
 				ret = -1;
 				break;
 			}
-			bool was = atomic_get(&can_started);
-
-			if (was) {
-				(void)can_stop(can_dev);
+			can_bitrate = slcan_presets[idx];
+			ret = configure_can(false);
+			break;
+		}
+		case 'Y': { /* SavvyCAN CAN FD data bitrate extension */
+			if (item.len != 2U) {
+				ret = -1;
+				break;
 			}
-			ret = can_set_bitrate(can_dev, slcan_presets[idx]);
+			switch (s[1]) {
+			case '1': can_data_bitrate = 1000000U; break;
+			case '2': can_data_bitrate = 2000000U; break;
+			case '4': can_data_bitrate = 4000000U; break;
+			case '5': can_data_bitrate = 5000000U; break;
+			default: ret = -1; break;
+			}
 			if (ret == 0) {
-				can_bitrate = slcan_presets[idx];
-			}
-			if (was && ret == 0) {
-				ret = can_start(can_dev);
+				can_fd_enabled = true;
+				ret = configure_can(false);
 			}
 			break;
 		}
@@ -343,7 +427,13 @@ static void slcan_cmd_thread(void *a1, void *a2, void *a3)
 		case 'T': /* TX extended 29-bit:  TiiiiiiiiLdd.. */
 		case 'r': /* RTR standard */
 		case 'R': /* RTR extended */
-			ret = slcan_send(s, (cmd == 'r' || cmd == 'R'));
+			ret = slcan_send(s, item.len, (cmd == 'r' || cmd == 'R'));
+			break;
+		case 'd': /* FD standard without BRS */
+		case 'D': /* FD extended without BRS */
+		case 'b': /* FD standard with BRS */
+		case 'B': /* FD extended with BRS */
+			ret = slcan_send(s, item.len, false);
 			break;
 		case 'V': { /* firmware version */
 			static const char v[] = "V1013\r";
@@ -397,13 +487,9 @@ int main(void)
 
 	ring_buf_init(&cdc_tx_rb, sizeof(cdc_tx_buf), cdc_tx_buf);
 
-	ret = can_set_mode(can_dev, CAN_MODE_NORMAL);
+	ret = configure_can(false);
 	if (ret != 0) {
-		printk("SLCAN: can_set_mode failed: %d\n", ret);
-	}
-	ret = can_set_bitrate(can_dev, can_bitrate);
-	if (ret != 0) {
-		printk("SLCAN: can_set_bitrate(%u) failed: %d\n", can_bitrate, ret);
+		printk("SLCAN: initial CAN configuration failed: %d\n", ret);
 	}
 
 	static const struct can_filter accept_all_std = {
@@ -427,8 +513,9 @@ int main(void)
 	(void)uart_line_ctrl_set(cdc_dev, UART_LINE_CTRL_DSR, 1);
 #endif
 
-	printk("SLCAN bridge ready. Default %u bps, CAN stopped.\n", can_bitrate);
-	printk("Open bus: send 'S5\\r' (500k) then 'O\\r'.\n");
+	printk("SLCAN FD bridge ready. Default nominal %u, data %u bps, CAN stopped.\n",
+	       can_bitrate, can_data_bitrate);
+	printk("CAN FD open: send 'S6\\r', 'Y2\\r', then 'O\\r'.\n");
 
 	return 0;
 }

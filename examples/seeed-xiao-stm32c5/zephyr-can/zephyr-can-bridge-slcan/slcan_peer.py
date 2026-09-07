@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 #
-# 搭配 SavvyCAN 用：在【另一块板】上当对端（SavvyCAN 连第一块板）。
-#   python slcan_peer.py send COM104   # 上线 + 循环发帧 10s（SavvyCAN 应收到）
-#   python slcan_peer.py recv COM104   # 上线 + 打印收到的帧 15s（SavvyCAN 发，这里看）
-# COM 号用 slcan_check.py 里看到的 Seeed(0x2886) 口。
+# Use the second board as a peer while SavvyCAN owns the first board.
+#   python slcan_peer.py send COM104   # Send frames for 10 seconds
+#   python slcan_peer.py recv COM104   # Print received frames for 15 seconds
 
 import sys
 import time
@@ -28,28 +27,28 @@ def cmd(c):
 
 
 cmd("S6")  # 500k
-cmd("O")   # 上线
+cmd("O")   # Go on-bus
 
 if mode == "send":
-    print(f"{port} 已上线(500k)，循环发帧 10s —— SavvyCAN(另一块板) 应收到：")
+    print(f"{port} is on-bus at 500 kbit/s and will send for 10 seconds.")
     frames = [
-        "t20081122334455667788",        # 标准 8B, id=0x200
-        "T001ABCDE8AABBCCDDEEFF0011",   # 扩展 8B
-        "t3004DEADBEEF",                # 标准 4B, id=0x300
+        "t20081122334455667788",        # Standard 8-byte frame, ID 0x200
+        "T001ABCDE8AABBCCDDEEFF0011",   # Extended 8-byte frame
+        "t3004DEADBEEF",                # Standard 4-byte frame, ID 0x300
     ]
     end = time.time() + 10
     while time.time() < end:
         for f in frames:
             s.write((f + "\r").encode())
             time.sleep(0.2)
-    print("发送结束")
+    print("Transmission complete")
 else:
-    print(f"{port} 已上线(500k)，收帧 15s —— SavvyCAN(另一块板) 发，这里打印：")
+    print(f"{port} is on-bus at 500 kbit/s and will receive for 15 seconds.")
     end = time.time() + 15
     while time.time() < end:
         b = s.read(128)
         if b:
-            print("  收到:", b)
+            print("  Received:", b)
 
 cmd("C")
 s.close()

@@ -1,0 +1,8 @@
+/* No application-specific devicetree overlay is required.
+ *
+ * The board-level DTS already enables FDCAN2 and routes the console to the
+ * USB CDC ACM virtual COM port:
+ *   - can0 / zephyr,canbus -> &fdcan2 (RX=PB5, TX=PB13)
+ *   - CAN_STB (PB14)       -> managed by the board-level can_phy0 transceiver
+ *   - zephyr,console       -> &cdc_acm_uart0
+ */

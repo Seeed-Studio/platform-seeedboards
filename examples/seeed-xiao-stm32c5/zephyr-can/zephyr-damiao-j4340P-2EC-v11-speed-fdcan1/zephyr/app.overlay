@@ -1,6 +1,6 @@
 /*
- * This sample uses the XIAO connector FDCAN1 pins with an external CAN
- * transceiver instead of the board-default FDCAN2 transceiver.
+ * Use the XIAO connector FDCAN1 pins with an external CAN transceiver instead
+ * of the board-default FDCAN2 controller and onboard CAN transceiver.
  *
  * D11 / PB8 -> FDCAN1_RX
  * D12 / PB9 -> FDCAN1_TX
