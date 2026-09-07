@@ -48,6 +48,16 @@ def configure_esp_default_packages(self, variables, targets):
         # RISC-V based toolchain for ESP32C3, ESP32C6 ESP32S2, ESP32S3 ULP
         _mark_required("toolchain-riscv32-esp")
 
+    # ROM ELF 文件：espidf.py 在 ESP-IDF 构建中通过 ESP_ROM_ELF_DIR 引用该包，
+    # 未声明/未安装会导致 KeyError（pioarduino 上游对所有 ESP 构建安装此包）
+    _mark_required("tool-esp-rom-elfs")
+
+    # esp32c2 / esp32c61 无预编译 Arduino libs，需要对应的 skeleton 包
+    if mcu == "esp32c2":
+        _mark_required("framework-arduino-c2-skeleton-lib")
+    if mcu == "esp32c61":
+        _mark_required("framework-arduino-c61-skeleton-lib")
+
 
 
 
