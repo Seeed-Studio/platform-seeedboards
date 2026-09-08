@@ -201,24 +201,31 @@ class SeeedstudioPlatform(PlatformBase):
         python_exe = get_pythonexe_path()
         if not python_exe:
             return
-        try:
-            import rich_click  # pylint: disable=unused-import,import-outside-toplevel
-        except ImportError:
+        # esptool runs from the $PYTHONEXE (penv) python with the
+        # tool-esptoolpy dir on PYTHONPATH. That tool copy is expanded by
+        # idf_tools.py and brings no bundled Python deps, so install the
+        # optional runtime modules it imports: rich_click (CLI formatting)
+        # and intelhex (image merge / bootloader.bin generation).
+        for dep, module in (("rich_click<2", "rich_click"),
+                            ("intelhex", "intelhex")):
             try:
-                subprocess.run(
-                    [
-                        python_exe,
-                        "-m",
-                        "pip",
-                        "install",
-                        "rich_click<2",
-                        "--disable-pip-version-check",
-                        "--no-input",
-                    ],
-                    check=True,
-                )
-            except Exception as e:
-                print(f"Warning: failed to install rich_click for esptoolpy: {e}")
+                import_module(module)
+            except ImportError:
+                try:
+                    subprocess.run(
+                        [
+                            python_exe,
+                            "-m",
+                            "pip",
+                            "install",
+                            dep,
+                            "--disable-pip-version-check",
+                            "--no-input",
+                        ],
+                        check=True,
+                    )
+                except Exception as e:
+                    print(f"Warning: failed to install {dep} for esptoolpy: {e}")
 
     def _get_packages_dir(self):
         config = ProjectConfig.get_instance()

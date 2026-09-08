@@ -43,6 +43,18 @@
       "owner": "espressif",
       "version": "https://github.com/espressif/arduino-esp32/releases/download/3.3.7/esp32-core-3.3.7-libs.tar.xz"
     },
+    "framework-arduino-c2-skeleton-lib": {
+      "type": "framework",
+      "optional": true,
+      "owner": "espressif",
+      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c2-skeleton/c2_87912cd291_compile_skeleton.zip"
+    },
+    "framework-arduino-c61-skeleton-lib": {
+      "type": "framework",
+      "optional": true,
+      "owner": "espressif",
+      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c61-skeleton/c61_87912cd291_compile_skeleton.zip"
+    },
     "framework-espidf": {
       "type": "framework",
       "optional": true,
@@ -93,6 +105,13 @@
       "owner": "seeedstudio",
       "package-version": "5.3.4",
       "version": "https://files.seeedstudio.com/arduino/platformio/esp_install-v5.3.4.zip"
+    },
+    "tool-esp-rom-elfs": {
+      "type": "tool",
+      "optional": true,
+      "owner": "pioarduino",
+      "package-version": "2024.10.11",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/esp-rom-elfs-20241011.zip"
     },
     "tool-dfuutil-arduino": {
       "type": "uploader",

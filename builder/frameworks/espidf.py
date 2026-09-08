@@ -1942,24 +1942,36 @@ def preprocess_linker_file(src_ld_script, target_ld_script, config_dir=None, ext
     
     # Check IDF version to determine which CMake script to use
     framework_version_list = [int(v) for v in get_framework_version().split(".")]
-    
+
+    # Resolve the compiler path NOW instead of letting SCons substitute "$CC"
+    # inside the command string: env["CC"] may already be an absolute path
+    # (esp_build.py sets a full toolchain path), and joining TOOLCHAIN_DIR/bin
+    # with it would produce an invalid doubled path like .../bin/C:/.../gcc,
+    # which cmake fails to spawn with "no such file or directory".
+    _cc_value = env.subst("$CC")
+    _cc_path = (
+        _cc_value
+        if os.path.isabs(_cc_value)
+        else str(Path(TOOLCHAIN_DIR) / "bin" / _cc_value)
+    )
+
     # IDF 6.0+ uses linker_script_preprocessor.cmake with CFLAGS approach
     if framework_version_list[0] >= 6:
         include_dirs = [f'"{config_dir}"']
         include_dirs.append(f'"{fs.to_unix_path(str(Path(FRAMEWORK_DIR) / "components" / "esp_system" / "ld"))}"')
-        
+
         if extra_include_dirs:
             include_dirs.extend(f'"{fs.to_unix_path(dir_path)}"' for dir_path in extra_include_dirs)
-        
+
         cflags_value = "-I" + " -I".join(include_dirs)
-        
+
         return env.Command(
             target_ld_script,
             src_ld_script,
             env.VerboseAction(
                 " ".join([
                     f'"{CMAKE_DIR}"',
-                    f'-DCC="{fs.to_unix_path(str(Path(TOOLCHAIN_DIR) / "bin" / "$CC"))}"',
+                    f'-DCC="{fs.to_unix_path(_cc_path)}"',
                     f'-DSOURCE="{src_ld_script}"',
                     f'-DTARGET="{target_ld_script}"',
                     f'-DCFLAGS="{cflags_value}"',
@@ -1977,7 +1989,7 @@ def preprocess_linker_file(src_ld_script, target_ld_script, config_dir=None, ext
             env.VerboseAction(
                 " ".join([
                     f'"{CMAKE_DIR}"',
-                    f'-DCC="{str(Path(TOOLCHAIN_DIR) / "bin" / "$CC")}"',
+                    f'-DCC="{_cc_path}"',
                     "-DSOURCE=$SOURCE",
                     "-DTARGET=$TARGET",
                     f'-DCONFIG_DIR="{config_dir}"',

@@ -202,7 +202,7 @@ def check_reinstall_frwrk():
 
 def call_compile_libs():
     print("*** Compile Arduino IDF libs for %s ***" % env["PIOENV"])
-    SConscript("espidf.py")
+    SConscript("../../frameworks/espidf.py")
 
 
 if check_reinstall_frwrk() == True:
