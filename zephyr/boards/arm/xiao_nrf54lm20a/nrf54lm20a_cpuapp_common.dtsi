@@ -54,6 +54,16 @@
 	regulator-initial-mode = <NRF5X_REG_MODE_DCDC>;
 };
 
+/* Required by the USBHS wrapper driver, which turns on automatically once
+ * REGULATOR is enabled (NRF_USBHS_WRAPPER defaults y and references this
+ * supply). The node stays disabled in the SoC dtsi, so enable it here like
+ * the nRF54LM20B board does — without it any REGULATOR=y build fails with
+ * an undefined __device_dts_ord for the VREGUSB node.
+ */
+&vregusb {
+	status = "okay";
+};
+
 &grtc {
 	owned-channels = <0 1 2 3 4 5 6 7 8 9 10 11>;
 	/* Channels 7-11 reserved for Zero Latency IRQs, 3-4 for FLPR */
