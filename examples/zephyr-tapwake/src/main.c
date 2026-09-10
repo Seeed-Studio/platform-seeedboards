@@ -13,9 +13,9 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 static const struct gpio_dt_spec imu_int = GPIO_DT_SPEC_GET(DT_NODELABEL(lsm6ds3tr_c), irq_gpios);
 
 /*
- * nRF54LM20A/B: the IMU supply (nPM1300 LDO1 = imu_vdd at 3.3V) and the
- * board-level power_en regulator (gpio1.12) are both enabled at boot by the
- * board devicetree — no runtime action needed before talking to the IMU.
+ * nRF54LM20A/B: the IMU supply (nPM1300 LDO1 = imu_vdd at 3.3V) is enabled
+ * at boot by the board devicetree — no runtime action needed before talking
+ * to the IMU.
  *
  * nRF54L15: IMU power is provided by pdm_imu_pwr (gpio0.1) with
  * regulator-boot-on, so it is always on — no runtime action needed.

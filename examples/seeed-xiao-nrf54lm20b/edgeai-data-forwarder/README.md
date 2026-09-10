@@ -51,10 +51,10 @@ Then capture recordings with Data Forwarder Host — see
 - The USB CDC endpoint carries only binary frames — never open it with a
   text serial monitor while the host tool is connected. Diagnostics go to
   RTT.
-- The IMU is powered through the board `power_en` regulator and the nPM1300
-  `imu_vdd` LDO1, both enabled at boot by the board devicetree; the sensor
-  wrapper only performs the deferred device probe, since the nPM13xx
-  regulator init (priority 92) runs after sensor init (priority 90).
+- The IMU is powered through the nPM1300 `imu_vdd` LDO1, enabled at boot by
+  the board devicetree; the sensor wrapper only performs the deferred device
+  probe, since the nPM13xx regulator init (priority 92) runs after sensor
+  init (priority 90).
 
 ## Source layout
 
