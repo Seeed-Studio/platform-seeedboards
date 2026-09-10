@@ -2,7 +2,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
-#include <zephyr/drivers/regulator.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(zephyr_imu, LOG_LEVEL_INF);
@@ -10,57 +9,12 @@ LOG_MODULE_REGISTER(zephyr_imu, LOG_LEVEL_INF);
 #define IMU_NODE DT_ALIAS(imu0)
 
 /*
- * nrf54lm20a needs power_en (fixed regulator on gpio1.12) and imu_vdd
- * (PMIC NPM1300 LDO1) enabled before the IMU can be used.
+ * On nrf54lm20a/20b the IMU supply (PMIC LDO1) is enabled at boot by the
+ * board devicetree, but the nPM13xx regulators init (91/92) runs after the
+ * sensor init (90), so the board overlay marks the IMU for deferred init
+ * and it is probed here, with the rail long since stable.
  * nrf54l15 has pdm_imu_pwr with regulator-boot-on; power is already on.
  */
-#if defined(DT_N_NODELABEL_power_en)
-static const struct device *const power_en_dev =
-	DEVICE_DT_GET(DT_NODELABEL(power_en));
-#endif
-
-#if defined(DT_N_NODELABEL_imu_vdd)
-static const struct device *const imu_vdd_dev =
-	DEVICE_DT_GET(DT_NODELABEL(imu_vdd));
-#endif
-
-static int enable_imu_power(void)
-{
-#if defined(DT_N_NODELABEL_power_en) || defined(DT_N_NODELABEL_imu_vdd)
-	int ret;
-#endif
-
-#if defined(DT_N_NODELABEL_power_en)
-	if (!device_is_ready(power_en_dev)) {
-		LOG_ERR("power_en regulator is not ready");
-		return -ENODEV;
-	}
-	ret = regulator_enable(power_en_dev);
-	if (ret < 0 && ret != -EALREADY) {
-		LOG_ERR("Failed to enable power_en: %d", ret);
-		return ret;
-	}
-#endif
-
-#if defined(DT_N_NODELABEL_imu_vdd)
-	if (!device_is_ready(imu_vdd_dev)) {
-		LOG_ERR("imu_vdd regulator is not ready");
-		return -ENODEV;
-	}
-	ret = regulator_enable(imu_vdd_dev);
-	if (ret < 0 && ret != -EALREADY) {
-		LOG_ERR("Failed to enable imu_vdd: %d", ret);
-		return ret;
-	}
-#endif
-
-#if defined(DT_N_NODELABEL_power_en) || defined(DT_N_NODELABEL_imu_vdd)
-	/* Wait for power rail to stabilize */
-	k_sleep(K_MSEC(20));
-#endif
-
-	return 0;
-}
 
 static inline float out_ev(struct sensor_value *val)
 {
@@ -165,13 +119,7 @@ int main(void)
 	int ret;
 
 	if (!device_is_ready(dev)) {
-		/* On nrf54lm20a, enable power_en + imu_vdd before deferred IMU init. */
-		ret = enable_imu_power();
-		if (ret < 0) {
-			LOG_ERR("Failed to enable IMU power: %d", ret);
-			return 0;
-		}
-
+		/* IMU is deferred-init (see overlay); probe it now. */
 		ret = device_init(dev);
 		if (ret < 0 && ret != -EALREADY) {
 			LOG_ERR("Failed to initialize %s: %d", dev->name, ret);

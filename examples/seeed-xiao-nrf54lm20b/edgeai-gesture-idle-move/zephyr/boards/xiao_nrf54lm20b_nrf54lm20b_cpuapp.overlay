@@ -4,10 +4,6 @@
 	status = "okay";
 };
 
-&imu_vdd {
-	/delete-property/ regulator-boot-on;
-};
-
 &axon {
 	status = "okay";
 };

@@ -14,7 +14,3 @@
 	zephyr,deferred-init;
 	status = "okay";
 };
-
-&imu_vdd {
-	/delete-property/ regulator-boot-on;
-};

@@ -3,12 +3,9 @@
  * Console stays on the board-default USB CDC ACM (cdc_acm_uart); we do NOT
  * redirect to UART21, so the 1200-bps DFU trigger keeps working. The microphone
  * power path (power_en + dmic_vdd LDO1), the PMIC (npm1300 over pmic_i2c) and
- * the PDM pinctrl are board-defined.  Keep LDO1 off at boot; the app enables it
- * explicitly immediately before DMIC setup. */
-
-&dmic_vdd {
-	/delete-property/ regulator-boot-on;
-};
+ * the PDM pinctrl are all board-defined and already enabled — only the Axon NPU
+ * node and the dmic_dev alias (expected by the sample's DMIC source) are set
+ * here. */
 
 /* Keep the label expected by the SDK DMIC source; use board-default PDM pins. */
 dmic_dev: &pdm20 {
