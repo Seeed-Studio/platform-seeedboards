@@ -13,11 +13,21 @@
 #   - Partition Manager is disabled: the fixed factory flash layout comes
 #     from the board devicetree (mcuboot 24K @0x0, slot0 1784K @0x6000,
 #     slot1 116K @0x1c4000, storage 16K).
-#   - The mcuboot child image picks up its board-specific config from
-#     mcuboot.conf in this directory.
+#   - The mcuboot child image gets its board-specific config (firmware-loader
+#     entrance, 24K size levers) from the `if MCUBOOT` defaults in
+#     Kconfig.xiao_nrf54lm20b / Kconfig.defconfig: sysbuild does NOT load the
+#     mcuboot.conf in this directory -- that file is a PlatformIO-build
+#     convention only (the child's CONF_FILE chain is mcuboot's own
+#     prj.conf + SoC conf).
 #
 # NOTE: this file is only evaluated by sysbuild (NCS west builds).
 # PlatformIO builds never read it and keep their own signing pipeline.
+#
+# WARNING: the rebuilt mcuboot child is a build artifact for signing config
+# only. It is NOT the factory bootloader (no Button-0 debounce window, no
+# serial). `west flash` over a debug probe would program it over the factory
+# bootloader -- update applications through USB DFU (zephyr.signed.bin)
+# instead, or flash only the application image.
 
 if BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP
 
