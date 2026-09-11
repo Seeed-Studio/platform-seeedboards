@@ -13,7 +13,6 @@
 #include <limits.h>
 
 #include <zephyr/device.h>
-#include <zephyr/drivers/regulator.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -31,8 +30,6 @@ static const char *const channel_names[SENSOR_CHANNEL_COUNT] = {
 };
 
 static const struct device *const imu = DEVICE_DT_GET(DT_ALIAS(imu0));
-static const struct device *const power_en = DEVICE_DT_GET(DT_NODELABEL(power_en));
-static const struct device *const imu_vdd = DEVICE_DT_GET(DT_NODELABEL(imu_vdd));
 
 static K_SEM_DEFINE(fetch_sem, 0, 1);
 static void fetch_timer_handler(struct k_timer *timer)
@@ -65,19 +62,10 @@ int data_fwd_sensor_init(void)
 	sensor_g_to_ms2(4, &accel_fs);
 	sensor_degrees_to_rad(1000, &gyro_fs);
 
-	if (!device_is_ready(power_en) || !device_is_ready(imu_vdd)) {
-		return -ENODEV;
-	}
-	err = regulator_enable(power_en);
-	if (err < 0 && err != -EALREADY) {
-		return err;
-	}
-	err = regulator_enable(imu_vdd);
-	if (err < 0 && err != -EALREADY) {
-		return err;
-	}
-	k_sleep(K_MSEC(20));
-
+	/* The IMU supply (PMIC LDO1) is enabled at boot by the board devicetree,
+	 * but nPM13xx regulator init (91/92) runs after sensor init (90), so the
+	 * IMU is deferred-init and probed here with the rail already stable.
+	 */
 	if (!device_is_ready(imu)) {
 		err = device_init(imu);
 		if (err < 0 && err != -EALREADY) {

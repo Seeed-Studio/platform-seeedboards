@@ -3,15 +3,12 @@
 
 #include <errno.h>
 #include <zephyr/device.h>
-#include <zephyr/drivers/regulator.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(imu, CONFIG_LOG_DEFAULT_LEVEL);
 
-static const struct device *const power_en_dev = DEVICE_DT_GET(DT_NODELABEL(power_en));
-static const struct device *const imu_vdd_dev = DEVICE_DT_GET(DT_NODELABEL(imu_vdd));
 static const struct device *const imu_dev = DEVICE_DT_GET(DT_ALIAS(imu0));
 static generic_cb_t ready_cb;
 static bool initialized;
@@ -33,15 +30,10 @@ status_t imu_init(const imu_config_t *config, generic_cb_t data_ready_cb)
 	if (config == NULL || config->data_rate_hz == 0) {
 		return STATUS_INVALID_PARAM;
 	}
-	if (!device_is_ready(power_en_dev) || !device_is_ready(imu_vdd_dev)) {
-		LOG_ERR("IMU power regulators are not ready");
-		return STATUS_HARDWARE_ERROR;
-	}
-	ret = regulator_enable(power_en_dev);
-	if (ret < 0 && ret != -EALREADY) return STATUS_HARDWARE_ERROR;
-	ret = regulator_enable(imu_vdd_dev);
-	if (ret < 0 && ret != -EALREADY) return STATUS_HARDWARE_ERROR;
-	k_sleep(K_MSEC(20));
+	/* The IMU supply (PMIC LDO1) is enabled at boot by the board devicetree,
+	 * but nPM13xx regulator init (91/92) runs after sensor init (90), so the
+	 * IMU is deferred-init and probed here with the rail already stable.
+	 */
 	if (!device_is_ready(imu_dev)) {
 		ret = device_init(imu_dev);
 		if (ret < 0 && ret != -EALREADY) return STATUS_HARDWARE_ERROR;

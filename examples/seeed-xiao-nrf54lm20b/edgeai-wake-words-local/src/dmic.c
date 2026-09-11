@@ -10,7 +10,6 @@
 #include <zephyr/audio/dmic.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/drivers/regulator.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -22,36 +21,10 @@ LOG_MODULE_REGISTER(dmic);
 
 K_MEM_SLAB_DEFINE_STATIC(dmic_mem_slab, BLOCK_SIZE, 4, 4);
 
-/* The XIAO microphone is powered through the board enable and nPM1300 LDO1. */
-static const struct device *const mic_power_en = DEVICE_DT_GET(DT_NODELABEL(power_en));
-static const struct device *const mic_vdd = DEVICE_DT_GET(DT_NODELABEL(dmic_vdd));
-
-static int enable_microphone_power(void)
-{
-	int err;
-
-	if (!device_is_ready(mic_power_en) || !device_is_ready(mic_vdd)) {
-		LOG_ERR("Microphone power regulators are not ready");
-		return -ENODEV;
-	}
-
-	err = regulator_enable(mic_power_en);
-	if (err < 0 && err != -EALREADY) {
-		LOG_ERR("Failed to enable microphone power switch (err %d)", err);
-		return err;
-	}
-
-	err = regulator_enable(mic_vdd);
-	if (err < 0 && err != -EALREADY) {
-		LOG_ERR("Failed to enable microphone LDO (err %d)", err);
-		return err;
-	}
-
-	/* MSM261DGT006 needs a short supply-settling delay before PDM capture. */
-	k_sleep(K_MSEC(20));
-
-	return 0;
-}
+/* The XIAO microphone is powered through the board enable and nPM1300 LDO1,
+ * both enabled at boot by the board devicetree — long before PDM capture
+ * starts, so no power-up is needed here.
+ */
 
 int dmic_init(void)
 {
@@ -61,11 +34,6 @@ int dmic_init(void)
 	if (!device_is_ready(dmic_dev)) {
 		LOG_ERR("Device is not ready");
 		return -ENODEV;
-	}
-
-	err = enable_microphone_power();
-	if (err < 0) {
-		return err;
 	}
 
 	struct pcm_stream_cfg stream = {
