@@ -198,8 +198,6 @@ static int configure_lsm6ds3_tap(void)
 
 int main(void)
 {
-    int ret;
-
     if (!gpio_is_ready_dt(&led))
     {
         LOG_ERR("LED device not found!");

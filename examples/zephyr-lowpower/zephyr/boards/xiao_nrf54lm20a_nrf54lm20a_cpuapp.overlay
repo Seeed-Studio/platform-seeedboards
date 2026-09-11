@@ -1,7 +1,10 @@
+/* The board dtsi enables LDO1 (IMU/mic rail) at boot; this sample sleeps in
+ * system-off and never touches the sensors, so drop the boot-on property to
+ * keep the rail off (mirrors the xiao_nrf54l15 overlay in this sample). */
 &pmic {
 	regulators {
 		LDO1 {
-			// /delete-property/ regulator-boot-on;
+			/delete-property/ regulator-boot-on;
 		};
 	};
 };
