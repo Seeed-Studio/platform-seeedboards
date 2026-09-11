@@ -5,9 +5,6 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_REGISTER(imu, CONFIG_LOG_DEFAULT_LEVEL);
 
 static const struct device *const imu_dev = DEVICE_DT_GET(DT_ALIAS(imu0));
 static generic_cb_t ready_cb;

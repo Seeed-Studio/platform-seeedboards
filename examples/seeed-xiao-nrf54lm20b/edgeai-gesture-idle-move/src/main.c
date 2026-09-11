@@ -4,13 +4,10 @@
 
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
 
 #include <nrf_edgeai/nrf_edgeai.h>
 #include "imu.h"
 #include "nrf_edgeai_user_model.h"
-
-LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #define INPUT_FEATURES 6
 
@@ -46,7 +43,7 @@ int main(void)
 
 	k_sem_init(&imu_ready_sem, 0, 1);
 	if (imu_init(&imu_config, imu_ready) != STATUS_SUCCESS) {
-		LOG_ERR("Failed to initialize the LSM6DS3TR-C IMU");
+		printk("ERROR: failed to initialize the LSM6DS3TR-C IMU\r\n");
 		return -1;
 	}
 
@@ -64,7 +61,7 @@ int main(void)
 	for (;;) {
 		k_sem_take(&imu_ready_sem, K_FOREVER);
 		if (imu_read(&sample) != STATUS_SUCCESS) {
-			LOG_ERR("Failed to read IMU sample");
+			printk("ERROR: failed to read IMU sample\r\n");
 			continue;
 		}
 
@@ -80,10 +77,10 @@ int main(void)
 			if (err == NRF_EDGEAI_ERR_SUCCESS) {
 				print_prediction();
 			} else {
-				LOG_WRN("Inference failed: %d", (int)err);
+				printk("WARNING: inference failed: %d\r\n", (int)err);
 			}
 		} else if (err != NRF_EDGEAI_ERR_INPROGRESS) {
-			LOG_WRN("Input feed failed: %d", (int)err);
+			printk("WARNING: input feed failed: %d\r\n", (int)err);
 		}
 	}
 }
