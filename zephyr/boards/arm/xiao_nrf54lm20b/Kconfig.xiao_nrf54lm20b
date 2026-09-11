@@ -25,6 +25,68 @@ config REGULATOR
 
 endif # !MCUBOOT
 
+if MCUBOOT
+
+# Entrance defaults for the factory firmware-loader bootloader. NCS sysbuild
+# maps MCUBOOT_MODE_FIRMWARE_UPDATER to BOOT_FIRMWARE_LOADER but leaves the
+# entrance mode to the board, and the mcuboot.conf next to this file is only
+# read by PlatformIO builds (sysbuild never puts it on the mcuboot child's
+# CONF_FILE chain). Without an entrance mode mcuboot fails to compile with
+# "Firmware loader selected without an entrance mode set" (io.c).
+config BOOT_FIRMWARE_LOADER_ENTRANCE_GPIO
+	bool
+	default y
+
+# The factory image additionally sets BOOT_FIRMWARE_LOADER_DETECT_DELAY=100
+# (Button 0 / P0.09 reads low transiently while VBUS and the power rails
+# rise). That default lives in mcuboot's Kconfig.firmware_loader, which is
+# the root Kconfig of the child image and parsed before any board file, so a
+# board-side default cannot override it; the rebuilt child is never flashed,
+# so the debounce window is inherited (0) instead.
+
+config BOOT_FIRMWARE_LOADER_NO_APPLICATION
+	bool
+	default y
+
+# Size optimizations so the bootloader fits the 24K boot partition, matching
+# the factory configuration (same levers as Nordic's nrf54l15dk setup in
+# nrf/samples/mcuboot/firmware_loader_entrance). Link-time optimization is
+# the main lever; local ISR table declaration is its companion.
+config LTO
+	bool
+	default y
+
+config ISR_TABLES_LOCAL_DECLARATION
+	bool
+	default y
+
+# Drop the boot banners, fatal-error reset handler and the libc malloc arena
+# from the child image. The clock-control driver is turned off in
+# Kconfig.defconfig (parse order); with no button debounce window (the
+# DETECT_DELAY default lives in mcuboot's root Kconfig and cannot be
+# overridden from the board) the child needs no system timer either.
+config BOOT_BANNER
+	bool
+	default n
+
+config RESET_ON_FATAL_ERROR
+	bool
+	default n
+
+config SYS_CLOCK_EXISTS
+	bool
+	default n
+
+config NRF_GRTC_TIMER
+	bool
+	default n
+
+config COMMON_LIBC_MALLOC_ARENA_SIZE
+	int
+	default 0
+
+endif # MCUBOOT
+
 if REGULATOR_NPM13XX
 
 # Both must stay after the charger (90) and INIT must stay greater than

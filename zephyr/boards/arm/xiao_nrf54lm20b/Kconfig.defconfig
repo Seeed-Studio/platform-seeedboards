@@ -12,6 +12,32 @@ config ROM_START_OFFSET
 config BOOTLOADER_MCUBOOT
 	default y if !MCUBOOT
 
+# The boot partition is 24K, so the mcuboot child image cannot afford the
+# serial/console subsystems (and with the USB stack already off in MCUboot
+# builds, the UART console points at the CDC ACM device with no driver behind
+# it: undefined __device_dts_ord reference at link time). The board
+# _defconfig therefore does not set SERIAL/CONSOLE/UART_CONSOLE explicitly,
+# and these defaults turn the CDC ACM serial backend off for MCUboot builds.
+# They precede the source line on purpose: Kconfig defaults are first-wins,
+# and zephyr's Kconfig.zephyr parses board Kconfig.defconfig files first so
+# they can override the defaults below.
+if MCUBOOT
+
+config SERIAL
+	default n
+
+config CONSOLE
+	default n
+
+# Must live here rather than in Kconfig.xiao_nrf54lm20b: Kconfig defaults are
+# first-wins, the board Kconfig.defconfig is parsed before the SoC defconfig
+# (which defaults CLOCK_CONTROL to y) but the board Kconfig is parsed after.
+config CLOCK_CONTROL
+	bool
+	default n
+
+endif # MCUBOOT
+
 source "boards/common/usb/Kconfig.cdc_acm_serial.defconfig"
 
 # The cdc_acm_serial.defconfig sourced above enables SERIAL/CONSOLE/USB stack
