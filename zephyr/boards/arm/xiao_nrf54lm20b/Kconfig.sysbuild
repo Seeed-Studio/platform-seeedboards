@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Seeed Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+# XIAO nRF54LM20B ships from the factory with an MCUboot firmware-updater
+# bootloader (PURE Ed25519 signature verified through CRACEN/KMU, USB MCUmgr
+# loader entered with Button 0). These sysbuild defaults make a plain NCS
+# `west build` produce a matching signed application image with zero
+# per-application configuration, mirroring Nordic's Thingy:53 board model:
+#
+#   - MCUboot is rebuilt (users never flash it over USB DFU; the loader only
+#     writes the application slot) so sysbuild image signing kicks in with
+#     the factory key (root-ed25519.pem, the MCUboot module default).
+#   - Partition Manager is disabled: the fixed factory flash layout comes
+#     from the board devicetree (mcuboot 24K @0x0, slot0 1784K @0x6000,
+#     slot1 116K @0x1c4000, storage 16K).
+#   - The mcuboot child image picks up its board-specific config from
+#     mcuboot.conf in this directory.
+#
+# NOTE: this file is only evaluated by sysbuild (NCS west builds).
+# PlatformIO builds never read it and keep their own signing pipeline.
+
+if BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP
+
+choice BOOTLOADER
+	default BOOTLOADER_MCUBOOT
+endchoice
+
+choice MCUBOOT_MODE
+	default MCUBOOT_MODE_FIRMWARE_UPDATER
+endchoice
+
+choice BOOT_SIGNATURE_TYPE
+	default BOOT_SIGNATURE_TYPE_ED25519
+endchoice
+
+config PARTITION_MANAGER
+	default n
+
+config MCUBOOT_SIGNATURE_USING_KMU
+	default y
+
+config BOOT_SIGNATURE_TYPE_PURE
+	default y
+
+endif # BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP
