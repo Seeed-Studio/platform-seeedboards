@@ -10,13 +10,6 @@
 #include "xiao_nrf54lm20b_nrf54lm20b-common.dtsi"
 
 / {
-	power_en: power_en {
-		compatible = "regulator-fixed";
-		regulator-name = "power_en";
-		enable-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;
-		regulator-boot-on;
-	};
-
 	chosen {
 		zephyr,console = &cdc_acm_uart;
 		zephyr,shell-uart = &cdc_acm_uart;

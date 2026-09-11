@@ -10,13 +10,6 @@
 #include "xiao_nrf54lm20a_nrf54lm20a-common.dtsi"
 
 / {
-	power_en: power_en {
-		compatible = "regulator-fixed";
-		regulator-name = "power_en";
-		enable-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;
-		regulator-boot-on;
-	};
-	
 	chosen {
 		zephyr,console = &uart20;
 		zephyr,shell-uart = &uart20;
@@ -54,11 +47,12 @@
 	regulator-initial-mode = <NRF5X_REG_MODE_DCDC>;
 };
 
-/* Required by the USBHS wrapper driver, which turns on automatically once
- * REGULATOR is enabled (NRF_USBHS_WRAPPER defaults y and references this
- * supply). The node stays disabled in the SoC dtsi, so enable it here like
- * the nRF54LM20B board does — without it any REGULATOR=y build fails with
- * an undefined __device_dts_ord for the VREGUSB node.
+/* The USB stack references this supply as a device once REGULATOR is
+ * enabled (UDC_DWC2 selects REGULATOR on nRF54L and the USBHS wrapper
+ * driver in NCS builds defaults on), so the node must be enabled or any
+ * REGULATOR=y build fails at link with an undefined __device_dts_ord for
+ * VREGUSB. The node stays disabled in the SoC dtsi; 20b already enables
+ * it the same way.
  */
 &vregusb {
 	status = "okay";

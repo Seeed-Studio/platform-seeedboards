@@ -21,9 +21,9 @@ LOG_MODULE_REGISTER(dmic);
 
 K_MEM_SLAB_DEFINE_STATIC(dmic_mem_slab, BLOCK_SIZE, 4, 4);
 
-/* The XIAO microphone is powered through the board enable and nPM1300 LDO1,
- * both enabled at boot by the board devicetree — long before PDM capture
- * starts, so no power-up is needed here.
+/* The XIAO microphone is powered through the nPM1300 LDO1, enabled at boot
+ * by the board devicetree — long before PDM capture starts, so no power-up
+ * is needed here.
  */
 
 int dmic_init(void)

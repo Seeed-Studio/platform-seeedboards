@@ -1,10 +1,10 @@
 /*
  * Tap Wake overlay for XIAO nRF54LM20A.
  *
- * The IMU supply (nPM1300 LDO1 = imu_vdd) and board power_en regulator are
- * enabled at boot by the board devicetree. The IMU is marked for deferred
- * initialization so it can be configured here from application context
- * (the nPM13xx regulator init runs at priority 92, after sensor init at 90).
+ * The IMU supply (nPM1300 LDO1 = imu_vdd) is enabled at boot by the board
+ * devicetree. The IMU is marked for deferred initialization so it can be
+ * configured here from application context (the nPM13xx regulator init runs
+ * at priority 92, after sensor init at 90).
  *
  * nRF54LM20A does not have rfsw_pwr / vbat_pwr regulators.
  */
