@@ -51,7 +51,14 @@
 	};
 };
 
-/* nRF54 native USB CDC ACM replaces the V1 SAMD11 USB-UART bridge. */
+/* nRF54 native USB CDC ACM replaces the V1 SAMD11 USB-UART bridge. The V1
+ * base common dtsi already enables the USB supply regulator; restated here
+ * so the V2 delta is self-contained (20B parity).
+ */
+&vregusb {
+	status = "okay";
+};
+
 &zephyr_udc0 {
 	cdc_acm_uart: cdc_acm_uart {
 		compatible = "zephyr,cdc-acm-uart";
