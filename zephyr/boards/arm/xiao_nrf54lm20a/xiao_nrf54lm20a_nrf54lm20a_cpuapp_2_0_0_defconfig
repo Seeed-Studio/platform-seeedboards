@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Seeed Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+# V2.0 only: build applications for the on-chip MCUboot firmware-loader
+# bootloader (24 KiB boot partition, signed USB DFU updates). The USB CDC
+# ACM console (VID/PID, product string, serial backend) comes from the
+# revision-gated defaults in Kconfig.defconfig in this directory.
+
+CONFIG_BOOTLOADER_MCUBOOT=y

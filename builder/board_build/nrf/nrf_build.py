@@ -55,16 +55,36 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
         env.Replace(UPLOAD_PORT=basename(env.subst("$UPLOAD_PORT")))
 
 
-# USB CDC identities for the nRF54LM20B three-image (firmware-loader) layout.
+# USB CDC identities for the three-image (firmware-loader) layout boards.
 # DFU is performed by the loader image (usb_mcumgr, slot1), NOT by mcuboot, so
 # when the board is in DFU mode the *loader's* CDC is what enumerates.
+# Keyed by PIO board id so uploading to one board never grabs another board's
+# CDC port; unknown boards fall back to the nRF54LM20B identities.
 #   APP_CDC    : the running user app (Seeed VID 0x2886, CDC_ACM_SERIAL_PID
-#                0x8013, set in the framework board Kconfig).
-#   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID 0x0013, baked into
-#                scripts/factory_flash/firmware/USB_DFU.hex). Listed as a tuple
-#                so a legacy loader VID:PID can be added in one line if needed.
-_APP_CDC_VIDPID = "2886:8013"
-_LOADER_CDC_VIDPIDS = ("2886:0013",)
+#                per board, set in the framework board Kconfig).
+#   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID baked into the
+#                factory USB_DFU.hex). Listed as a tuple so a legacy loader
+#                VID:PID can be added in one line if needed.
+_BOARD_APP_CDC_VIDPID = {
+    "seeed-xiao-nrf54lm20b": "2886:8013",
+    "seeed-xiao-nrf54lm20a-v2": "2886:8068",
+}
+_BOARD_LOADER_CDC_VIDPIDS = {
+    "seeed-xiao-nrf54lm20b": ("2886:0013",),
+    "seeed-xiao-nrf54lm20a-v2": ("2886:0068",),
+}
+_DEFAULT_APP_CDC_VIDPID = _BOARD_APP_CDC_VIDPID["seeed-xiao-nrf54lm20b"]
+_DEFAULT_LOADER_CDC_VIDPIDS = _BOARD_LOADER_CDC_VIDPIDS["seeed-xiao-nrf54lm20b"]
+
+
+def _app_cdc_vidpid():
+    """App CDC VID:PID for the board being uploaded to."""
+    return _BOARD_APP_CDC_VIDPID.get(board.id, _DEFAULT_APP_CDC_VIDPID)
+
+
+def _loader_cdc_vidpids():
+    """DFU loader CDC VID:PID candidates for the board being uploaded to."""
+    return _BOARD_LOADER_CDC_VIDPIDS.get(board.id, _DEFAULT_LOADER_CDC_VIDPIDS)
 
 
 def _find_port_by_vidpid(vidpid, ports=None):
@@ -76,7 +96,7 @@ def _find_port_by_vidpid(vidpid, ports=None):
 
 
 def _find_loader_port(ports=None):
-    for vidpid in _LOADER_CDC_VIDPIDS:
+    for vidpid in _loader_cdc_vidpids():
         port = _find_port_by_vidpid(vidpid, ports)
         if port:
             return port
@@ -94,7 +114,8 @@ def _wait_for_loader_port(timeout=60):
 
 
 def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
-    """Resolve the DFU (loader) upload port for the nRF54LM20B.
+    """Resolve the DFU (loader) upload port for the firmware-loader boards
+    (XIAO nRF54LM20B, XIAO nRF54LM20A V2).
 
     Handles every board state so a crashed/empty app never bricks the device:
       1) an explicit upload_port (--upload-port / `upload_port =`) is honored;
@@ -128,7 +149,7 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
             return
 
     # (3) App CDC present -> touch 1200 -> poll for the loader CDC.
-    app_port = explicit or _find_port_by_vidpid(_APP_CDC_VIDPID)
+    app_port = explicit or _find_port_by_vidpid(_app_cdc_vidpid())
     if app_port:
         env.Replace(UPLOAD_PORT=app_port)
         print("Touching %s at 1200 baud → DFU..." % app_port)
@@ -145,9 +166,9 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
 
     # (4) Nothing recognized -> prompt manual DFU and poll for the loader CDC.
     sys.stdout.write(
-        "No app CDC (VID:PID=2886:8013) found. To recover, hold Button 0 "
-        "(P0.09) and press reset to enter DFU mode. Waiting for the DFU "
-        "loader CDC (VID:PID=2886:0013)...\n")
+        "No app CDC (VID:PID=%s) found. To recover, hold Button 0 (P0.09) "
+        "and press reset to enter DFU mode. Waiting for the DFU loader CDC "
+        "(VID:PID=%s)...\n" % (_app_cdc_vidpid(), "/".join(_loader_cdc_vidpids())))
     sys.stdout.flush()
     port = _wait_for_loader_port(60)
     if not port:

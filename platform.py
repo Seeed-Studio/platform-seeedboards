@@ -44,6 +44,7 @@ Architecture = ""
 ZEPHYR_PACKAGE_BY_BOARD = {
     "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
     "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
+    "seeed-xiao-nrf54lm20a-v2": "framework-zephyr-nrf54lm20",
     "seeed-xiao-nrf54lm20b": "framework-zephyr-nrf54lm20",
     # seeed-xiao-stm32c5 shares the exact same Zephyr 4.4.0 tarball as nrf54lm20
     # (identical content), so it maps to framework-zephyr-nrf54lm20 directly. No
@@ -61,6 +62,9 @@ ZEPHYR_PACKAGE_BY_BOARD = {
 ZEPHYR_BOARD_NAME_BY_BOARD = {
     "seeed-xiao-nrf54l15": "xiao_nrf54l15",
     "seeed-xiao-nrf54lm20a": "xiao_nrf54lm20a",
+    # V2 is board revision 2.0.0 inside the xiao_nrf54lm20a board directory,
+    # not a separate board directory.
+    "seeed-xiao-nrf54lm20a-v2": "xiao_nrf54lm20a",
     "seeed-xiao-nrf54lm20b": "xiao_nrf54lm20b",
     "seeed-xiao-stm32c5": "xiao_stm32c5",
 }

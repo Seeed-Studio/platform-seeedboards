@@ -7,6 +7,28 @@ config BOARD_XIAO_NRF54LM20A
 
 if BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
 
+# The base defconfig intentionally leaves SERIAL/CONSOLE/UART_CONSOLE unset
+# so the MCUboot child image can turn them off (V2.0 24K boot partition).
+# These defaults restore the V1.0 values for normal builds (uart20
+# console); V2.0 normal builds also end up with them on, from the
+# cdc_acm_serial.defconfig sourced in Kconfig.defconfig (same values, so
+# the duplicate defaults are harmless).
+if !MCUBOOT
+
+config SERIAL
+	bool
+	default y
+
+config CONSOLE
+	bool
+	default y
+
+config UART_CONSOLE
+	bool
+	default y
+
+endif # !MCUBOOT
+
 if !MCUBOOT
 
 # The nPM1300 charger raises the VBUS current limit from the 100 mA power-on
@@ -24,6 +46,71 @@ config REGULATOR
 	default y
 
 endif # !MCUBOOT
+
+# XIAO nRF54LM20A V2.0 ships the XIAO nRF54LM20B factory bootloader scheme
+# (MCUboot firmware updater + USB MCUmgr loader). The revision gate keeps
+# every lever below away from V1.0 builds.
+if MCUBOOT && BOARD_REVISION_2_0_0
+
+# Entrance defaults for the factory firmware-loader bootloader. NCS sysbuild
+# maps MCUBOOT_MODE_FIRMWARE_UPDATER to BOOT_FIRMWARE_LOADER but leaves the
+# entrance mode to the board, and the mcuboot.conf next to this file is not
+# part of the child image's CONF_FILE chain in sysbuild. Without an entrance
+# mode mcuboot fails to compile with "Firmware loader selected without an
+# entrance mode set" (io.c).
+config BOOT_FIRMWARE_LOADER_ENTRANCE_GPIO
+	bool
+	default y
+
+# The factory image additionally sets BOOT_FIRMWARE_LOADER_DETECT_DELAY=100
+# (Button 0 / P0.09 reads low transiently while VBUS and the power rails
+# rise). That default lives in mcuboot's Kconfig.firmware_loader, which is
+# the root Kconfig of the child image and parsed before any board file, so a
+# board-side default cannot override it; the rebuilt child is never flashed,
+# so the debounce window is inherited (0) instead.
+
+config BOOT_FIRMWARE_LOADER_NO_APPLICATION
+	bool
+	default y
+
+# Size optimizations so the bootloader fits the 24K boot partition, matching
+# the factory configuration (same levers as Nordic's nrf54l15dk setup in
+# nrf/samples/mcuboot/firmware_loader_entrance). Link-time optimization is
+# the main lever; local ISR table declaration is its companion.
+config LTO
+	bool
+	default y
+
+config ISR_TABLES_LOCAL_DECLARATION
+	bool
+	default y
+
+# Drop the boot banners, fatal-error reset handler and the libc malloc arena
+# from the child image. The clock-control driver is turned off in
+# Kconfig.defconfig (parse order); with no button debounce window (the
+# DETECT_DELAY default lives in mcuboot's root Kconfig and cannot be
+# overridden from the board) the child needs no system timer either.
+config BOOT_BANNER
+	bool
+	default n
+
+config RESET_ON_FATAL_ERROR
+	bool
+	default n
+
+config SYS_CLOCK_EXISTS
+	bool
+	default n
+
+config NRF_GRTC_TIMER
+	bool
+	default n
+
+config COMMON_LIBC_MALLOC_ARENA_SIZE
+	int
+	default 0
+
+endif # MCUBOOT && BOARD_REVISION_2_0_0
 
 if REGULATOR_NPM13XX
 

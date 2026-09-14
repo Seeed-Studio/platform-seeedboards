@@ -1,0 +1,68 @@
+# Copyright (c) 2026 Seeed Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+# XIAO nRF54LM20A V2.0 ships from the factory with an MCUboot firmware-updater
+# bootloader (PURE Ed25519 signature verified through CRACEN/KMU, USB MCUmgr
+# loader entered with Button 0) -- the same scheme as the XIAO nRF54LM20B.
+# These sysbuild defaults make a plain NCS `west build` for
+# xiao_nrf54lm20a@2.0.0/nrf54lm20a/cpuapp produce a matching signed
+# application image with zero per-application configuration, mirroring the
+# 20B board and Nordic's Thingy:53 board model:
+#
+#   - MCUboot is rebuilt (users never flash it over USB DFU; the loader only
+#     writes the application slot) so sysbuild image signing kicks in with
+#     the factory key (root-ed25519.pem, the MCUboot module default).
+#   - Partition Manager is disabled: the fixed factory flash layout comes
+#     from the board devicetree (mcuboot 24K @0x0, slot0 1784K @0x6000,
+#     slot1 116K @0x1c4000, storage 16K).
+#   - The mcuboot child image gets its board-specific config (firmware-loader
+#     entrance, 24K size levers) from the `if MCUBOOT` defaults in
+#     Kconfig.xiao_nrf54lm20a / Kconfig.defconfig: sysbuild does NOT load the
+#     mcuboot.conf in this directory (the child's CONF_FILE chain is
+#     mcuboot's own prj.conf + SoC conf).
+#
+# The BOARD_REVISION_2_0_0 gate below needs the per-revision boolean. The
+# sysbuild Kconfig context only provides BOARD_REVISION as a *string* (the
+# auto-generated per-revision booleans exist in the per-image Kconfig
+# context, not in sysbuild), so synthesize it here the same way
+# boards/Kconfig.v2 derives board symbols. For revision-less (V1.0) builds
+# the normalized string is empty and the leftover BOARD_REVISION_ symbol is
+# never referenced.
+BOARD_REVISION_NORMALIZED := $(normalize_upper,$(BOARD_REVISION))
+
+config BOARD_REVISION_$(BOARD_REVISION_NORMALIZED)
+	def_bool y
+
+# NOTE: this file is only evaluated by sysbuild (NCS west builds).
+# PlatformIO builds never read it and keep their own signing pipeline.
+#
+# WARNING: the rebuilt mcuboot child is a build artifact for signing config
+# only. It is NOT the factory bootloader (no Button-0 debounce window, no
+# serial). `west flash` over a debug probe would program it over the factory
+# bootloader -- update applications through USB DFU (zephyr.signed.bin)
+# instead, or flash only the application image.
+
+if BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP && BOARD_REVISION_2_0_0
+
+choice BOOTLOADER
+	default BOOTLOADER_MCUBOOT
+endchoice
+
+choice MCUBOOT_MODE
+	default MCUBOOT_MODE_FIRMWARE_UPDATER
+endchoice
+
+choice BOOT_SIGNATURE_TYPE
+	default BOOT_SIGNATURE_TYPE_ED25519
+endchoice
+
+config PARTITION_MANAGER
+	default n
+
+config MCUBOOT_SIGNATURE_USING_KMU
+	default y
+
+config BOOT_SIGNATURE_TYPE_PURE
+	default y
+
+endif # BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP && BOARD_REVISION_2_0_0
