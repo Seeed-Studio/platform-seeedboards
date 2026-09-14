@@ -9,5 +9,5 @@
 # KEEP IN SYNC with _ensure_pyocd_installed() in
 # builder/board_build/nrf/nrf_build.py, which installs the exact same fork
 # for the PlatformIO upload path.
-pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable
+pyocd==0.45.1
 libusb
