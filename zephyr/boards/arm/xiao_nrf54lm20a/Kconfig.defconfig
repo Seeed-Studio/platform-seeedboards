@@ -9,3 +9,44 @@ config ROM_START_OFFSET
 	default 0x800 if BOOTLOADER_MCUBOOT
 
 endif # BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP
+
+# XIAO nRF54LM20A V2.0 reuses the XIAO nRF54LM20B PCB (native USB CDC ACM
+# instead of the SAMD11 USB-UART debugger) and ships the same MCUboot
+# firmware-loader flash layout as that board. The revision gate keeps every
+# default below away from V1.0 builds.
+if BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP && BOARD_REVISION_2_0_0
+
+config ROM_START_OFFSET
+	hex
+	default 0 if MCUBOOT
+	default 0 if PARTITION_MANAGER_ENABLED
+	default 0x800 if BOOTLOADER_MCUBOOT
+
+config BOOTLOADER_MCUBOOT
+	default y if !MCUBOOT
+
+source "boards/common/usb/Kconfig.cdc_acm_serial.defconfig"
+
+# The cdc_acm_serial.defconfig sourced above enables SERIAL/CONSOLE/USB
+# stack but does NOT set the CDC ACM VID/PID/product string -- those would
+# fall back to Zephyr's stock 0x2fe3:0x0004 ("CDC ACM serial backend") in
+# subsys/usb/device_next/app/Kconfig.cdc_acm_serial. Override them to the
+# Seeed identity the platform auto-DFU expects (builder/board_build/nrf/
+# nrf_build.py _BOARD_APP_CDC_VIDPID["seeed-xiao-nrf54lm20a-v2"] =
+# "2886:8068"), so the 1200-bps touch path can find the app CDC port.
+# Board Kconfig.defconfig is sourced before subsys, so these defaults take
+# precedence. Do not remove without updating nrf_build.py too.
+
+config CDC_ACM_SERIAL_VID
+	hex
+	default 0x2886
+
+config CDC_ACM_SERIAL_PID
+	hex
+	default 0x8068
+
+config CDC_ACM_SERIAL_PRODUCT_STRING
+	string
+	default "XIAO_NRF54LM20A_V2"
+
+endif # BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP && BOARD_REVISION_2_0_0
