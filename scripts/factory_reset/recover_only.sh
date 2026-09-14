@@ -8,8 +8,8 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 VENV_DIR="$DIR/.venv"
-# Bump the marker to force a reinstall from requirements.txt; older venvs
-# still hold stock pyOCD, which faults on nRF54LM20A (issue #69).
+# Bump the marker whenever requirements.txt changes, so existing venvs
+# reinstall instead of keeping the previously pinned pyOCD.
 DEP_MARKER="$VENV_DIR/.deps_official_pyocd_v1"
 REQ_PROBE="$1"
 EXTRA_ARGS=""

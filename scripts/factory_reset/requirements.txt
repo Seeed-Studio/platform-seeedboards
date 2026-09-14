@@ -1,13 +1,19 @@
 # Dependencies for the factory-reset / recover tools, installed by the
 # wrapper scripts into scripts/factory_reset/.venv.
 #
-# pyOCD is pinned to the Seeed-supported fork that carries working nRF54LM20A
-# flash support. Stock pyOCD (0.44.x/0.45.x) faults inside its flash algorithm
-# on nRF54LM20A -- see pyocd/pyOCD#2016 and
-# Seeed-Studio/platform-seeedboards#69.
+# pyOCD comes from the official package: the nRF54LM20A target support the
+# former StarSphere-1024 fork carried was merged upstream (pyocd/pyOCD#1889,
+# released in v0.44.0), and its JLink fix was superseded in v0.45.0
+# (pyocd/pyOCD#1927). The fork never contained a flash fix: its flash
+# algorithm is byte-identical to the official one.
+#
+# Known limitation (official and fork alike): `pyocd flash` faults on
+# nRF54LM20A (pyocd/pyOCD#2016, still open) -- list/rtt/erase do work.
+# nRF54LM20A flashing goes through the OpenOCD path (factory_reset_lm20a.*
+# and nrf54lm20a-load); see Seeed-Studio/platform-seeedboards#69.
 #
 # KEEP IN SYNC with _ensure_pyocd_installed() in
-# builder/board_build/nrf/nrf_build.py, which installs the exact same fork
+# builder/board_build/nrf/nrf_build.py, which pins the same version
 # for the PlatformIO upload path.
 pyocd==0.45.1
 libusb

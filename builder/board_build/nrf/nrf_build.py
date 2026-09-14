@@ -184,7 +184,9 @@ def _get_dfu_upload_offset(board_config):
 
 
 def _ensure_pyocd_installed():
-    # Always use the forked pyOCD with nRF54LM20A support, regardless of MCU.
+    # Official pyOCD ships the nRF54LM20A target since v0.44.0 (pyocd/pyOCD#1889).
+    # `pyocd flash` on nRF54LM20A still faults under any build (pyocd/pyOCD#2016,
+    # open) -- the LM20A upload path uses OpenOCD; pyocd only serves list/rtt/erase.
     pyocd_spec = "pyocd==0.45.1"
 
     def _installed_pyocd_is_expected() -> bool:
