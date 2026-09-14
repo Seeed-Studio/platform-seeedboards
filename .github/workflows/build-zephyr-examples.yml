@@ -17,6 +17,7 @@ on:
       - 'examples/zephyr-*/**'
       - 'examples/seeed-xiao-stm32c5/**'
       - 'examples/xiao_nrf54lm20a_ble/**'
+      - 'examples/seeed-xiao-nrf54lm20a-v2/**'
       - 'examples/seeed-xiao-nrf54lm20b/**'
   pull_request:
     paths:
@@ -33,6 +34,7 @@ on:
       - 'examples/zephyr-*/**'
       - 'examples/seeed-xiao-stm32c5/**'
       - 'examples/xiao_nrf54lm20a_ble/**'
+      - 'examples/seeed-xiao-nrf54lm20a-v2/**'
       - 'examples/seeed-xiao-nrf54lm20b/**'
   workflow_dispatch:
 
