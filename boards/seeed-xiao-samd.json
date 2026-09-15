@@ -1,5 +1,6 @@
 {
   "build": {
+    "family": "samd",
     "arduino": {
       "ldscript": "flash_with_bootloader.ld"
     },

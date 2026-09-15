@@ -1,5 +1,6 @@
 {
   "build": {
+    "family": "nrf",
     "arduino": {
       "ldscript": "linker_script.ld"
     },
