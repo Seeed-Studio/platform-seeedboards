@@ -28,27 +28,40 @@ from SCons.Script import  DefaultEnvironment
 
 env = DefaultEnvironment()
 board = env.BoardConfig()
-if "esp32" in board.id:
-    print(f"board id is {board.id}, will call board_build/esp/esp_build.py")
-    env.SConscript("../board_build/esp/esp_arduino.py", exports="env")
 
-if board.id == "seeed-xiao-ra4m1":
-    print("board id is seeed-xiao-ra4m1,will call board_build/renesas/renesas_arduino.py")
-    env.SConscript("../board_build/renesas/renesas_arduino.py", exports="env")
+# Board -> family Arduino script dispatch, keyed by the board manifest's
+# build.family (single source of truth -- see .agents/notes/proposed/
+# 2026-09-15-board-family-routing-single-source.md). Families without an
+# Arduino port are absent on purpose: PlatformIO core rejects framework/
+# board mismatches before reaching here, so a missing entry is a loud
+# defense-in-depth error rather than the old silent no-op (which the
+# divergent "52840" substring key made possible).
+FAMILY_ARDUINO_SCRIPTS = {
+    "esp": "../board_build/esp/esp_arduino.py",
+    "nrf": "../board_build/nrf/nrf_arduino.py",
+    "renesas": "../board_build/renesas/renesas_arduino.py",
+    "rpi": "../board_build/rpi/rpi_arduino.py",
+    "samd": "../board_build/samd/samd_arduino.py",
+    "siliconlab": "../board_build/siliconlab/siliconlab_arduino.py",
+}
 
+family = board.get("build.family", None)
+if not family:
+    raise RuntimeError(
+        "Board '%s' declares no build.family in its manifest; add one of "
+        "%s (see .agents/notes/proposed/"
+        "2026-09-15-board-family-routing-single-source.md)."
+        % (board.id, ", ".join(sorted(FAMILY_ARDUINO_SCRIPTS)))
+    )
 
-if board.id == "seeed-xiao-rp2040" or board.id == "seeed-xiao-rp2350":
-    print("board id is seeed-xiao-rpi,will call ../board_build/rpi/rpi_arduino.py")
-    env.SConscript("../board_build/rpi/rpi_arduino.py", exports="env")
+arduino_script = FAMILY_ARDUINO_SCRIPTS.get(family)
+if arduino_script is None:
+    # Unreachable through `pio run` (core rejects framework/board mismatches
+    # first) -- loud defense-in-depth instead of the old silent no-op.
+    raise RuntimeError(
+        "Board '%s' (build.family %r) has no Arduino build script; Arduino "
+        "is not supported for this family." % (board.id, family)
+    )
 
-if "52840" in board.id:
-    print("board id is 52840,will call ../board_build/nrf/nrf_arduino.py")
-    env.SConscript("../board_build/nrf/nrf_arduino.py", exports="env")
-
-if "samd" in board.id:
-    print("board id is samd,will call ../board_build/samd/samd_arduino.py")
-    env.SConscript("../board_build/samd/samd_arduino.py", exports="env")
-
-if "mg24" in board.id:
-    print("board id is mg24,will call ../board_build/siliconlab/siliconlab_arduino.py")
-    env.SConscript("../board_build/siliconlab/siliconlab_arduino.py", exports="env")
+print("XIAO Arduino: board %s -> %s build" % (board.id, family))
+env.SConscript(arduino_script, exports="env")
