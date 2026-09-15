@@ -1,11 +1,13 @@
 {
     "build": {
+      "family": "nrf",
       "cpu": "cortex-m33",
       "f_cpu": "128000000L",
       "mcu": "nrf54lm20a",
       "zephyr": {
         "variant": "xiao_nrf54lm20a/nrf54lm20a/cpuapp",
-        "package": "framework-zephyr-nrf54lm20"
+        "package": "framework-zephyr-nrf54lm20",
+        "board_name": "xiao_nrf54lm20a"
      }
     },
     "connectivity": [
