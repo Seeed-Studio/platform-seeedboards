@@ -37,6 +37,48 @@ def platform_instance():
     return PlatformFactory.new(str(repo))
 
 
+class TestZephyrRouting:
+    ZEPHYR_EXPECTED = {
+        "seeed-xiao-nrf54l15": ("framework-zephyr-nrf54l15", "xiao_nrf54l15"),
+        "seeed-xiao-nrf54lm20a": ("framework-zephyr-nrf54lm20", "xiao_nrf54lm20a"),
+        "seeed-xiao-nrf54lm20b": ("framework-zephyr-nrf54lm20", "xiao_nrf54lm20b"),
+        "seeed-xiao-stm32c5": ("framework-zephyr-nrf54lm20", "xiao_stm32c5"),
+    }
+
+    @pytest.mark.parametrize(
+        "board_id,expected", sorted(ZEPHYR_EXPECTED.items()), ids=lambda v: str(v)
+    )
+    def test_zephyr_routing_from_manifest(self, platform_instance, board_id, expected):
+        package, board_name = expected
+        assert platform_instance.get_zephyr_package_name(board_id) == package
+        assert platform_instance.get_zephyr_board_name(board_id) == board_name
+
+    def test_non_zephyr_board_falls_back(self, platform_instance):
+        assert (
+            platform_instance.get_zephyr_package_name("seeed-xiao-samd")
+            == "framework-zephyr-nrf54lm20"
+        )
+        assert platform_instance.get_zephyr_board_name("seeed-xiao-samd") == ""
+
+    def test_configure_selects_nrf54l15_package(self, platform_instance):
+        platform_instance._configure_zephyr_package_for_board(
+            "seeed-xiao-nrf54l15", {"pioframework": ["zephyr"]}
+        )
+        assert (
+            platform_instance.frameworks["zephyr"]["package"]
+            == "framework-zephyr-nrf54l15"
+        )
+
+    def test_configure_keeps_default_for_non_zephyr_board(self, platform_instance):
+        platform_instance._configure_zephyr_package_for_board(
+            "seeed-xiao-samd", {"pioframework": ["arduino"]}
+        )
+        assert (
+            platform_instance.frameworks["zephyr"]["package"]
+            == "framework-zephyr-nrf54lm20"
+        )
+
+
 class TestGetBoardFamily:
     @pytest.mark.parametrize("board_id,expected", sorted(FAMILY_BY_PROBE_BOARD.items()))
     def test_probe_board_per_family(self, platform_instance, board_id, expected):

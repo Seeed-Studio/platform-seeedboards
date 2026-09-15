@@ -62,5 +62,8 @@ jobs:
       - name: Run board manifest gate
         run: python scripts/ci/verify_boards.py
 
+      - name: Run zephyr routing gate
+        run: python scripts/ci/verify_zephyr_routing.py
+
       - name: Run pio boards listing smoke
         run: python scripts/ci/smoke_pio_boards.py
