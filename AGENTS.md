@@ -7,6 +7,7 @@ This repository is the source of the Seeed Studio PlatformIO platform. The Git r
 ## Task entry points
 
 - Before modifying board metadata, `platform.json`, `platform.py`, `platform_cfg/`, `builder/`, `zephyr/`, examples, or CI build scripts, read and follow [platformio-development](.agents/skills/platformio-development/SKILL.md).
+- Adding or formalizing a board: follow [platformio-add-board](.agents/skills/platformio-add-board/SKILL.md) (collects the board facts, walks the metadata-driven flow, then hands off to platformio-development for fork validation).
 - Before changing files under `boards/`, `platform_cfg/`, `builder/`, `zephyr/`, `examples/`, or `scripts/ci/`, also read that directory's own `AGENTS.md` -- it carries the directory-specific rules (routing keys, fixes layout, gate conventions). Launching from the repository root does not auto-read nested files.
 - Read-only investigation, design discussion, documentation-only work, and code review do not require the fork-validation inputs from that skill unless they also change PlatformIO behavior.
 - Before changing board/profile ownership, Zephyr architecture, package-cache behavior, or compatibility fixes, search [.agents/notes/](.agents/notes/README.md) for the owning or related note and follow any active note as current guidance.
