@@ -40,10 +40,9 @@ if IS_WINDOWS:
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Per-board Zephyr framework package name and Zephyr board.name live in each
-# board's manifest (build.zephyr.package / build.zephyr.variant). Builders read
-# build.zephyr.package directly; see get_zephyr_board_name below and
-# zephyr/README.md.
+# Zephyr routing (framework package + Zephyr board.name per board) lives in
+# the board manifests: build.zephyr.package and build.zephyr.board_name.
+# Cross-checked by scripts/ci/verify_zephyr_routing.py; see zephyr/README.md.
 
 class SeeedstudioPlatform(PlatformBase):
     def __init__(self, *args, **kwargs):
@@ -77,6 +76,14 @@ class SeeedstudioPlatform(PlatformBase):
 
         return result
 
+    def _get_repo_board_config(self, board_name):
+        """Board manifest config for a PIO board id.
+
+        Uses the PlatformBase implementation on purpose: no
+        _add_dynamic_options side effects during package configuration.
+        """
+        return PlatformBase.get_boards(self, board_name)
+
     def _configure_zephyr_package_for_board(self, board_name, variables):
         frameworks = variables.get("pioframework", [])
         if "zephyr" not in frameworks or "zephyr" not in self.frameworks:
@@ -93,19 +100,44 @@ class SeeedstudioPlatform(PlatformBase):
 
         self.frameworks["zephyr"]["package"] = package_name
 
+    def get_zephyr_package_name(self, board_name=None):
+        """Framework package for a board's Zephyr builds.
+
+        Reads build.zephyr.package from the board manifest. Boards without
+        one fall back to the platform.json default (frameworks.zephyr.package,
+        currently framework-zephyr-nrf54lm20). Note seeed-xiao-stm32c5
+        deliberately reuses the nrf54lm20 Zephyr 4.4 tarball (identical
+        content; PlatformIO would URL-dedupe a same-versioned package into
+        the nrf54lm20 dir anyway) -- its specifics arrive per-board via
+        zephyr/fixes.yml. (Build-time selection stays strict and fails loud
+        on a missing key -- see _configure_zephyr_package_for_board.)
+        """
+        default = self.frameworks.get("zephyr", {}).get(
+            "package", "framework-zephyr-nrf54lm20"
+        )
+        if not board_name:
+            return default
+
+        board = self._get_repo_board_config(board_name)
+        zephyr = board.get("build.zephyr", None) if board else None
+        if isinstance(zephyr, dict) and zephyr.get("package"):
+            return zephyr["package"]
+        return default
+
     def get_zephyr_board_name(self, board_name):
         """Return the Zephyr board.name (e.g. 'xiao_stm32c5') for a PIO board id.
 
-        Derived from the board manifest's build.zephyr.variant: the first
-        component of `board[@revision]/soc/...` is the board.name, which keys
-        the per-board fixes under zephyr/{patches,overrides}/<board>/ and in
-        zephyr/fixes.yml (a board revision collapses to its shared board dir).
-        Returns '' if the board declares no variant (no local fixes to apply).
+        Reads build.zephyr.board_name from the board manifest. Used to locate
+        per-board fixes under zephyr/{patches,overrides}/<board>/.
+        Returns '' if the board declares none (no local fixes dir to apply).
         """
         if not board_name:
             return ""
-        variant = self.board_config(board_name).get("build.zephyr.variant", "")
-        return variant.split("/")[0].split("@")[0] if variant else ""
+        board = self._get_repo_board_config(board_name)
+        zephyr = board.get("build.zephyr", None) if board else None
+        if isinstance(zephyr, dict) and zephyr.get("board_name"):
+            return zephyr["board_name"]
+        return ""
 
     def get_board_family(self, board):
         """Resolve the MCU family for a board id or board-config object.
@@ -119,9 +151,7 @@ class SeeedstudioPlatform(PlatformBase):
         handling.
         """
         if isinstance(board, str):
-            # Base implementation on purpose: no _add_dynamic_options side
-            # effects during package configuration.
-            board = PlatformBase.get_boards(self, board)
+            board = self._get_repo_board_config(board_name=board)
         if board is None:
             return None
 
