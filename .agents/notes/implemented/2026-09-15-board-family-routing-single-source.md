@@ -1,6 +1,6 @@
 # Board family routing single source
 
-Status: proposed
+Status: implemented
 
 ## Context
 
@@ -30,10 +30,10 @@ Adding a board today therefore requires touching several Python dispatch
 sites and hoping its id matches the substrings; a mismatch fails silently
 or crashes listing.
 
-## Proposal
+## Decision
 
-Move every board->family / board->Zephyr-package fact into the board
-manifest, which `AGENTS.md` already names as the owning layer for board
+Board->family / board->Zephyr-package facts live in the board manifest,
+which `AGENTS.md` already names as the owning layer for board
 capabilities. PlatformIO core accepts arbitrary manifest keys (it requires
 only `name`/`url`/`vendor` and the repo already ships custom keys such as
 `build.zephyr.variant` and `build.softdevice`).
@@ -110,18 +110,20 @@ reading them; consumers flip one PR each afterwards.
 
 ## Validation
 
-Per-phase, recorded when this note moves to `implemented/`:
+Recorded evidence (all through the local-checkout platform override, one
+`pio run -t clean` per build, fresh platform-package install per phase):
 
-- Offline: `pytest tests/ -q`, `scripts/ci/verify_boards.py`,
-  `scripts/ci/verify_zephyr_routing.py` (when it lands),
-  `scripts/ci/smoke_pio_boards.py`.
-- Representative builds per flipped consumer (through the
-  platformio-development skill): `examples/arduino-blink` all 17 envs
-  (6 families; 8 nrf52840 envs are the nrf-dispatch probe), one Zephyr
-  env for each of the three nRF54 boards, one STM32C5 Zephyr example
-  (shared-tarball case), and the nRF54LM20B Edge AI sample for the
-  provisioning gate change.
-- `pio boards` listing smoke stays green throughout.
+- Offline gates green throughout: `pytest tests/ -q` (62 tests at close,
+  including per-family probe boards, full 23-board listing assertions,
+  zephyr routing from manifests), `scripts/ci/verify_boards.py`,
+  `scripts/ci/verify_zephyr_routing.py`, `scripts/ci/smoke_pio_boards.py`.
+- Inert-data phase: 24/24 builds (all 20 arduino example envs across 6
+  families + zephyr-blink for nrf54l15/nrf54lm20a/nrf54lm20b/stm32c5).
+- Consumer flips: arduino-blink all 17 envs per builder commit; zephyr
+  sets per platform.py/zephyr.py commit, including nrf54l15 (the only
+  board on the framework-zephyr-nrf54l15 tarball), the stm32c5
+  shared-tarball case, and edgeai-hello-ei for the 20B provisioning gate.
+- Hardware upload/debug: not performed.
 
 ## Related files
 
@@ -131,4 +133,4 @@ Per-phase, recorded when this note moves to `implemented/`:
 - [`builder/frameworks/arduino.py`](../../../builder/frameworks/arduino.py)
 - [`builder/frameworks/zephyr.py`](../../../builder/frameworks/zephyr.py)
 - [`verify_boards.py`](../../../scripts/ci/verify_boards.py)
-- [`AI workflow adaptation`](2026-08-17-ai-workflow-adaptation.md)
+- [`AI workflow adaptation`](../proposed/2026-08-17-ai-workflow-adaptation.md)

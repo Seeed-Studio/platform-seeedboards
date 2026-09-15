@@ -115,4 +115,4 @@ Status: proposed
 - [`AGENTS.md`](../../../AGENTS.md)
 - [`platformio-development`](../../skills/platformio-development/SKILL.md)
 - [`Development Notes`](../README.md)
-- [`Board family routing single source`](2026-09-15-board-family-routing-single-source.md)
+- [`Board family routing single source`](../implemented/2026-09-15-board-family-routing-single-source.md)
