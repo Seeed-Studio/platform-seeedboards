@@ -90,7 +90,7 @@ def _add_esp_default_debug_tools(self, board):
     ]
 
 
-    if board.get("build.mcu", "") in ("esp32c3", "esp32c6", "esp32s3", "esp32h2"):
+    if board.get("build.mcu", "") in ("esp32c3", "esp32c5", "esp32c6", "esp32s3", "esp32h2"):
         supported_debug_tools.append("esp-builtin")
 
     upload_protocol = board.manifest.get("upload", {}).get("protocol")
