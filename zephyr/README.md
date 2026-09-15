@@ -1,41 +1,45 @@
-# Zephyr framework local fixes (patches & overrides)
+# Zephyr local content (boards, modules, fixes)
 
-This directory carries local fixes applied on top of PlatformIO's
-`framework-zephyr` package so that Seeed XIAO boards work on the current
-Zephyr version. All fixes are **centrally registered** in `fixes.yml`;
-`builder/frameworks/zephyr_fixes.py` reads it before the build and applies
-the registered fixes to the framework package of the board being built.
+This directory carries everything Zephyr needs beyond the stock
+`framework-zephyr-*` package: board definitions, bundled west modules, and
+per-board fixes for upstream gaps. Applied before the build by
+`builder/frameworks/zephyr.py` + `builder/frameworks/zephyr_fixes.py`.
 
-## Directory layout
+## Layout
 
 ```
 zephyr/
-├── <family>/         # per-family board root: zephyr/<family>/boards/seeed/<board>/
-│   └── boards/seeed/ #   (e.g. nrf/, stm32/); discovered by the builder via
-│                     #   glob(zephyr/*/boards/*), no builder change per family
-├── patches/          # patches (unified diff)
-│   └── <board>/      #   one level per board
-│       └── 0001-*.patch
-├── overrides/        # overrides (whole files)
-│   └── <board>/      #   one level per board; relative path below = target path inside the framework package
-│       └── drivers/...
-├── fixes.yml         # fix registry (single source of truth)
-└── README.md         # this file
+├── <family>/                          # per-family standalone board root
+│   └── boards/seeed/<board>/          # board definition (upstream-style:
+│       │                              #   board.yml, dts/dtsi, Kconfig,
+│       │                              #   board.cmake, defconfig)
+│       └── fixes/                     # this board's fixes for the framework
+│           ├── fixes.baseline         #   "<target> <sha256>" of the pristine
+│           │                          #   upstream file each fix was cut against
+│           ├── <target-path>          #   full-file override (provenance in header)
+│           └── <target-path>.patch    #   unified-diff patch (idempotent)
+└── modules/<name>/                    # bundled west modules (copied per build)
 ```
 
-Each `zephyr/<family>` is a standalone Zephyr board root. `zephyr/nrf` is the
-root the wiki tells nRF Connect users to add under **Board Roots**, so it may
-only contain boards whose SoC and drivers exist unpatched in the target SDK —
-a board referencing a SoC missing from the SDK (e.g. `xiao_stm32c5`'s
-`stm32c5a3xx` in NCS) breaks the extension's SoC cache for every board.
-Boards that depend on `fixes.yml` fixes belong in their own family root
-(`zephyr/stm32`); they reach the framework package only through the builder's
-copy step, never through a board-root scan.
+A fix file's location inside `fixes/` IS its target path inside the
+framework package -- the directory is the registration. There is no
+registry file. Every fix file carries a header comment with the upstream
+link, the validated Zephyr version, and its exit condition.
+
+Each `zephyr/<family>` is a standalone Zephyr board root. `zephyr/nrf` is
+the root the wiki tells nRF Connect users to add under **Board Roots**, so
+it may only contain boards whose SoC and drivers exist unpatched in the
+target SDK — a board referencing a SoC missing from the SDK (e.g.
+`xiao_stm32c5`'s `stm32c5a3xx` in NCS) breaks the extension's SoC cache for
+every board. Boards that depend on framework fixes belong in their own
+family root (`zephyr/stm32`); they reach the framework package only through
+the builder's copy step, never through a board-root scan.
 
 `<board>` = the Zephyr board name (the directory name under
-`zephyr/<family>/boards/seeed/<same name>/`, equal to the `board.yml` `board.name`),
-derived by `platform.get_zephyr_board_name()` from the board manifest's `build.zephyr.variant`: the first component
-of `board[@revision]/soc/...` (before any `/` and `@`); a board revision
+`zephyr/<family>/boards/seeed/<same name>/`, equal to the `board.yml`
+`board.name`), derived by `platform.get_zephyr_board_name()` from the board
+manifest's `build.zephyr.variant`: the first component of
+`board[@revision]/soc/...` (before any `/` and `@`); a board revision
 (e.g. `xiao_nrf54lm20a@2.0.0/...`) collapses to its shared board directory
 `xiao_nrf54lm20a`.
 
@@ -43,51 +47,31 @@ of `board[@revision]/soc/...` (before any `/` and `@`); a board revision
 
 | Scenario | Mechanism |
 |---|---|
-| Modifying a file that **exists** upstream, change is focused (a few hunks) | `patch` |
-| Upstream file **missing**, or the change spans the whole file (whole-file backport of new SoC support) | `override` |
+| Upstream file exists, change is focused (a few hunks) | `<target>.patch` (unified diff) |
+| Upstream file missing, or the change spans the whole file (whole-file backport of new SoC support) | `<target>` (full-file override) |
 
-- `patch`: unified diff; small and reviewable; idempotent (skipped if already applied).
-- `override`: whole-file replacement at the target path; the optional `baseline_sha` guards against silent regressions after a framework upgrade.
+## Workflows
 
-## fixes.yml format
+**Add a fix**: pick the mechanism (small focused change -> `.patch`; whole
+file backport -> override), drop the file at `fixes/<framework-path>`[`.patch`]
+under the board's directory, and add a `fixes.baseline` line with the
+pristine target's sha256 (compute from a fresh extraction of the pinned
+tarball). No builder code changes.
 
-See the comment block at the top of `fixes.yml`. Each fix entry carries
-`id/type/path/target/applies_to` plus optional `upstream/baseline_sha/reason`.
-Sections keyed by `boards[<board.name>]` provide **board/package isolation**;
-`applies_to` provides **version gating**. The two gates together ensure that
-one board's fixes never touch another board's framework package, and that
-entries auto-expire after a Zephyr upgrade, forcing re-evaluation.
+**Remove a fix** (upstreamed / no longer needed): delete the file and its
+baseline line. The first build after removal confirms the upstream tree is
+sufficient.
 
-## Adding a new fix
+**Zephyr framework upgrade**: the new tarball's files will not match
+`fixes.baseline` -- overrides warn loudly and patch hunks fail with
+baseline-drift context on the first build. Re-evaluate each fix: upstreamed
+-> delete; still needed -> refresh the file against the new tree and update
+its baseline sha.
 
-1. Pick the mechanism: small change → put a `.patch` file under
-   `patches/<board>/`; whole file → put the file under
-   `overrides/<board>/<relative path inside the framework package>/`
-   (the path is the target).
-2. Add a `fixes` entry under the `boards[<board>]` section in `fixes.yml`
-   (create the section if missing) with `path/target/applies_to/reason`;
-   for overrides, filling in `baseline_sha` is recommended.
-3. **No builder code changes needed.**
-
-## Adding a new board
-
-No Python code changes are needed — board-level data lives in
-`boards/<board-id>.json`:
-
-1. Declare two fields under `build.zephyr` in `boards/<board-id>.json`:
-   `package` (the framework-zephyr package this board builds against, e.g.
-   `framework-zephyr-nrf54lm20`) and `variant` (in `board[@revision]/soc/...`
-   form, e.g. `xiao_nrf54lm20a@2.0.0/nrf54lm20a/cpuapp`). The first
-   component of the variant (before `/` and `@`) is the board.name — the key
-   of this directory's fixes mechanism.
-2. Create `zephyr/patches/<board.name>/` and `zephyr/overrides/<board.name>/`
-   (only if the board has fixes).
-3. Add a `boards[<board.name>]` section in `fixes.yml`.
-
-`scripts/ci/verify_board_manifests.py` validates in CI that these fields are
-present (a missing declaration fails the check instead of silently falling
-back to the default package) and cross-checks that every `fixes.yml` key
-matches a manifest-derived board name.
+**Consistency** is enforced offline by `scripts/ci/verify_zephyr_routing.py`
+(board -> package -> `<family>/boards/seeed/` chain closed; baseline <->
+fix file two-way correspondence), wired into
+`.github/workflows/ci-verify.yml`.
 
 > **Package sharing note**: `seeed-xiao-stm32c5` declares
 > `framework-zephyr-nrf54lm20` directly — it uses the **exact same** Zephyr
@@ -96,39 +80,12 @@ matches a manifest-derived board name.
 > PlatformIO would URL-dedupe an identically-versioned package into the
 > nrf54lm20 directory, leaving only a misleading name behind. STM32C5
 > board-level differences (pinctrl via the hal_stm32 west module;
-> udc/xspi/adc overrides) are injected per board via `fixes.yml`.
-
-## Adapting to a new Zephyr version (framework package upgrade)
-
-After an upgrade, entries whose `applies_to` does not include the new version
-are skipped automatically (version gating). Re-evaluate each entry:
-- patch landed upstream → delete the entry;
-- still applies → add the new version value to `applies_to`;
-- needs a redo → add a new entry pointing at the new file.
-
-Overrides need their `baseline_sha` recomputed (the upstream target file has
-changed).
-
-## baseline_sha (override regression guard)
-
-An override replaces a whole file, so a framework package upgrade can
-silently clobber the new upstream version. `baseline_sha` records the
-sha256 the upstream target file should have at apply time; it is verified
-before applying, and a mismatch prints a warning (it does not block the
-build):
-
-```bash
-# Compute after the framework package is extracted (it is downloaded on
-# first build):
-sha256sum <framework_dir>/<target>
-```
-
-Fill the value into the fix's `baseline_sha` field. Optional; omit it to
-overwrite without verification.
+> udc/xspi/adc fixes) are injected per board from the board's `fixes/`
+> directory.
 
 ## Module layout
 
-- `builder/frameworks/zephyr_fixes.py`    — dispatcher: reads `fixes.yml` + board/version gating + dispatch
+- `builder/frameworks/zephyr_fixes.py`    — fixes applier: walks the board's fixes/ directory (baseline gating + dispatch)
 - `builder/frameworks/zephyr_patch.py`    — executor A: applies one `.patch` to the framework package (idempotent)
 - `builder/frameworks/zephyr_override.py` — executor B: copies one override into the framework package (with baseline verification)
 

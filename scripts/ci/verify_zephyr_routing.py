@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline integrity gate for Zephyr routing and fixes layout.
 
-Fast, standalone, no package cache, no network:
+Fast, standalone, no package cache, no network, stdlib-only:
 
     python scripts/ci/verify_zephyr_routing.py
 
@@ -12,13 +12,10 @@ Checks:
      directory under zephyr/<family>/boards/seeed/;
   3. build.zephyr.board_name matches the variant-derived Zephyr board.name
      (first component of build.zephyr.variant -- one spelling of the truth);
-  4. fixes v2 layout: for every zephyr/<family>/boards/seeed/<board>/fixes/
+  4. fixes layout: for every zephyr/<family>/boards/seeed/<board>/fixes/
      directory, every fix file has a fixes.baseline entry and every
      baseline entry has a fix file (two-way correspondence); fix paths
-     stay inside the tree; fixes/ directories belong to known boards;
-  5. legacy layout (pending removal): every boards: key in zephyr/fixes.yml
-     and every zephyr/patches//overrides/ directory corresponds to a known
-     zephyr board; fix targets are sane.
+     stay inside the tree; fixes/ directories belong to known boards.
 
 Exit code 0 = all checks pass, 1 = any violation.
 """
@@ -77,7 +74,7 @@ def _iter_fix_files(fixes_dir: Path):
 
 
 def verify_fixes_layout(zephyr_root: Path, known_names: set) -> list:
-    """Check 4: fixes v2 board-dir layout consistency.
+    """Check 4: fixes board-dir layout consistency.
 
     Fixes live under zephyr/<family>/boards/seeed/<board>/fixes/; the family
     level is discovered by glob (zephyr/*/boards/*/<board>), the same
@@ -139,10 +136,8 @@ def verify_zephyr_routing(
     zephyr_boards: dict,
     platform_packages: set,
     zephyr_root: Path,
-    fixes: dict,
 ) -> list:
-    """All checks. zephyr_root is the repo's zephyr/ directory; fixes is the
-    parsed legacy zephyr/fixes.yml content ({} when absent)."""
+    """All checks. zephyr_root is the repo's zephyr/ directory."""
     errors = []
 
     # Checks 1+2+3: board -> package -> <family>/boards/seeed/<name>/ chain
@@ -192,51 +187,8 @@ def verify_zephyr_routing(
                 % (board_id, family, board_name)
             )
 
-    # Check 4: fixes v2 board-dir layout.
+    # Check 4: fixes board-dir layout.
     errors.extend(verify_fixes_layout(zephyr_root, known_names))
-
-    # Check 5a: fixes.yml keys are known zephyr boards (legacy, pending
-    # removal together with the registry).
-    fixes_boards = set((fixes.get("boards") or {}).keys())
-    for name in sorted(fixes_boards - known_names):
-        errors.append(
-            "fixes.yml: board %r has fixes but is not a known zephyr "
-            "board_name (boards/arm/ or build.zephyr.board_name mismatch)" % name
-        )
-
-    # Check 5b: patch/override source dirs are known zephyr boards (legacy).
-    for subdir in ("patches", "overrides"):
-        root = zephyr_root / subdir
-        if not root.is_dir():
-            continue
-        for entry in sorted(p.name for p in root.iterdir() if p.is_dir()):
-            if entry not in known_names:
-                errors.append(
-                    "zephyr/%s/%s/ exists for board %r but no board declares "
-                    "it (orphan fix sources)" % (subdir, entry, entry)
-                )
-
-    # Check 5c: fix targets are sane in-package relative paths (legacy).
-    type_subdir = {"patch": "patches", "override": "overrides"}
-    for name, section in sorted((fixes.get("boards") or {}).items()):
-        for fix in section.get("fixes") or []:
-            target = fix.get("target")
-            if not target or target.startswith("/") or ".." in Path(target).parts:
-                errors.append(
-                    "fixes.yml: fix %r has invalid target %r" % (fix.get("id"), target)
-                )
-            fix_type = fix.get("type")
-            if fix_type not in type_subdir:
-                errors.append(
-                    "fixes.yml: fix %r has unknown type %r" % (fix.get("id"), fix_type)
-                )
-            else:
-                src_root = zephyr_root / type_subdir[fix_type] / name
-                if not (src_root / str(fix.get("path", ""))).is_file():
-                    errors.append(
-                        "fixes.yml: fix %r source missing under zephyr/%s/%s/"
-                        % (fix.get("id"), type_subdir[fix_type], name)
-                    )
 
     return errors
 
@@ -254,22 +206,8 @@ def main() -> int:
         print("verify_zephyr_routing: no zephyr boards found", file=sys.stderr)
         return 1
 
-    fixes = {}
-    fixes_path = root / "zephyr" / "fixes.yml"
-    if fixes_path.is_file():
-        try:
-            import yaml
-
-            fixes = yaml.safe_load(fixes_path.read_text(encoding="utf-8")) or {}
-        except ImportError:
-            print(
-                "verify_zephyr_routing: pyyaml is required (pip install pyyaml)",
-                file=sys.stderr,
-            )
-            return 1
-
     errors = verify_zephyr_routing(
-        zephyr_boards, platform_packages, root / "zephyr", fixes
+        zephyr_boards, platform_packages, root / "zephyr"
     )
     if errors:
         for error in errors:
@@ -279,10 +217,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print(
-        "verify_zephyr_routing: OK (%d zephyr boards, %d fixes.yml boards)"
-        % (len(zephyr_boards), len((fixes.get("boards") or {})))
-    )
+    print("verify_zephyr_routing: OK (%d zephyr boards)" % len(zephyr_boards))
     return 0
 
 

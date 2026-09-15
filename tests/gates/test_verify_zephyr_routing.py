@@ -1,10 +1,11 @@
 """Unit tests for scripts/ci/verify_zephyr_routing.py.
 
-Valid mapping tree plus one counterexample per rule, built on synthetic
-trees in tmp_path.
+Valid routing/fixes tree plus one counterexample per rule, built on
+synthetic trees in tmp_path.
 """
 
 import json
+import shutil
 
 import pytest
 
@@ -30,78 +31,68 @@ def make_zephyr_board(board_id, package="framework-zephyr-test", board_name="xia
 @pytest.fixture()
 def routing_tree(tmp_path):
     """A valid synthetic repo: one zephyr board, matching per-family board
-    dir, fixes.yml section, and patches/overrides dirs."""
+    dir with a fixes/ directory (one patch + one override + baseline)."""
     zephyr_root = tmp_path / "zephyr"
-    (zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test").mkdir(parents=True)
-    (zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test" / "board.yml").write_text(
-        "board:\n  name: xiao_test\n", encoding="utf-8"
-    )
-    (zephyr_root / "patches" / "xiao_test").mkdir(parents=True)
-    (zephyr_root / "patches" / "xiao_test" / "0001-demo.patch").write_text(
+    board_dir = zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test"
+    board_dir.mkdir(parents=True)
+    (board_dir / "board.yml").write_text("board:\n  name: xiao_test\n", encoding="utf-8")
+
+    fixes_dir = board_dir / "fixes"
+    (fixes_dir / "drivers" / "adc").mkdir(parents=True)
+    (fixes_dir / "drivers" / "adc" / "adc_stm32.c.patch").write_text(
         "--- a\n+++ b\n", encoding="utf-8"
     )
-    (zephyr_root / "overrides" / "xiao_test").mkdir(parents=True)
     override_rel = "drivers/usb/udc_stm32.c"
-    override_path = zephyr_root / "overrides" / "xiao_test" / override_rel
-    override_path.parent.mkdir(parents=True)
-    override_path.write_text("/* override */\n", encoding="utf-8")
+    (fixes_dir / "drivers" / "usb").mkdir(parents=True)
+    (fixes_dir / "drivers" / "usb" / "udc_stm32.c").write_text(
+        "/* override */\n", encoding="utf-8"
+    )
+    sha = "a" * 64
+    sha2 = "b" * 64
+    (fixes_dir / "fixes.baseline").write_text(
+        "drivers/adc/adc_stm32.c %s\ndrivers/usb/udc_stm32.c %s\n" % (sha, sha2),
+        encoding="utf-8",
+    )
 
-    fixes = {
-        "boards": {
-            "xiao_test": {
-                "fixes": [
-                    {
-                        "id": "demo-patch",
-                        "type": "patch",
-                        "path": "0001-demo.patch",
-                        "target": "drivers/adc/adc_stm32.c",
-                    },
-                    {
-                        "id": "demo-override",
-                        "type": "override",
-                        "path": override_rel,
-                        "target": override_rel,
-                    },
-                ]
-            }
-        }
-    }
     boards = {"seeed-xiao-test": make_zephyr_board("seeed-xiao-test")}
-    return zephyr_root, boards, fixes
+    return zephyr_root, boards
 
 
 class TestValidTree:
     def test_valid_tree_passes(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        assert verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes) == []
+        zephyr_root, boards = routing_tree
+        assert verify_zephyr_routing(boards, PACKAGES, zephyr_root) == []
 
-    def test_missing_fixes_yml_is_ok(self, routing_tree):
-        zephyr_root, boards, _ = routing_tree
-        assert verify_zephyr_routing(boards, PACKAGES, zephyr_root, {}) == []
+    def test_board_without_fixes_dir_is_ok(self, routing_tree):
+        zephyr_root, boards = routing_tree
+        # A board whose directory ships no fixes/ is a no-op, not an error
+        # (nRF54 boards ship none).
+        shutil.rmtree(zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test" / "fixes")
+        assert verify_zephyr_routing(boards, PACKAGES, zephyr_root) == []
 
 
 class TestChainClosure:
     def test_package_not_in_platform_json(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
+        zephyr_root, boards = routing_tree
         boards["seeed-xiao-test"]["package"] = "framework-ghost"
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("not declared in platform.json" in e for e in errors)
 
     def test_board_dir_missing(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
+        zephyr_root, boards = routing_tree
         boards["seeed-xiao-test"]["board_name"] = "xiao_missing"
         boards["seeed-xiao-test"]["variant"] = "xiao_missing/soc/cpuapp"
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("no zephyr/nrf/boards/seeed/xiao_missing/" in e for e in errors)
 
     def test_variant_board_name_mismatch(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
+        zephyr_root, boards = routing_tree
         boards["seeed-xiao-test"]["variant"] = "xiao_other/soc/cpuapp"
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("does not match the variant-derived" in e for e in errors)
 
     def test_missing_package_key(self, routing_tree):
-        zephyr_root, _, fixes = routing_tree
+        zephyr_root, _ = routing_tree
         boards = {
             "seeed-xiao-test": {
                 "package": None,
@@ -110,96 +101,48 @@ class TestChainClosure:
                 "variant": "xiao_test/soc/cpuapp",
             }
         }
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("no build.zephyr.package" in e for e in errors)
 
 
-class TestOrphans:
-    def test_orphan_fixes_key(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes["boards"]["xiao_ghost"] = {"fixes": []}
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("xiao_ghost" in e and "not a known zephyr board" in e for e in errors)
-
-    def test_orphan_patches_dir(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        (zephyr_root / "patches" / "xiao_ghost").mkdir()
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("orphan fix sources" in e for e in errors)
-
-    def test_orphan_overrides_dir(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        (zephyr_root / "overrides" / "xiao_ghost").mkdir()
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("orphan fix sources" in e for e in errors)
-
-
-class TestFixTargets:
-    def test_absolute_target_rejected(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes["boards"]["xiao_test"]["fixes"][0]["target"] = "/etc/passwd"
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("invalid target" in e for e in errors)
-
-    def test_traversal_target_rejected(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes["boards"]["xiao_test"]["fixes"][0]["target"] = "../../outside.c"
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("invalid target" in e for e in errors)
-
-    def test_missing_fix_source_rejected(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes["boards"]["xiao_test"]["fixes"][0]["path"] = "9999-gone.patch"
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("source missing" in e for e in errors)
-
-
 class TestFixesLayout:
-    @staticmethod
-    def add_fixes_dir(zephyr_root, board="xiao_test"):
-        fixes_dir = zephyr_root / "nrf" / "boards" / "seeed" / board / "fixes"
-        fixes_dir.mkdir(parents=True, exist_ok=True)
-        return fixes_dir
-
-    def test_fixes_layout_passes(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes_dir = self.add_fixes_dir(zephyr_root)
-        (fixes_dir / "drivers").mkdir()
-        (fixes_dir / "drivers" / "adc.c.patch").write_text("# fix\n", encoding="utf-8")
-        (fixes_dir / "fixes.baseline").write_text(
-            "drivers/adc.c " + "a" * 64 + "\n", encoding="utf-8"
-        )
-        assert verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes) == []
-
     def test_fix_without_baseline_entry(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes_dir = self.add_fixes_dir(zephyr_root)
-        (fixes_dir / "drivers").mkdir()
-        (fixes_dir / "drivers" / "adc.c.patch").write_text("# fix\n", encoding="utf-8")
-        (fixes_dir / "fixes.baseline").write_text("", encoding="utf-8")
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        zephyr_root, boards = routing_tree
+        fixes_dir = zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test" / "fixes"
+        (fixes_dir / "drivers" / "ghost.c").write_text("x\n", encoding="utf-8")
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("has no fixes.baseline entry" in e for e in errors)
 
     def test_baseline_without_fix_file(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        fixes_dir = self.add_fixes_dir(zephyr_root)
-        (fixes_dir / "fixes.baseline").write_text(
-            "drivers/ghost.c " + "a" * 64 + "\n", encoding="utf-8"
-        )
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        zephyr_root, boards = routing_tree
+        fixes_dir = zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test" / "fixes"
+        with open(fixes_dir / "fixes.baseline", "a", encoding="utf-8") as fp:
+            fp.write("drivers/ghost.c %s\n" % ("c" * 64))
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("no fix file" in e for e in errors)
 
     def test_missing_baseline_file(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        self.add_fixes_dir(zephyr_root)
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        zephyr_root, boards = routing_tree
+        fixes_dir = zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test" / "fixes"
+        (fixes_dir / "fixes.baseline").unlink()
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("has no fixes.baseline" in e for e in errors)
 
     def test_fixes_dir_for_unknown_board(self, routing_tree):
-        zephyr_root, boards, fixes = routing_tree
-        self.add_fixes_dir(zephyr_root, board="xiao_ghost")
-        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        zephyr_root, boards = routing_tree
+        ghost = zephyr_root / "nrf" / "boards" / "seeed" / "xiao_ghost" / "fixes"
+        ghost.mkdir(parents=True)
+        (ghost / "fixes.baseline").write_text("", encoding="utf-8")
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
         assert any("no board declares" in e for e in errors)
+
+    def test_unparseable_baseline_line(self, routing_tree):
+        zephyr_root, boards = routing_tree
+        fixes_dir = zephyr_root / "nrf" / "boards" / "seeed" / "xiao_test" / "fixes"
+        with open(fixes_dir / "fixes.baseline", "a", encoding="utf-8") as fp:
+            fp.write("garbage-line-without-sha\n")
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root)
+        assert any("unparseable baseline line" in e for e in errors)
 
 
 class TestLoader:
@@ -239,15 +182,9 @@ class TestLoader:
 
 class TestRepoGate:
     def test_repo_routing_is_clean(self, repo_root):
-        import yaml
-
-        fixes = yaml.safe_load(
-            (repo_root / "zephyr" / "fixes.yml").read_text(encoding="utf-8")
-        )
         errors = verify_zephyr_routing(
             load_zephyr_boards(repo_root / "boards"),
             load_platform_packages(repo_root / "platform.json"),
             repo_root / "zephyr",
-            fixes,
         )
         assert errors == []
