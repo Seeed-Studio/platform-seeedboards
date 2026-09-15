@@ -1,0 +1,76 @@
+name: Build ESP-IDF Examples
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/build-espidf-examples.yml'
+      - 'platform.json'
+      - 'platform.py'
+      - 'boards/**'
+      - 'builder/**'
+      - 'platform_cfg/**'
+      - 'scripts/ci/_examples_build_lib.py'
+      - 'scripts/ci/build_espidf_examples.py'
+      - 'examples/espidf-*/**'
+  pull_request:
+    paths:
+      - '.github/workflows/build-espidf-examples.yml'
+      - 'platform.json'
+      - 'platform.py'
+      - 'boards/**'
+      - 'builder/**'
+      - 'platform_cfg/**'
+      - 'scripts/ci/_examples_build_lib.py'
+      - 'scripts/ci/build_espidf_examples.py'
+      - 'examples/espidf-*/**'
+  workflow_dispatch:
+
+jobs:
+  build-espidf-examples:
+    name: PlatformIO Build (examples / espidf)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+          key: ${{ runner.os }}-pip-espidf-${{ hashFiles('.github/workflows/build-espidf-examples.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-espidf-
+
+      # Separate cache key from the arduino/zephyr workflows: framework-espidf
+      # plus both ESP toolchains are heavy; first run downloads ~1 GB.
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: ${{ runner.os }}-platformio-espidf-${{ hashFiles('examples/espidf-*/platformio.ini', 'platform.json', 'platform.py', 'builder/**', 'boards/**', 'platform_cfg/**', 'scripts/ci/build_espidf_examples.py', 'scripts/ci/_examples_build_lib.py') }}
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade pip platformio rich-click intelhex
+
+      - name: Build ESP-IDF examples (all envs)
+        run: python scripts/ci/build_espidf_examples.py --log-dir .pio-ci-logs/espidf --quiet
+
+      - name: Upload ESP-IDF build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pio-logs-espidf
+          path: .pio-ci-logs/espidf
+          if-no-files-found: ignore
