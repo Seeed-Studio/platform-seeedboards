@@ -58,7 +58,7 @@ env.Append(
 
 upload_protocol = env.subst("$UPLOAD_PROTOCOL")
 if not env.get("PIOFRAMEWORK"):
-    env.SConscript("frameworks/_bare.py")
+    env.SConscript("_bare.py", exports="env")
 
 if "zephyr" in env.get("PIOFRAMEWORK", []):
     env.SConscript(

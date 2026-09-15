@@ -445,7 +445,7 @@ if "nrfutil" == upload_protocol or (
 
 
 if not env.get("PIOFRAMEWORK"):
-    env.SConscript("frameworks/_bare.py")
+    env.SConscript("_bare.py", exports="env")
 
 #
 # Target: Build executable and linkable firmware
