@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline integrity gate for Zephyr routing (boards -> packages -> fixes).
+"""Offline integrity gate for Zephyr routing and fixes layout.
 
 Fast, standalone, no package cache, no network:
 
@@ -12,12 +12,13 @@ Checks:
      directory under zephyr/<family>/boards/seeed/;
   3. build.zephyr.board_name matches the variant-derived Zephyr board.name
      (first component of build.zephyr.variant -- one spelling of the truth);
-  4. every boards: key in zephyr/fixes.yml corresponds to a known zephyr
-     board (no orphan fixes);
-  5. every directory under zephyr/patches/ and zephyr/overrides/
-     corresponds to a known zephyr board (no orphan fix sources);
-  6. every fix target is a sane relative path inside the framework
-     package (no absolute paths, no ".." traversal).
+  4. fixes v2 layout: for every zephyr/<family>/boards/seeed/<board>/fixes/
+     directory, every fix file has a fixes.baseline entry and every
+     baseline entry has a fix file (two-way correspondence); fix paths
+     stay inside the tree; fixes/ directories belong to known boards;
+  5. legacy layout (pending removal): every boards: key in zephyr/fixes.yml
+     and every zephyr/patches//overrides/ directory corresponds to a known
+     zephyr board; fix targets are sane.
 
 Exit code 0 = all checks pass, 1 = any violation.
 """
@@ -27,6 +28,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+
+BASELINE_NAME = "fixes.baseline"
+PATCH_SUFFIX = ".patch"
 
 
 def repo_root() -> Path:
@@ -52,7 +56,7 @@ def load_zephyr_boards(boards_dir: Path) -> dict:
         try:
             manifest = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            continue  # verify_board_manifests.py reports manifest corruption
+            continue  # verify_boards.py reports manifest corruption
         if "zephyr" not in (manifest.get("frameworks") or []):
             continue
         build = manifest.get("build") or {}
@@ -66,6 +70,71 @@ def load_zephyr_boards(boards_dir: Path) -> dict:
     return result
 
 
+def _iter_fix_files(fixes_dir: Path):
+    for path in sorted(fixes_dir.rglob("*")):
+        if path.is_file() and path.name != BASELINE_NAME:
+            yield path
+
+
+def verify_fixes_layout(zephyr_root: Path, known_names: set) -> list:
+    """Check 4: fixes v2 board-dir layout consistency.
+
+    Fixes live under zephyr/<family>/boards/seeed/<board>/fixes/; the family
+    level is discovered by glob (zephyr/*/boards/*/<board>), the same
+    convention the builder uses for board dirs.
+    """
+    errors = []
+    for fixes_dir in sorted(zephyr_root.glob("*/boards/*/*/fixes")):
+        if not fixes_dir.is_dir():
+            continue
+        board_dir = fixes_dir.parent
+        baseline_path = fixes_dir / BASELINE_NAME
+        baseline = {}
+        if baseline_path.is_file():
+            for line in baseline_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    baseline[parts[0]] = parts[1].strip()
+                else:
+                    errors.append(
+                        "%s: unparseable baseline line %r"
+                        % (baseline_path.name, line)
+                    )
+        else:
+            errors.append(
+                "fixes/ for board %r has no %s" % (board_dir.name, BASELINE_NAME)
+            )
+
+        fix_targets = set()
+        for fix_file in _iter_fix_files(fixes_dir):
+            rel = fix_file.relative_to(fixes_dir).as_posix()
+            if rel.startswith("/") or ".." in fix_file.parts:
+                errors.append("fix escapes the fixes tree: %s" % fix_file)
+                continue
+            target = rel[: -len(PATCH_SUFFIX)] if rel.endswith(PATCH_SUFFIX) else rel
+            fix_targets.add(target)
+            if target not in baseline:
+                errors.append(
+                    "fix %s (board %r) has no %s entry"
+                    % (rel, board_dir.name, BASELINE_NAME)
+                )
+        for target in sorted(set(baseline) - fix_targets):
+            errors.append(
+                "%s lists target %r (board %r) with no fix file"
+                % (BASELINE_NAME, target, board_dir.name)
+            )
+
+        if board_dir.name not in known_names:
+            errors.append(
+                "fixes/ under %s but no board declares this board_name"
+                % board_dir
+            )
+    return errors
+
+
 def verify_zephyr_routing(
     zephyr_boards: dict,
     platform_packages: set,
@@ -73,7 +142,7 @@ def verify_zephyr_routing(
     fixes: dict,
 ) -> list:
     """All checks. zephyr_root is the repo's zephyr/ directory; fixes is the
-    parsed zephyr/fixes.yml content ({} when absent)."""
+    parsed legacy zephyr/fixes.yml content ({} when absent)."""
     errors = []
 
     # Checks 1+2+3: board -> package -> <family>/boards/seeed/<name>/ chain
@@ -123,7 +192,11 @@ def verify_zephyr_routing(
                 % (board_id, family, board_name)
             )
 
-    # Check 4: fixes.yml keys are known zephyr boards.
+    # Check 4: fixes v2 board-dir layout.
+    errors.extend(verify_fixes_layout(zephyr_root, known_names))
+
+    # Check 5a: fixes.yml keys are known zephyr boards (legacy, pending
+    # removal together with the registry).
     fixes_boards = set((fixes.get("boards") or {}).keys())
     for name in sorted(fixes_boards - known_names):
         errors.append(
@@ -131,7 +204,7 @@ def verify_zephyr_routing(
             "board_name (boards/arm/ or build.zephyr.board_name mismatch)" % name
         )
 
-    # Check 5: patch/override source dirs are known zephyr boards.
+    # Check 5b: patch/override source dirs are known zephyr boards (legacy).
     for subdir in ("patches", "overrides"):
         root = zephyr_root / subdir
         if not root.is_dir():
@@ -143,7 +216,7 @@ def verify_zephyr_routing(
                     "it (orphan fix sources)" % (subdir, entry, entry)
                 )
 
-    # Check 6: fix targets are sane in-package relative paths.
+    # Check 5c: fix targets are sane in-package relative paths (legacy).
     type_subdir = {"patch": "patches", "override": "overrides"}
     for name, section in sorted((fixes.get("boards") or {}).items()):
         for fix in section.get("fixes") or []:

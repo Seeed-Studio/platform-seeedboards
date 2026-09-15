@@ -81,14 +81,19 @@ def _write_text_lines(file_path, lines, newline, trailing_newline):
 def _apply_patch_hunk(file_path, old_lines, new_lines):
     lines, newline, trailing_newline = _read_text_lines(file_path)
 
+    # Check "already applied" FIRST: for pure-context insertion hunks the old
+    # block keeps matching after the hunk lands, so checking old first made
+    # every rebuild re-insert the block (observed 4x duplication in a
+    # production package cache). Checking new first is correct for
+    # replacement hunks too: new-lines present means the change is in.
+    if _find_block(lines, new_lines) >= 0:
+        return "already-applied"
+
     old_index = _find_block(lines, old_lines)
     if old_index >= 0:
         lines[old_index:old_index + len(old_lines)] = new_lines
         _write_text_lines(file_path, lines, newline, trailing_newline)
         return "applied"
-
-    if _find_block(lines, new_lines) >= 0:
-        return "already-applied"
 
     raise RuntimeError("patch hunk did not match %s" % file_path)
 
