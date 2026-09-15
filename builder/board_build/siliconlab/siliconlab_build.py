@@ -132,13 +132,9 @@ if not env.get("PIOFRAMEWORK"):
 #
 # Target: Build executable and linkable firmware
 #
-
-if "zephyr" in env.get("PIOFRAMEWORK", []):
-    env.SConscript(
-        join(platform.get_package_dir(
-            "framework-zephyr"), "scripts", "platformio", "platformio-build-pre.py"),
-        exports={"env": env}
-    )
+# (No Zephyr path here: mg24 boards are Arduino-only. The previous branch
+# referenced get_package_dir("framework-zephyr") -- a package name this
+# platform never declares -- and would have crashed had it ever run.)
 
 target_elf = None
 if "nobuild" in COMMAND_LINE_TARGETS:
