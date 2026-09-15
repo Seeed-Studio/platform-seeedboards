@@ -28,13 +28,36 @@ FAMILY_BY_PROBE_BOARD = {
 @pytest.fixture()
 def platform_instance():
     # Function-scoped on purpose: family cfg modules mutate the shared
-    # packages dict cumulatively (some even delete other families' tools,
-    # e.g. siliconlab_cfg), so one instance must not be reused across
-    # families -- mirroring the one-process-per-pio-run reality.
+    # packages dict cumulatively (optional flags, per-board tool gating),
+    # so most tests mirror the one-process-per-pio-run reality with a
+    # fresh instance. The cross-family regression test below is the
+    # exception and builds its own instance explicitly.
     import pathlib
 
     repo = pathlib.Path(__file__).resolve().parents[1]
     return PlatformFactory.new(str(repo))
+
+
+class TestCrossFamilyIsolation:
+    def test_siliconlab_then_rpi_in_one_process(self):
+        """Regression: siliconlab_cfg used to delete rpi/esp/nrf tool
+        packages from the shared dict, crashing any later in-process
+        configuration of those families (KeyError in rpi_cfg)."""
+        import pathlib
+
+        repo = pathlib.Path(__file__).resolve().parents[1]
+        platform = PlatformFactory.new(str(repo))
+        for board_id, framework in (
+            ("seeed-xiao-mg24", "arduino"),
+            ("seeed-xiao-rp2040", "arduino"),
+            ("seeed-xiao-esp32-c3", "arduino"),
+            ("seeed-xiao-mbed-nrf52840", "arduino"),
+        ):
+            platform.configure_default_packages(
+                {"board": board_id, "framework": [framework], "pioframework": [framework]},
+                [],
+            )
+        # All four families configured through one shared instance.
 
 
 class TestZephyrRouting:
