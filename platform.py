@@ -39,8 +39,6 @@ if IS_WINDOWS:
     os.environ["PLATFORMIO_SYSTEM_TYPE"] = "windows_amd64"
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-Architecture = ""
 ZEPHYR_PACKAGE_BY_BOARD = {
     "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
     "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
@@ -73,44 +71,26 @@ class SeeedstudioPlatform(PlatformBase):
 
     def configure_default_packages(self, variables, targets):
 
-        global Architecture
         if not variables.get("board"):
             return super().configure_default_packages(variables, targets)
 
         board_name = variables.get("board")
         self._configure_zephyr_package_for_board(board_name, variables)
 
-        if "esp32" in board_name:
-            Architecture = "esp"
-        if board_name == "seeed-xiao-ra4m1":
-            Architecture = "renesas"
-        if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
-            Architecture = "rpi"
-        if "nrf" in board_name:
-            Architecture = "nrf"
-        if "samd" in board_name:
-            Architecture = "samd"
-        if "mg24" in board_name:
-            Architecture = "siliconlab"
-        if "stm32" in board_name:
-            Architecture = "stm32"
+        family = self.get_board_family(board_name)
 
-        if Architecture:
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_board = getattr(board_module, f"configure_{Architecture}_default_packages")
-                configure_board(self, variables, targets)
-            except (ImportError, AttributeError) as e:
+        if family:
+            board_module = import_module(f"platform_cfg.{family}_cfg")
+            configure_board = getattr(board_module, f"configure_{family}_default_packages")
+            configure_board(self, variables, targets)
 
-                print(f"Error: {e} for board {board_name}")
-
-        if Architecture == "esp":
+        if family == "esp":
             self._prefer_local_esp_tools()
             self._ensure_esptoolpy_runtime_dependencies()
 
         result = super().configure_default_packages(variables, targets)
 
-        if Architecture == "esp" and self._prepare_esp_tools():
+        if family == "esp" and self._prepare_esp_tools():
             result = super().configure_default_packages(variables, targets)
 
         return result
@@ -362,47 +342,34 @@ class SeeedstudioPlatform(PlatformBase):
 
 
     def _add_dynamic_options(self, board):
-        global Architecture
-        board_name = board.id
-        if "esp32" in board_name:
-            Architecture = "esp"
-        if board_name == "seeed-xiao-ra4m1":
-            Architecture = "renesas"
+        """Inject family default debug tools into a board manifest.
 
-        if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
-            Architecture = "rpi"
+        Resolves the family from the board manifest itself (single source of
+        truth); user-custom external boards (no build.family) are returned
+        unchanged. Always returns the board object -- PlatformIO core calls
+        get_brief_data() on every entry of get_boards(), so a None return
+        crashes `pio boards` listing.
+        """
+        family = self.get_board_family(board)
+        if not family:
+            return board
 
-        if "nrf" in board_name:
-            Architecture = "nrf"
-        if "samd" in board_name:
-            Architecture = "samd"
-        if "mg24" in board_name:
-            Architecture = "siliconlab"
-        if "stm32" in board_name:
-            Architecture = "stm32"
-
-        if Architecture:
-            # 动态导入板子配置函数
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_tool = getattr(board_module, f"_add_{Architecture}_default_debug_tools")
-                return configure_tool(self, board)
-            except (ImportError, AttributeError) as e:
-                print(f"Error: in _add_dynamic_options {e} for board {board_name}")
-        else:
-            print("no config Architecture")
-            return
-
+        board_module = import_module(f"platform_cfg.{family}_cfg")
+        configure_tool = getattr(board_module, f"_add_{family}_default_debug_tools")
+        return configure_tool(self, board)
 
 
     def configure_debug_session(self, debug_config):
-        global Architecture
+        board_config = getattr(debug_config, "board_config", None)
+        if not board_config:
+            return
 
-        if Architecture:
-            # 动态导入板子配置函数
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_debug_seesion = getattr(board_module, f"configure_{Architecture}_debug_session")
-                configure_debug_seesion(self, debug_config)
-            except (ImportError, AttributeError) as e:
-                print(f"Error: in configure_debug_session {e} for board {Architecture}")
+        family = self.get_board_family(board_config)
+        if not family:
+            return
+
+        board_module = import_module(f"platform_cfg.{family}_cfg")
+        configure_debug_session = getattr(
+            board_module, f"configure_{family}_debug_session"
+        )
+        configure_debug_session(self, debug_config)
