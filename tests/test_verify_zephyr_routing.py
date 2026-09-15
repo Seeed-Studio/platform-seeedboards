@@ -127,11 +127,53 @@ class TestFixTargets:
         errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
         assert any("invalid target" in e for e in errors)
 
-    def test_missing_fix_source_rejected(self, routing_tree):
+
+class TestFixesLayout:
+    @staticmethod
+    def add_fixes_dir(zephyr_root, board="xiao_test"):
+        fixes_dir = zephyr_root / "boards" / "arm" / board / "fixes"
+        fixes_dir.mkdir(parents=True, exist_ok=True)
+        return fixes_dir
+
+    def test_fixes_layout_passes(self, routing_tree):
         zephyr_root, boards, fixes = routing_tree
-        fixes["boards"]["xiao_test"]["fixes"][0]["path"] = "9999-gone.patch"
+        fixes_dir = self.add_fixes_dir(zephyr_root)
+        (fixes_dir / "drivers").mkdir()
+        (fixes_dir / "drivers" / "adc.c.patch").write_text("# fix\n", encoding="utf-8")
+        (fixes_dir / "fixes.baseline").write_text(
+            "drivers/adc.c " + "a" * 64 + "\n", encoding="utf-8"
+        )
+        assert verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes) == []
+
+    def test_fix_without_baseline_entry(self, routing_tree):
+        zephyr_root, boards, fixes = routing_tree
+        fixes_dir = self.add_fixes_dir(zephyr_root)
+        (fixes_dir / "drivers").mkdir()
+        (fixes_dir / "drivers" / "adc.c.patch").write_text("# fix\n", encoding="utf-8")
+        (fixes_dir / "fixes.baseline").write_text("", encoding="utf-8")
         errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
-        assert any("source missing" in e for e in errors)
+        assert any("has no fixes.baseline entry" in e for e in errors)
+
+    def test_baseline_without_fix_file(self, routing_tree):
+        zephyr_root, boards, fixes = routing_tree
+        fixes_dir = self.add_fixes_dir(zephyr_root)
+        (fixes_dir / "fixes.baseline").write_text(
+            "drivers/ghost.c " + "a" * 64 + "\n", encoding="utf-8"
+        )
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        assert any("no fix file" in e for e in errors)
+
+    def test_missing_baseline_file(self, routing_tree):
+        zephyr_root, boards, fixes = routing_tree
+        self.add_fixes_dir(zephyr_root)
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        assert any("has no fixes.baseline" in e for e in errors)
+
+    def test_fixes_dir_for_unknown_board(self, routing_tree):
+        zephyr_root, boards, fixes = routing_tree
+        self.add_fixes_dir(zephyr_root, board="xiao_ghost")
+        errors = verify_zephyr_routing(boards, PACKAGES, zephyr_root, fixes)
+        assert any("no board declares" in e for e in errors)
 
 
 class TestLoader:
