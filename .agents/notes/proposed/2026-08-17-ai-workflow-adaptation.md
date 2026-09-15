@@ -115,4 +115,3 @@ Status: proposed
 - [`AGENTS.md`](../../../AGENTS.md)
 - [`platformio-development`](../../skills/platformio-development/SKILL.md)
 - [`Development Notes`](../README.md)
-- [`PlatformIO refactoring study`](../../../docs/REFACTORING_PIO.md)

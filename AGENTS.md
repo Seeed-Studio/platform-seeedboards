@@ -8,7 +8,7 @@ This repository is the source of the Seeed Studio PlatformIO platform. The Git r
 
 - Before modifying board metadata, `platform.json`, `platform.py`, `platform_cfg/`, `builder/`, `zephyr/`, examples, or CI build scripts, read and follow [platformio-development](.agents/skills/platformio-development/SKILL.md).
 - Read-only investigation, design discussion, documentation-only work, and code review do not require the fork-validation inputs from that skill unless they also change PlatformIO behavior.
-- Read [docs/REFACTORING_PIO.md](docs/REFACTORING_PIO.md) before changing board/profile ownership, Zephyr architecture, package-cache behavior, or compatibility fixes.
+- Before changing board/profile ownership, Zephyr architecture, package-cache behavior, or compatibility fixes, search [.agents/notes/](.agents/notes/README.md) for the owning or related note and follow any active note as current guidance.
 
 ## Ownership and compatibility
 
