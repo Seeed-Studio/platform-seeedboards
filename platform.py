@@ -153,6 +153,46 @@ class SeeedstudioPlatform(PlatformBase):
         """
         return ZEPHYR_BOARD_NAME_BY_BOARD.get(board_name, "")
 
+    def get_board_family(self, board):
+        """Resolve the MCU family for a board id or board-config object.
+
+        build.family in the board manifest is the single source of truth for
+        board -> family routing (see .agents/notes/proposed/
+        2026-09-15-board-family-routing-single-source.md). Platform manifests
+        missing the key fail loudly with the manifest path; manifests loaded
+        from outside this platform's boards/ directory (user-custom boards)
+        warn once and return None, preserving their historical no-family
+        handling.
+        """
+        if isinstance(board, str):
+            # Base implementation on purpose: no _add_dynamic_options side
+            # effects during package configuration.
+            board = PlatformBase.get_boards(self, board)
+        if board is None:
+            return None
+
+        family = board.get("build.family", None)
+        if family:
+            return family
+
+        manifest_dir = os.path.dirname(os.path.abspath(board.manifest_path))
+        platform_boards_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "boards"
+        )
+        if os.path.normpath(manifest_dir) != os.path.normpath(platform_boards_dir):
+            print(
+                "Warning: board '%s' declares no build.family in %s; "
+                "skipping family handling" % (board.id, board.manifest_path)
+            )
+            return None
+        raise KeyError(
+            "Board '%s' is missing 'build.family' in %s. Add it to the "
+            "manifest -- one of esp, nrf, renesas, rpi, samd, siliconlab, "
+            "stm32 (see .agents/notes/proposed/"
+            "2026-09-15-board-family-routing-single-source.md)."
+            % (board.id, board.manifest_path)
+        )
+
     def _iter_required_esp_tools(self):
         return [
             name

@@ -1,6 +1,6 @@
 {
     "build": {
-        "arduino": {
+      "family": "rpi",        "arduino": {
             "earlephilhower": {
                 "boot2_source": "boot2_w25q080_2_padded_checksum.S",
                 "usb_vid": "0x2E8A",

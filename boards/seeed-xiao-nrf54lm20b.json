@@ -1,10 +1,10 @@
 {
     "build": {
-      "cpu": "cortex-m33",
+      "family": "nrf",      "cpu": "cortex-m33",
       "f_cpu": "128000000L",
       "mcu": "nrf54lm20b",
       "zephyr": {
-        "variant": "xiao_nrf54lm20b/nrf54lm20b/cpuapp",
+        "package": "framework-zephyr-nrf54lm20",        "board_name": "xiao_nrf54lm20b",        "variant": "xiao_nrf54lm20b/nrf54lm20b/cpuapp",
         "bootloader": {
           "header_len": "0x800",
           "flash_alignment": "16",

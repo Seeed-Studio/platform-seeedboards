@@ -1,6 +1,6 @@
 {
     "build": {
-        "cpu": "cortex-m33",
+      "family": "stm32",        "cpu": "cortex-m33",
         "f_cpu": "144000000L",
         "hwids": [
             [
@@ -10,7 +10,7 @@
         ],
         "mcu": "stm32c5a3cg",
         "zephyr": {
-            "variant": "xiao_stm32c5"
+          "package": "framework-zephyr-nrf54lm20",          "board_name": "xiao_stm32c5",            "variant": "xiao_stm32c5"
         }
     },
     "debug": {
