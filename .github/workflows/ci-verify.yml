@@ -50,7 +50,7 @@ jobs:
             ${{ runner.os }}-pip-verify-
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip platformio pyyaml pytest
+        run: python -m pip install --upgrade pip platformio pytest
 
       - name: Run unit tests
         # NOTE: use the pytest console script, NOT `python -m pytest` -- the

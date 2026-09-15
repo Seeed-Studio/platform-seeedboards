@@ -1,6 +1,6 @@
 # Zephyr fixes: directory convention (fixes v2)
 
-Status: proposed
+Status: implemented
 
 ## Context
 
@@ -20,9 +20,9 @@ avoidable weight:
   patches/<board>/, overrides/<board>/) while the board's own definition
   lives in `zephyr/boards/arm/<board>/`.
 
-## Proposal
+## Decision
 
-Move fixes into the board's directory; the directory IS the registration:
+Fixes live in the board's directory; the directory IS the registration:
 
 ```
 zephyr/boards/arm/<board>/

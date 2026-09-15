@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Offline integrity gate for Zephyr routing and fixes layout.
 
-Fast, standalone, no package cache, no network (invariant-gate pattern
-from .agents/notes/proposed/2026-08-17-ai-workflow-adaptation.md):
+Fast, standalone, no package cache, no network, stdlib-only (invariant-gate
+pattern from .agents/notes/proposed/2026-08-17-ai-workflow-adaptation.md):
 
     python scripts/ci/verify_zephyr_routing.py
 
@@ -11,13 +11,10 @@ Checks:
      package declared in platform.json (build.zephyr.package);
   2. every zephyr board's build.zephyr.board_name has a matching
      directory under zephyr/boards/arm/;
-  3. fixes v2 layout: for every zephyr/boards/arm/<board>/fixes/
-     directory, every fix file has a fixes.baseline entry and every
-     baseline entry has a fix file (two-way correspondence); fix paths
-     stay inside the tree;
-  4. legacy layout (pending removal): every boards: key in
-     zephyr/fixes.yml and every zephyr/patches//overrides/ directory
-     corresponds to a known zephyr board; fix targets are sane.
+  3. fixes layout: for every zephyr/boards/arm/<board>/fixes/ directory,
+     every fix file has a fixes.baseline entry and every baseline entry
+     has a fix file (two-way correspondence); fix paths stay inside the
+     tree; fixes/ directories belong to known boards.
 
 Exit code 0 = all checks pass, 1 = any violation.
 """
@@ -120,10 +117,8 @@ def verify_zephyr_routing(
     zephyr_boards: dict,
     platform_packages: set,
     zephyr_root: Path,
-    fixes: dict,
 ) -> list:
-    """All checks. zephyr_root is the repo's zephyr/ directory; fixes is the
-    parsed legacy zephyr/fixes.yml content ({} when absent)."""
+    """All checks. zephyr_root is the repo's zephyr/ directory."""
     errors = []
 
     # Checks 1+2: board -> package -> boards/arm/<name>/ chain closes.
@@ -154,35 +149,10 @@ def verify_zephyr_routing(
                 "board %r: no zephyr/boards/arm/%s/ directory" % (board_id, board_name)
             )
 
-    # Check 3: fixes v2 board-dir layout.
+    # Check 3: fixes board-dir layout.
     errors.extend(
         verify_fixes_layout(zephyr_root / "boards" / "arm", known_names)
     )
-
-    # Check 4: legacy registry layout (until it is removed).
-    fixes_boards = set((fixes.get("boards") or {}).keys())
-    for name in sorted(fixes_boards - known_names):
-        errors.append(
-            "fixes.yml: board %r has fixes but is not a known zephyr "
-            "board_name (boards/arm/ or build.zephyr.board_name mismatch)" % name
-        )
-    for subdir in ("patches", "overrides"):
-        root = zephyr_root / subdir
-        if not root.is_dir():
-            continue
-        for entry in sorted(p.name for p in root.iterdir() if p.is_dir()):
-            if entry not in known_names:
-                errors.append(
-                    "zephyr/%s/%s/ exists for board %r but no board declares "
-                    "it (orphan fix sources)" % (subdir, entry, entry)
-                )
-    for name, section in sorted((fixes.get("boards") or {}).items()):
-        for fix in section.get("fixes") or []:
-            target = fix.get("target")
-            if not target or target.startswith("/") or ".." in Path(target).parts:
-                errors.append(
-                    "fixes.yml: fix %r has invalid target %r" % (fix.get("id"), target)
-                )
 
     return errors
 
@@ -202,22 +172,8 @@ def main() -> int:
         print("verify_zephyr_routing: no zephyr boards found", file=sys.stderr)
         return 1
 
-    fixes = {}
-    fixes_path = root / "zephyr" / "fixes.yml"
-    if fixes_path.is_file():
-        try:
-            import yaml
-
-            fixes = yaml.safe_load(fixes_path.read_text(encoding="utf-8")) or {}
-        except ImportError:
-            print(
-                "verify_zephyr_routing: pyyaml is required (pip install pyyaml)",
-                file=sys.stderr,
-            )
-            return 1
-
     errors = verify_zephyr_routing(
-        zephyr_boards, platform_packages, root / "zephyr", fixes
+        zephyr_boards, platform_packages, root / "zephyr"
     )
     if errors:
         for error in errors:
@@ -227,10 +183,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print(
-        "verify_zephyr_routing: OK (%d zephyr boards, %d fixes.yml boards)"
-        % (len(zephyr_boards), len((fixes.get("boards") or {})))
-    )
+    print("verify_zephyr_routing: OK (%d zephyr boards)" % len(zephyr_boards))
     return 0
 
 
