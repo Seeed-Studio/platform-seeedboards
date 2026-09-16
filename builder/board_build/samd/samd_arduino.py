@@ -28,21 +28,17 @@ from SCons.Script import DefaultEnvironment
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
-build_mcu = env.get("BOARD_MCU", board.get("build.mcu", ""))
 
 VENDOR_CORE = board.get("build.core", "").lower()
 FRAMEWORK_DIR = platform.get_package_dir("framework-arduino-samd-seeed")
 CMSIS_DIR = platform.get_package_dir("framework-cmsis")
 CMSIS_ATMEL_DIR = platform.get_package_dir("framework-cmsis-atmel")
-print("FRAMEWORK_DIR is:",FRAMEWORK_DIR)
-print("CMSIS_DIR is:",CMSIS_DIR)
-print("CMSIS_ATMEL_DIR is:",CMSIS_ATMEL_DIR)
 assert all(os.path.isdir(d) for d in (FRAMEWORK_DIR, CMSIS_DIR, CMSIS_ATMEL_DIR))
 
-MCU_FAMILY = board.get("build.system", "samd")
-assert MCU_FAMILY in ("sam", "samd")
-
 BUILD_CORE = "arduino"
+
+# Arduino core version encoded for the ARDUINO macro (1.8.5 -> 10805)
+ARDUINO_VERSION_MACRO = 10805
 
 def get_variants_dir():
     if "build.variants_dir" not in board:
@@ -85,7 +81,7 @@ env.Append(
     ],
 
     CPPDEFINES=[
-        ("ARDUINO", 10805),
+        ("ARDUINO", ARDUINO_VERSION_MACRO),
         ("F_CPU", "$BOARD_F_CPU"),
         "USBCON"
     ],

@@ -5,24 +5,25 @@ def configure_nrf_default_packages(self, variables, targets):
     upload_protocol = ""
     board = variables.get("board")
     frameworks = variables.get("pioframework", [])
-    
+
     if board:
         upload_protocol = variables.get(
             "upload_protocol",
             self.board_config(board).get("upload.protocol", ""))
 
         self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-        # if board in ("seeed-xiao-afruitnrf52-nrf52840", "seeed-xiao-ble-nrf52840-sense"):
+        # The Adafruit nRF52 core matches any board whose id contains
+        # "afruitnrf52-nrf52840", covering the -plus/-sense variants.
         if "afruitnrf52-nrf52840" in board:
             self.frameworks["arduino"][
                 "package"] = "framework-arduinoadafruitnrf52"
-            
+
             self.packages["framework-cmsis"]["optional"] = False
             self.packages["tool-adafruit-nrfutil"]["optional"] = False
             # The Adafruit nRF52 core (1.10x) links only on the GCC 7
             # line; GCC 12 fails with undefined USB CDC symbols.
             self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.70201.0"
-        
+
 
 
 
@@ -31,7 +32,7 @@ def configure_nrf_default_packages(self, variables, targets):
             self.packages["tool-openocd"]["optional"] = False
             self.packages["tool-bossac-nordicnrf52"]["optional"] = False
             self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
-                # needed to build the ZIP file
+            # needed to build the ZIP file
             self.packages["tool-adafruit-nrfutil"]["optional"] = False
 
             self.frameworks["arduino"][
@@ -91,7 +92,7 @@ def _add_nrf_default_debug_tools(self, board):
 
         elif link == "jlink":
             assert debug.get("jlink_device"), (
-                "Missed J-Link Device ID for %s" % board.id)
+                "Missing J-Link Device ID for %s" % board.id)
             debug["tools"][link] = {
                 "server": {
                     "package": "tool-jlink",
@@ -123,7 +124,7 @@ def _add_nrf_default_debug_tools(self, board):
             else:
                 server_args.append("-f")
                 server_args.append("target/%s" % openocd_target)
-                
+
             if link == "stlink":
                 server_args.extend([
                     "-c",

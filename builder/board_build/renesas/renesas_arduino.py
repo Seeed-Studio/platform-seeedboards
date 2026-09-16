@@ -23,19 +23,17 @@ https://github.com/arduino/ArduinoCore-renesas
 
 import os
 
-from SCons.Script import DefaultEnvironment
-
 from platformio import fs
 
-# env = DefaultEnvironment()
 Import("env")
 platform = env.PioPlatform()
 board = env.BoardConfig()
 
+# Arduino core version encoded for the ARDUINO macro (1.8.10 -> 10810)
+ARDUINO_VERSION_MACRO = 10810
+
 
 FRAMEWORK_DIR = platform.get_package_dir("framework-arduinorenesas-uno")
-
-print("FRAMEWORK_DIR =:",FRAMEWORK_DIR)
 
 assert os.path.isdir(FRAMEWORK_DIR)
 
@@ -59,7 +57,7 @@ cxxflags = set(load_flags("cxxflags"))
 ccflags = cflags.intersection(cxxflags)
 
 env.Append(
-    ASFLAGS=[f for f in sorted(ccflags) if isinstance(f, str) and f.startswith("-m")],
+    ASFLAGS=[f for f in sorted(ccflags) if f.startswith("-m")],
 
     ASPPFLAGS=["-x", "assembler-with-cpp"],
 
@@ -113,7 +111,7 @@ env.Append(
     ],
 
     CPPDEFINES=[
-        ("ARDUINO", 10810),
+        ("ARDUINO", ARDUINO_VERSION_MACRO),
         "ARDUINO_ARCH_RENESAS",
         "ARDUINO_FSP",
         ("_XOPEN_SOURCE", 700),

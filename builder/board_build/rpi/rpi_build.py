@@ -14,7 +14,7 @@
 
 import sys
 from platform import system
-from os import makedirs, remove, environ
+from os import makedirs, environ
 from os.path import isdir, join, isfile, exists
 import re
 import time
@@ -25,7 +25,13 @@ from platformio.proc import exec_command
 from platformio.public import list_serial_ports
 
 from SCons.Script import (ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild,
-                          Builder, Default, DefaultEnvironment)
+                          Builder, Default)
+
+# RP2040/RP2350 XIP flash base address (flash is memory-mapped here)
+RP2_FLASH_XIP_BASE = 0x10000000
+
+# Baud rate for the 1200-bps touch that reboots the board into bootloader mode
+BOOTLOADER_TOUCH_BAUD = 1200
 
 def convert_size_expression_to_int(expression):
     conversion_factors = {
@@ -73,9 +79,9 @@ def fetch_fs_size(env):
     psram_len = convert_size_expression_to_int(str(board.get("upload.psram_length", "0")))
     print("PSRAM size: %.2fMB" % (psram_len / 1024.0 / 1024.0))
 
-    eeprom_start = 0x10000000 + flash_size - eeprom_size
-    fs_start = 0x10000000 + flash_size - eeprom_size - filesystem_size_int
-    fs_end = 0x10000000 + flash_size - eeprom_size
+    eeprom_start = RP2_FLASH_XIP_BASE + flash_size - eeprom_size
+    fs_start = RP2_FLASH_XIP_BASE + flash_size - eeprom_size - filesystem_size_int
+    fs_end = RP2_FLASH_XIP_BASE + flash_size - eeprom_size
 
     if maximum_sketch_size <= 0:
         sys.stderr.write(
@@ -95,9 +101,9 @@ def fetch_fs_size(env):
     env["FS_PAGE"] = 256
     env["FS_BLOCK"] = 4096
 
-    print("Maximium Sketch size: %d "
+    print("Maximum Sketch size: %d "
         "EEPROM start: %s Filesystem start: %s "
-        "Filesystem end: %s" % 
+        "Filesystem end: %s" %
         (maximum_sketch_size, hex(eeprom_start), hex(fs_start), hex(fs_end)))
 
 
@@ -106,7 +112,7 @@ def __fetch_fs_size(target, source, env):
     return (target, source)
 
 def get_num_rpxxxx_devs(picotool_path: str):
-    # regardless of whether an RP2040 or RP2350 device is deteced, it will print "type: [..] RP2350" or "type: [..] RP2040".
+    # regardless of whether an RP2040 or RP2350 device is detected, it will print "type: [..] RP2350" or "type: [..] RP2040".
     # else it will not print "type:".
     output = subprocess.run('"' + picotool_path + '" info -d', check=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).stdout
     return output.count(b"type:")
@@ -136,11 +142,11 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
 
     # fastpath if device is already in BOOTSEL mode. We don't need to do anything.
     upload_protocol = env.subst("$UPLOAD_PROTOCOL") or "picotool"
-    if upload_protocol == "picotool" and upload_options.get("use_1200bps_touch", False) is True:
+    if upload_protocol == "picotool" and upload_options.get("use_1200bps_touch", False):
         picotool_path = join(env.PioPlatform().get_package_dir("tool-picotool-rp2040-earlephilhower") or "", "picotool")
-        num_now = get_num_rpxxxx_devs(picotool_path) 
-        if get_num_rpxxxx_devs(picotool_path) != 0:
-            print("Already found " + str(num_now) + " device(s) RPxxxx device in BOOTSEL mode, not trying to do 1200bps reset.")
+        num_now = get_num_rpxxxx_devs(picotool_path)
+        if num_now != 0:
+            print("Already found " + str(num_now) + " RPxxxx device(s) in BOOTSEL mode, not trying to do 1200bps reset.")
             return
 
     potential_serial_number = get_serial_number(env.subst("$UPLOAD_PORT"))
@@ -163,7 +169,7 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
     if upload_options.get("use_1200bps_touch", False):
         picotool_path = join(env.PioPlatform().get_package_dir("tool-picotool-rp2040-earlephilhower") or "", "picotool")
         num_before = get_num_rpxxxx_devs(picotool_path)
-        env.TouchSerialPort("$UPLOAD_PORT", 1200)
+        env.TouchSerialPort("$UPLOAD_PORT", BOOTLOADER_TOUCH_BAUD)
         # delay a tiny bit in any case
         time.sleep(0.2)
         max_wait_s = 3.0
@@ -186,7 +192,7 @@ def generate_uf2(target, source, env):
     platform = env.PioPlatform()
     picotool_dir = platform.get_package_dir("tool-picotool-rp2040-earlephilhower") or ""
     picotool_cmd = join(picotool_dir, "picotool")
-    
+
     env.Execute(
         " ".join(
             [
@@ -202,27 +208,26 @@ def generate_uf2(target, source, env):
     )
 
 
-# env = DefaultEnvironment()
 Import("env")
 platform = env.PioPlatform()
 board = env.BoardConfig()
 chip = board.get("build.mcu")
 
-toolchain_tripple = "arm-none-eabi"
+toolchain_triplet = "arm-none-eabi"
 if chip == "rp2350-riscv":
-    toolchain_tripple = "riscv32-unknown-elf"
+    toolchain_triplet = "riscv32-unknown-elf"
 
 env.Replace(
     __fetch_fs_size=fetch_fs_size,
 
-    AR="%s-ar" % toolchain_tripple,
-    AS="%s-as" % toolchain_tripple,
-    CC="%s-gcc" % toolchain_tripple,
-    CXX="%s-g++" % toolchain_tripple,
-    GDB="%s-gdb" % toolchain_tripple,
-    OBJCOPY="%s-objcopy" % toolchain_tripple,
-    RANLIB="%s-ranlib" % toolchain_tripple,
-    SIZETOOL="%s-size" % toolchain_tripple,
+    AR="%s-ar" % toolchain_triplet,
+    AS="%s-as" % toolchain_triplet,
+    CC="%s-gcc" % toolchain_triplet,
+    CXX="%s-g++" % toolchain_triplet,
+    GDB="%s-gdb" % toolchain_triplet,
+    OBJCOPY="%s-objcopy" % toolchain_triplet,
+    RANLIB="%s-ranlib" % toolchain_triplet,
+    SIZETOOL="%s-size" % toolchain_triplet,
 
     ARFLAGS=["rc"],
 
@@ -358,7 +363,6 @@ is_arduino_pico_build = env.BoardConfig().get("build.core", "arduino") == "earle
 if is_arduino_pico_build:
     pubkey = join(env.subst("$PROJECT_SRC_DIR"), "public.key")
     if isfile(pubkey):
-        header_file =  join(env.subst("$BUILD_DIR"), "core", "Updater_Signing.h")
         env.Prepend(CCFLAGS=['-I"%s"' % join("$BUILD_DIR", "core")])
         env.Execute(" ".join([
                 '"$PYTHONEXE" "%s"' % join(
@@ -376,7 +380,6 @@ target_elf = None
 target_signed_bin = None
 if "nobuild" in COMMAND_LINE_TARGETS:
     target_elf = join("$BUILD_DIR", "${PROGNAME}.elf")
-    target_firm = join("$BUILD_DIR", "${PROGNAME}.bin")
     target_firm = join("$BUILD_DIR", "${PROGNAME}.bin.signed")
 else:
     target_elf = env.BuildProgram()
@@ -422,7 +425,7 @@ target_size = env.Alias(
     env.VerboseAction("$SIZEPRINTCMD", "Calculating size $SOURCE"))
 AlwaysBuild(target_size)
 
-def RebootPico(target, source, env): 
+def RebootPico(target, source, env):
     time.sleep(0.5)
     env.Execute(
         '"%s" reboot' %
@@ -460,7 +463,7 @@ def TryResetPico(target, source, env):
     if len(ports) != 0:
         last_port = ports[-1]["port"]
         if upload_options.get("use_1200bps_touch", False):
-            env.TouchSerialPort(last_port, 1200)
+            env.TouchSerialPort(last_port, BOOTLOADER_TOUCH_BAUD)
             time.sleep(2.0)
 
 from platformio.device.list.util import list_logical_devices
@@ -471,7 +474,6 @@ def find_rpi_disk(initial_port):
     # 1-tuple on purpose: a plain ("RPI-RP2") is a string and would match
     # per-character in the label search below.
     msdlabels = ("RPI-RP2",)
-    item:str
     for item in list_logical_devices():
         if item["path"].startswith("/net"):
             continue
@@ -486,7 +488,7 @@ def find_rpi_disk(initial_port):
             return item["path"]
         if item["name"] and any(l in item["name"].lower() for l in msdlabels):
             return item["path"]
-    return None    
+    return None
 
 def AutodetectPicoDisk(target, source, env):
     initial_port = env.subst("$UPLOAD_PORT")
@@ -556,7 +558,7 @@ elif upload_protocol == "espota":
     else:
         # check if we have a .bin.signed file available.
         # since the file may not be build yet, we try to predict that we will
-        # have that file if they private signing key exists.
+        # have that file if the private signing key exists.
         if isfile(join(env.subst("$PROJECT_SRC_DIR"), "private.key")):
             sys.stdout.write("Using signed OTA update file.")
             upload_source = target_signed_bin
@@ -645,7 +647,7 @@ elif upload_protocol in debug_tools:
         # normal firmware upload. flash starts at 0x10000000
         openocd_args.extend([
             "-c", "program {$SOURCE} %s verify; reset init; resume; shutdown;" %
-            board.get("upload.offset_address", "") 
+            board.get("upload.offset_address", "")
         ])
     openocd_args = [
         f.replace("$PACKAGE_DIR", platform.get_package_dir(

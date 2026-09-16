@@ -146,21 +146,14 @@ env.Append(
 )
 
 if board.get("build.cpu") == "cortex-m4":
+    float_flags = [
+        "-mfloat-abi=hard",
+        "-mfpu=fpv4-sp-d16",
+    ]
     env.Append(
-        ASFLAGS=[
-            "-mfloat-abi=hard",
-            "-mfpu=fpv4-sp-d16",
-        ],
-        CCFLAGS=[
-            "-mfloat-abi=hard",
-            "-mfpu=fpv4-sp-d16",
-            "-u", "_printf_float"
-        ],
-        LINKFLAGS=[
-            "-mfloat-abi=hard",
-            "-mfpu=fpv4-sp-d16",
-            "-u", "_printf_float"
-        ]
+        ASFLAGS=float_flags,
+        CCFLAGS=float_flags + ["-u", "_printf_float"],
+        LINKFLAGS=float_flags + ["-u", "_printf_float"]
     )
 
 # Process softdevice options
@@ -254,10 +247,10 @@ if "CFG_DEBUG" not in cpp_flags:
 
 
 libraries_dir = os.path.join(FRAMEWORK_DIR, "libraries")
-libpaths = set() 
+libpaths = set()
 
 for root, dirs, files in os.walk(libraries_dir):
-    
+
     if any(f.endswith(('.c', '.cpp', '.h', '.a')) for f in files):
         libpaths.add(root)
 
@@ -291,5 +284,5 @@ libs.append(
     env.BuildLibrary(
         join("$BUILD_DIR", "FrameworkArduino"),
         join(CORE_DIR)))
-  
+
 env.Prepend(LIBS=libs)

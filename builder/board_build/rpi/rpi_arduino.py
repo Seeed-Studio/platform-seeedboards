@@ -15,16 +15,11 @@
 import sys
 from os.path import join, isfile
 
-from SCons.Script import DefaultEnvironment, SConscript
+from SCons.Script import SConscript
 
-# env = DefaultEnvironment()
 Import("env")
-core = env.BoardConfig().get("build.core", "arduino")
-build_script = ""
 
-# select build script as either from the Earle Philhower core or
-# from the builder script contained in this platform.
-
+# Delegate to the Earle Philhower arduino-pico core's PlatformIO build script.
 build_script = join(
     env.PioPlatform().get_package_dir("framework-arduinopico"), "tools", "platformio-build.py")
 

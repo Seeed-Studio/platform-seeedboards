@@ -19,17 +19,13 @@ control devices attached to a wide range of Arduino boards to create all
 kinds of creative coding, interactive objects, spaces or physical experiences.
 """
 import os
-from os import listdir
 from os.path import isdir, join
 
 from SCons.Script import DefaultEnvironment
 
-import re
-
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
-variant = board.get("build.variant")
 
 env.ProcessUnFlags("-flto")
 env.Append(
@@ -38,7 +34,6 @@ env.Append(
 )
 
 FRAMEWORK_DIR = platform.get_package_dir("framework-arduino-silabs")
-print("FRAMEWORK_DIR=:",FRAMEWORK_DIR)
 assert isdir(FRAMEWORK_DIR)
 
 
@@ -50,8 +45,9 @@ for core_name in core_candidates:
     if isdir(candidate):
         CORE_DIR = candidate
         break
-print("CORE_DIR=:",CORE_DIR)
-assert isdir(CORE_DIR)
+assert CORE_DIR and isdir(CORE_DIR), (
+    "Arduino core not found under %s (tried %s)" % (FRAMEWORK_DIR, core_candidates)
+)
 
 VARIANT_DIR = join(FRAMEWORK_DIR, "variants", "xiao_mg24")
 
@@ -75,15 +71,7 @@ env.Append(
     ]
 )
 
-
-
-var = join(VARIANT_DIR,"matter","gecko_sdk_4.4.0","platform","common","toolchain","inc","sl_gcc_preinclude.h")
-_var = join(VARIANT_DIR,"matter","config","psa_crypto_config.h")
-_var_ = join(VARIANT_DIR,"matter","config","sl_mbedtls_config.h")
-
 env.Append(
-
-
     ASFLAGS=machine_flags,
     ASPPFLAGS=[
         "-x", "assembler-with-cpp",
@@ -121,10 +109,8 @@ env.Append(
     ],
 
     CXXFLAGS=[
-        "-std=c++11",
         "-std=gnu++17",
         "-fno-rtti",
-
     ],
 
     CPPDEFINES=[
@@ -133,7 +119,6 @@ env.Append(
         "ARDUINO_ARCH_SILABS",
         ("ARDUINO_SILABS", '\"2-3-0\"'),
         "ARDUINO_XIAO_MG24",
-        "ARDUINO_ARCH_SILABS",
         ("NUM_LEDS", 1),
         ("NUM_HW_SERIAL", 2),
         ("NUM_HW_SPI", 2),
@@ -150,12 +135,10 @@ env.Append(
         ("configNUM_THREAD_LOCAL_STORAGE_POINTERS",2),
         ("configNUM_USER_THREAD_LOCAL_STORAGE_POINTERS",0),
         ("CHIP_ADDRESS_RESOLVE_IMPL_INCLUDE_HEADER", '\\"lib/address_resolve/AddressResolve_DefaultImpl.h\\"'),
-        
         ("CHIP_HAVE_CONFIG_H",1),
         ("RADIO_CONFIG_DMP_SUPPORT",1),
         ("CURRENT_TIME_NOT_IMPLEMENTED",1),
         ("MBEDTLS_USER_CONFIG_FILE",'\\"sli_psa_builtin_config.h\\"'),
-        # "MBEDTLS_USER_CONFIG_FILE=<sli_psa_builtin_config.h>",
         ("OPENTHREAD_CONFIG_DETERMINISTIC_ECDSA_ENABLE",0),
         ("OPENTHREAD_CONFIG_ENABLE_BUILTIN_MBEDTLS",0),
         ("SILABS_OTA_ENABLED",1),
@@ -172,21 +155,14 @@ env.Append(
         ("configNUM_SDK_THREAD_LOCAL_STORAGE_POINTERS",2),
         ("SL_COMPONENT_CATALOG_PRESENT",1),
         ("MBEDTLS_CONFIG_FILE",'\\"sl_mbedtls_config.h\\"'),
-        # "MBEDTLS_CONFIG_FILE=<sl_mbedtls_config.h>",
         ("OPENTHREAD_CORE_CONFIG_PLATFORM_CHECK_FILE",'\\"openthread-core-efr32-config-check.h\\"'),
-        # ("OPENTHREAD_CORE_CONFIG_PLATFORM_CHECK_FILE",'\"openthread-core-efr32-config-check.h\"'),
         ("OPENTHREAD_PROJECT_CORE_CONFIG_FILE",'\\"openthread-core-efr32-config.h\\"'),
-        # ("OPENTHREAD_PROJECT_CORE_CONFIG_FILE",'\"openthread-core-efr32-config.h\"'),
         ("OPENTHREAD_CONFIG_FILE",'\\"sl_openthread_generic_config.h\\"'),
-        # ("OPENTHREAD_CONFIG_FILE",'\"sl_openthread_generic_config.h\"'),
         ("OPENTHREAD_FTD",1),
         ("SL_OPENTHREAD_STACK_FEATURES_CONFIG_FILE",'\\"sl_openthread_features_config.h\\"'),
-        # ("SL_OPENTHREAD_STACK_FEATURES_CONFIG_FILE",'\"sl_openthread_features_config.h\"'),
         ("MBEDTLS_PSA_CRYPTO_CONFIG_FILE",'\\"psa_crypto_config.h\\"'),
-        # ("MBEDTLS_PSA_CRYPTO_CONFIG_FILE=<psa_crypto_config.h>"),
         ("SL_RAIL_LIB_MULTIPROTOCOL_SUPPORT",1),
         ("SL_RAIL_UTIL_PA_CONFIG_HEADER",'\\"sl_rail_util_pa_config.h\\"'),
-        # ("SL_RAIL_UTIL_PA_CONFIG_HEADER=<sl_rail_util_pa_config.h>"),
         ("SLI_RADIOAES_REQUIRES_MASKING",1)
     ],
 
@@ -207,42 +183,16 @@ env.Append(
     ],
 
     LIBSOURCE_DIRS=[join(FRAMEWORK_DIR, "libraries")]
-
-    # LIBS=["c", "gcc", "m", "stdc++", "nosys"]
-
 )
-
-# env.Append(
-#     LINKFLAGS=[join(VARIANT_DIR, "matter", "gsdk.a")]
-# )
-# env.Append(
-#     LIBS=[    
-#           "bgcommon_efr32xg24_gcc_release", 
-#           "bluetooth_controller_efr32xg24_gcc_release", 
-#           "bluetooth_host_efr32xg24_gcc_release", 
-#           "nvm3_CM33_gcc", 
-#           "rail_multiprotocol_efr32xg24_gcc_release",
-#           "sl_openthread_efr32mg2x_gcc"
-#         ]
-# )
 
 # Framework requires all symbols from mbed libraries
 gsdk_path = join(VARIANT_DIR,"matter","gsdk.a")
 env.Prepend(_LIBFLAGS="-Wl,--whole-archive ")
 env.Append(_LIBFLAGS=f" {gsdk_path} -Wl,--end-group -Wl,--start-group -Wl,--no-whole-archive -lbgapi_core -lbgcommon -lble_bgapi -lble_bgapi_gatt_server -lble_bgapi_stub_gatt_client -lble_host -lble_host_accept_list_stub -lble_host_hal_series2 -lble_host_hci -lble_system -lbondingdb_stub -llinklayer -lProvision_efr32mg24 -lrail_multiprotocol_efr32xg24_gcc_release -lsl_openthread_cm33_gcc -lstdc++ -lgcc -lc -lm -lnosys")
 
-
-
-hex_path = join(FRAMEWORK_DIR, "bootloaders", "seeed-studio-xiao-mg24-bootloader-storage-internal-single-512k.hex")
-env.Append(DFUBOOTHEX=join(hex_path))
-
-
-
 if not board.get("build.ldscript", ""):
     # Update linker script:
     ldscript_dir = join(VARIANT_DIR, "matter","linkerfile.ld")
-    # ldscript_name = "linkerfile.ld"
-    # env.Append(LIBPATH=[ldscript_dir])
     env.Replace(LDSCRIPT_PATH=ldscript_dir)
 
 env.Append(
@@ -262,7 +212,7 @@ env.Append(
     ],
 
     CPPPATH=[
-        os.path.join(CORE_DIR),
+        CORE_DIR,
         os.path.join(CORE_DIR, "api", "deprecated"),
         os.path.join(CORE_DIR, "api", "deprecated-avr-comp","avr")
     ],

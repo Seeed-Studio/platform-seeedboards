@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import sys
-from platform import system
 from os import makedirs
 from os.path import isdir, join
 import os
@@ -41,7 +40,9 @@ for core_name in core_candidates:
     if isdir(candidate):
         CORE_DIR = candidate
         break
-assert isdir(CORE_DIR)
+assert CORE_DIR and isdir(CORE_DIR), (
+    "Arduino core not found under %s (tried %s)" % (FRAMEWORK_DIR, core_candidates)
+)
 
 # Generate includes.txt
 def generate_includes_file(root_dir, output_file="includes.txt", prefix="-iwithprefixbefore"):
@@ -163,8 +164,7 @@ AlwaysBuild(target_size)
 #
 
 upload_protocol = env.subst("$UPLOAD_PROTOCOL")
-debug_tools = env.BoardConfig().get("debug.tools", {})
-print("debug_tools=",debug_tools)
+debug_tools = board.get("debug.tools", {})
 upload_actions = []
 
 if upload_protocol == "mbed":
@@ -214,7 +214,7 @@ elif upload_protocol.startswith("jlink"):
 
     env.Replace(
         __jlink_cmd_script=_jlink_cmd_script,
-        UPLOADER="JLink.exe" if system() == "Windows" else "JLinkExe",
+        UPLOADER="JLink.exe" if IS_WINDOWS else "JLinkExe",
         UPLOADERFLAGS=[
             "-device", env.BoardConfig().get("debug", {}).get("jlink_device"),
             "-speed", env.GetProjectOption("debug_speed", "4000"),
@@ -249,9 +249,6 @@ elif upload_protocol in debug_tools:
         UPLOADER=join(platform.get_package_dir("tool-openocd") or "", "bin", "openocd"),
         UPLOADERFLAGS=openocd_args,
         UPLOADCMD="$UPLOADER $UPLOADERFLAGS")
-
-    # if not board.get("upload").get("offset_address"):
-    #     upload_source = target_elf
 
     upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
 

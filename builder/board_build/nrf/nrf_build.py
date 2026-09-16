@@ -14,10 +14,8 @@
 
 import sys
 import subprocess
-import json
 import os
 import shutil
-import site
 import tarfile
 import tempfile
 from platform import machine, system
@@ -131,7 +129,7 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
     app_port = explicit or _find_port_by_vidpid(_APP_CDC_VIDPID)
     if app_port:
         env.Replace(UPLOAD_PORT=app_port)
-        print("Touching %s at 1200 baud → DFU..." % app_port)
+        print("Touching %s at 1200 baud -> DFU..." % app_port)
         env.TouchSerialPort("$UPLOAD_PORT", 1200)
         loader_port = _wait_for_loader_port(60)
         if not loader_port:
@@ -145,9 +143,9 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
 
     # (4) Nothing recognized -> prompt manual DFU and poll for the loader CDC.
     sys.stdout.write(
-        "No app CDC (VID:PID=2886:8013) found. To recover, hold Button 0 "
+        "No app CDC (VID:PID=%s) found. To recover, hold Button 0 "
         "(P0.09) and press reset to enter DFU mode. Waiting for the DFU "
-        "loader CDC (VID:PID=2886:0013)...\n")
+        "loader CDC (VID:PID=%s)...\n" % (_APP_CDC_VIDPID, _LOADER_CDC_VIDPIDS[0]))
     sys.stdout.flush()
     port = _wait_for_loader_port(60)
     if not port:
@@ -164,7 +162,6 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
-variant = board.get("build.variant", "")
 zephyr_package_name = platform.get_zephyr_package_name(board.id)
 
 
@@ -186,7 +183,6 @@ def _get_dfu_upload_offset(board_config):
 def _ensure_pyocd_installed():
     # Always use the forked pyOCD with nRF54LM20A support, regardless of MCU.
     pyocd_spec = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable"
-    expected_url_substring = "github.com/StarSphere-1024/pyOCD"
 
     def _installed_pyocd_is_expected() -> bool:
         try:
@@ -217,6 +213,9 @@ def _ensure_pyocd_installed():
 _NRFUTIL_VERSION = "8.2.0"
 _NRFUTIL_MCUMGR_VERSION = "0.9.0"
 _NRFUTIL_DOWNLOAD_URL = "https://developer.nordicsemi.com/.pc-tools/nrfutil/%s-%s-%s.tar.gz"
+
+# nrfjprog family flag shared by all nRF52-series flashing commands
+_NRFJPROG_FAMILY_FLAG = "-f nrf52"
 
 
 def _nrfutil_target():
@@ -528,18 +527,22 @@ if "DFUBOOTHEX" in env:
         None,
         [
             env.VerboseAction(
-                "nrfjprog --program $DFUBOOTHEX -f nrf52 --chiperase",
+                "nrfjprog --program $DFUBOOTHEX %s --chiperase"
+                % _NRFJPROG_FAMILY_FLAG,
                 "Uploading $DFUBOOTHEX",
             ),
             env.VerboseAction(
-                "nrfjprog --erasepage $BOOT_SETTING_ADDR -f nrf52",
+                "nrfjprog --erasepage $BOOT_SETTING_ADDR %s"
+                % _NRFJPROG_FAMILY_FLAG,
                 "Erasing bootloader config",
             ),
             env.VerboseAction(
-                "nrfjprog --memwr $BOOT_SETTING_ADDR --val 0x00000001 -f nrf52",
+                "nrfjprog --memwr $BOOT_SETTING_ADDR --val 0x00000001 %s"
+                % _NRFJPROG_FAMILY_FLAG,
                 "Disable CRC check",
             ),
-            env.VerboseAction("nrfjprog --reset -f nrf52", "Reset nRF52"),
+            env.VerboseAction(
+                "nrfjprog --reset %s" % _NRFJPROG_FAMILY_FLAG, "Reset nRF52"),
         ],
         "Burn Bootloader",
     )
@@ -848,7 +851,8 @@ elif upload_protocol in debug_tools:
             "-c", "shutdown"
         ])
     else:
-       print("Warning! Uploading via OpenOCD is not yet supported for this MCU.")
+        sys.stderr.write(
+            "Warning! Uploading via OpenOCD is not yet supported for this MCU.\n")
 
     openocd_args = [
         f.replace("$PACKAGE_DIR",

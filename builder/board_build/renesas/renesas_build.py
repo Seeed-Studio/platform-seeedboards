@@ -14,18 +14,18 @@
 
 import sys
 import subprocess
-from platform import system
+from platform import system as platform_system
 from os import makedirs
 from os.path import basename, isdir, join
 
 from platformio.public import list_serial_ports
 
 from SCons.Script import (
+    ARGUMENTS,
     COMMAND_LINE_TARGETS,
     AlwaysBuild,
     Builder,
     Default,
-    DefaultEnvironment,
 )
 
 
@@ -79,7 +79,6 @@ def install_r7fa4m1ab():
         sys.exit(1)
 
 
-# env = DefaultEnvironment()
 Import("env")
 platform = env.PioPlatform()
 board = env.BoardConfig()
@@ -161,7 +160,7 @@ AlwaysBuild(target_size)
 # Target: Upload by default .bin file
 #
 
-debug_tools = env.BoardConfig().get("debug.tools", {})
+debug_tools = board.get("debug.tools", {})
 upload_actions = []
 upload_source = target_firm
 
@@ -172,8 +171,6 @@ if upload_protocol == "mbed":
     ]
 elif upload_protocol == "dfu":
     hwids = board.get("build.hwids", [["0x0483", "0xDF11"]])
-    vid = hwids[0][0]
-    pid = hwids[0][1]
 
     # default tool for all boards with embedded DFU bootloader over USB
     _upload_tool = '"%s"' % join(
@@ -196,11 +193,9 @@ elif upload_protocol == "dfu":
         UPLOADCMD='$UPLOADER $UPLOADERFLAGS "${SOURCE.get_abspath()}"',
     )
 
-    upload_source = target_firm
-
 elif upload_protocol == "sam-ba":
     bossac = join(platform.get_package_dir("tool-bossac") or "", "bossac")
-    if system() == "Windows":
+    if platform_system() == "Windows":
         bossac += ".exe"
     env.Replace(
         UPLOADER=bossac,
@@ -214,7 +209,7 @@ elif upload_protocol == "sam-ba":
     )
 
     env.Append(UPLOADERFLAGS=["--erase"])
-    if env.BoardConfig().get("upload.native_usb", False):
+    if board.get("upload.native_usb", False):
         env.Append(UPLOADERFLAGS=["--usb-port"])
 
     upload_offset = board.get("upload.offset_address")
@@ -248,7 +243,7 @@ elif upload_protocol.startswith("jlink"):
 
     env.Replace(
         __jlink_cmd_script=_jlink_cmd_script,
-        UPLOADER="JLink.exe" if system() == "Windows" else "JLinkExe",
+        UPLOADER="JLink.exe" if platform_system() == "Windows" else "JLinkExe",
         UPLOADERFLAGS=[
             "-device",
             board.get("debug", {}).get("jlink_device"),
@@ -290,7 +285,7 @@ elif upload_protocol in debug_tools:
         UPLOADERFLAGS=openocd_args,
         UPLOADCMD="$UPLOADER $UPLOADERFLAGS")
 
-    if not board.get("upload").get("offset_address"):
+    if not board.get("upload.offset_address"):
         upload_source = target_elf
 
     upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]

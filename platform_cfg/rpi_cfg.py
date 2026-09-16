@@ -69,7 +69,6 @@ earle_picotool = {
 
 
 def configure_rpi_default_packages(self, variables, targets):
-        #print("System type: %s" % (util.get_systype()))
         # configure arduino core package.
         # select the right one based on the build.core, disable other one.
         board = variables.get("board")
@@ -93,7 +92,6 @@ def configure_rpi_default_packages(self, variables, targets):
             if build_core == "arduino":
                 self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
                 self.packages["framework-arduinopico"]["optional"] = True
-                self.packages["toolchain-rp2040-earlephilhower"]["optional"] = True
                 self.packages.pop("toolchain-rp2040-earlephilhower", None)
             elif build_core == "earlephilhower":
                 self.frameworks["arduino"]["package"] = "framework-arduinopico"
@@ -206,7 +204,7 @@ def configure_rpi_debug_session(self, debug_config):
             is_riscv = debug_config.env_options["board_build.mcu"] == "rp2350-riscv"
         adapter_speed = debug_config.speed or "1000"
         server_options = debug_config.server or {}
-        server_arguments:list[str] = server_options.get("arguments", [])
+        server_arguments: list[str] = server_options.get("arguments", [])
         # This is ugly but the only way I found this to be working.
         # We need to give OpenOCD the rp2350-riscv.cfg config if we're in RISC-V mode
         # (set dynamically by board_build.mcu = rp2350-riscv in the platformio.ini of the project)
@@ -215,7 +213,8 @@ def configure_rpi_debug_session(self, debug_config):
         if is_riscv:
             try:
                 server_arguments[server_arguments.index("target/rp2350.cfg")] = "target/rp2350-riscv.cfg"
-            except:
+            except Exception:
+                # fallback: keep the ARM config when the RISC-V rewrite does not apply
                 pass
         if "interface/cmsis-dap.cfg" in server_arguments or "interface/picoprobe.cfg" in server_arguments:
             server_arguments.extend(
