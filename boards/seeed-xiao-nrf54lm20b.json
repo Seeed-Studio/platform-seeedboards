@@ -5,6 +5,7 @@
       "mcu": "nrf54lm20b",
       "zephyr": {
         "variant": "xiao_nrf54lm20b/nrf54lm20b/cpuapp",
+        "package": "framework-zephyr-nrf54lm20",
         "bootloader": {
           "header_len": "0x800",
           "flash_alignment": "16",
