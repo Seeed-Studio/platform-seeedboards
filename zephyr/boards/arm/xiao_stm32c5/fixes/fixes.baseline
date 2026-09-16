@@ -1,0 +1,9 @@
+# Pristine upstream sha256 per fix target -- the fixes/ tree was cut against
+# Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428 tarball). When the
+# framework package changes under a fix, the mismatch warns (overrides) or
+# fails with context (patches): re-evaluate the fix, update or drop it.
+drivers/adc/adc_stm32.c 2d5ef99fca93e309b0c8ac5d825f2fcecba7925635c2da5b7e690d6de476b4a7
+drivers/flash/flash_stm32_xspi.c 8cfca7e4af3a6b5f8e24900e90ff425702e912efecc1f3b42a36a39274c0b0c4
+drivers/flash/flash_stm32_xspi.h 0bf20f12282191169efeaa650549ffad3b168fc4b49a797d29f844da3adcf474
+drivers/usb/udc/udc_stm32.c cce3ae86dfb457878053278f5b2a84e24b4135330b44bc2dc248e3db249565df
+cmake/modules/FindGnuLd.cmake 73386f65f9e308a24cb51150fb0f23305b6340082f3d5759724b952c35e8fdbf

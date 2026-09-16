@@ -9,7 +9,6 @@ on:
       - 'platform.py'
       - 'boards/**'
       - 'builder/**'
-      - 'frameworks/arduino.py'
       - 'platform_cfg/**'
       - 'scripts/ci/_examples_build_lib.py'
       - 'scripts/ci/build_arduino_examples.py'
@@ -21,7 +20,6 @@ on:
       - 'platform.py'
       - 'boards/**'
       - 'builder/**'
-      - 'frameworks/arduino.py'
       - 'platform_cfg/**'
       - 'scripts/ci/_examples_build_lib.py'
       - 'scripts/ci/build_arduino_examples.py'
@@ -64,6 +62,18 @@ jobs:
 
       - name: Build Arduino examples (all envs)
         run: python scripts/ci/build_arduino_examples.py --log-dir .pio-ci-logs/arduino --quiet
+
+      # Real-CLI complement to the offline smoke (scripts/ci/smoke_pio_boards.py):
+      # exercises the installed platform through pio boards --installed and
+      # asserts every manifest board is listed.
+      - name: Smoke test pio boards listing (real CLI)
+        run: |
+          set -e
+          pio boards --installed > boards-listing.txt
+          actual=$(grep -c 'seeed-xiao' boards-listing.txt || true)
+          expected=$(ls boards/*.json | wc -l)
+          echo "pio boards listed $actual of $expected expected seeed-xiao boards"
+          test "$actual" -eq "$expected"
 
       - name: Upload Arduino build logs
         if: always()

@@ -40,30 +40,10 @@ if IS_WINDOWS:
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-Architecture = ""
-ZEPHYR_PACKAGE_BY_BOARD = {
-    "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
-    "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
-    "seeed-xiao-nrf54lm20b": "framework-zephyr-nrf54lm20",
-    # seeed-xiao-stm32c5 shares the exact same Zephyr 4.4.0 tarball as nrf54lm20
-    # (identical content), so it maps to framework-zephyr-nrf54lm20 directly. No
-    # separate framework-zephyr-stm32c5 package is shipped — PlatformIO would
-    # URL-dedupe an identically-versioned package into the nrf54lm20 dir anyway,
-    # leaving the name misleading. STM32C5 specifics (pinctrl via the hal_stm32
-    # west module; udc/xspi/adc overrides) come in per-board via zephyr/fixes.yml.
-    "seeed-xiao-stm32c5": "framework-zephyr-nrf54lm20",
-}
-
-# Maps a PIO board id to its Zephyr board.name (e.g. "seeed-xiao-stm32c5" ->
-# "xiao_stm32c5"). Used by the fixes dispatcher to locate per-board fixes
-# under zephyr/{patches,overrides}/<board.name>/. Must stay in sync with the
-# board directories under zephyr/boards/arm/.
-ZEPHYR_BOARD_NAME_BY_BOARD = {
-    "seeed-xiao-nrf54l15": "xiao_nrf54l15",
-    "seeed-xiao-nrf54lm20a": "xiao_nrf54lm20a",
-    "seeed-xiao-nrf54lm20b": "xiao_nrf54lm20b",
-    "seeed-xiao-stm32c5": "xiao_stm32c5",
-}
+# Zephyr routing (framework package + Zephyr board.name per board) lives in
+# the board manifests: build.zephyr.package and build.zephyr.board_name.
+# Cross-checked by scripts/ci/verify_zephyr_routing.py; see
+# .agents/notes/proposed/2026-09-15-board-family-routing-single-source.md.
 
 class SeeedstudioPlatform(PlatformBase):
     def __init__(self, *args, **kwargs):
@@ -73,85 +53,122 @@ class SeeedstudioPlatform(PlatformBase):
 
     def configure_default_packages(self, variables, targets):
 
-        global Architecture
         if not variables.get("board"):
             return super().configure_default_packages(variables, targets)
 
         board_name = variables.get("board")
         self._configure_zephyr_package_for_board(board_name, variables)
 
-        if "esp32" in board_name:
-            Architecture = "esp"
-        if board_name == "seeed-xiao-ra4m1":
-            Architecture = "renesas"
-        if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
-            Architecture = "rpi"
-        if "nrf" in board_name:
-            Architecture = "nrf"
-        if "samd" in board_name:
-            Architecture = "samd"
-        if "mg24" in board_name:
-            Architecture = "siliconlab"
-        if "stm32" in board_name:
-            Architecture = "stm32"
+        family = self.get_board_family(board_name)
 
-        if Architecture:
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_board = getattr(board_module, f"configure_{Architecture}_default_packages")
-                configure_board(self, variables, targets)
-            except (ImportError, AttributeError) as e:
+        if family:
+            board_module = import_module(f"platform_cfg.{family}_cfg")
+            configure_board = getattr(board_module, f"configure_{family}_default_packages")
+            configure_board(self, variables, targets)
 
-                print(f"Error: {e} for board {board_name}")
-
-        if Architecture == "esp":
+        if family == "esp":
             self._prefer_local_esp_tools()
             self._ensure_esptoolpy_runtime_dependencies()
 
         result = super().configure_default_packages(variables, targets)
 
-        if Architecture == "esp" and self._prepare_esp_tools():
+        if family == "esp" and self._prepare_esp_tools():
             result = super().configure_default_packages(variables, targets)
 
         return result
+
+    def _get_repo_board_config(self, board_name):
+        """Board manifest config for a PIO board id.
+
+        Uses the PlatformBase implementation on purpose: no
+        _add_dynamic_options side effects during package configuration.
+        """
+        return PlatformBase.get_boards(self, board_name)
 
     def _configure_zephyr_package_for_board(self, board_name, variables):
         frameworks = variables.get("pioframework", [])
         if "zephyr" not in frameworks or "zephyr" not in self.frameworks:
             return
 
-        package_name = ZEPHYR_PACKAGE_BY_BOARD.get(board_name)
-        if not package_name:
-            return
-
-        self.frameworks["zephyr"]["package"] = package_name
-
-        if board_name == "seeed-xiao-stm32c5":
-            # STM32C5 reuses framework-zephyr-nrf54lm20 (same Zephyr 4.4.0 tarball;
-            # no separate c5 package is shipped). STM32C5-specific fixes are applied
-            # per-board via zephyr/fixes.yml by builder/frameworks/zephyr_fixes.py.
-            print("Zephyr: seeed-xiao-stm32c5 reuses framework-zephyr-nrf54lm20 "
-                  "(same Zephyr 4.4.0 tarball; STM32C5 specifics via zephyr/fixes.yml)")
+        package_name = self.get_zephyr_package_name(board_name)
+        if package_name != self.frameworks["zephyr"].get("package"):
+            self.frameworks["zephyr"]["package"] = package_name
 
     def get_zephyr_package_name(self, board_name=None):
-        if board_name:
-            return ZEPHYR_PACKAGE_BY_BOARD.get(
-                board_name,
-                self.frameworks.get("zephyr", {}).get("package", "framework-zephyr-nrf54lm20"),
-            )
+        """Framework package for a board's Zephyr builds.
 
-        package_name = self.frameworks.get("zephyr", {}).get("package")
-        if package_name:
-            return package_name
-        return "framework-zephyr-nrf54lm20"
+        Reads build.zephyr.package from the board manifest. Boards without
+        one fall back to the platform.json default (frameworks.zephyr.package,
+        currently framework-zephyr-nrf54lm20). Note seeed-xiao-stm32c5
+        deliberately reuses the nrf54lm20 Zephyr 4.4 tarball (identical
+        content; PlatformIO would URL-dedupe a same-versioned package into
+        the nrf54lm20 dir anyway) -- its specifics arrive per-board via the
+        board directory's fixes/ tree.
+        """
+        default = self.frameworks.get("zephyr", {}).get(
+            "package", "framework-zephyr-nrf54lm20"
+        )
+        if not board_name:
+            return default
+
+        board = self._get_repo_board_config(board_name)
+        zephyr = board.get("build.zephyr", None) if board else None
+        if isinstance(zephyr, dict) and zephyr.get("package"):
+            return zephyr["package"]
+        return default
 
     def get_zephyr_board_name(self, board_name):
         """Return the Zephyr board.name (e.g. 'xiao_stm32c5') for a PIO board id.
 
-        Used to locate per-board fixes under zephyr/{patches,overrides}/<board>/.
-        Returns '' if the board has no mapping (no local fixes dir to apply).
+        Reads build.zephyr.board_name from the board manifest. Used to locate
+        the board's tree under zephyr/boards/arm/<board>/ (including its
+        fixes/ directory). Returns '' if the board declares none.
         """
-        return ZEPHYR_BOARD_NAME_BY_BOARD.get(board_name, "")
+        if not board_name:
+            return ""
+        board = self._get_repo_board_config(board_name)
+        zephyr = board.get("build.zephyr", None) if board else None
+        if isinstance(zephyr, dict) and zephyr.get("board_name"):
+            return zephyr["board_name"]
+        return ""
+
+    def get_board_family(self, board):
+        """Resolve the MCU family for a board id or board-config object.
+
+        build.family in the board manifest is the single source of truth for
+        board -> family routing (see .agents/notes/proposed/
+        2026-09-15-board-family-routing-single-source.md). Platform manifests
+        missing the key fail loudly with the manifest path; manifests loaded
+        from outside this platform's boards/ directory (user-custom boards)
+        warn once and return None, preserving their historical no-family
+        handling.
+        """
+        if isinstance(board, str):
+            board = self._get_repo_board_config(board_name=board)
+        if board is None:
+            return None
+
+        family = board.get("build.family", None)
+        if family:
+            return family
+
+        manifest_dir = os.path.dirname(os.path.abspath(board.manifest_path))
+        platform_boards_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "boards"
+        )
+        if os.path.normpath(manifest_dir) != os.path.normpath(platform_boards_dir):
+            print(
+                "Warning: board '%s' declares no build.family in %s; "
+                "skipping family handling" % (board.id, board.manifest_path)
+            )
+            return None
+        raise KeyError(
+            "Board '%s' is missing 'build.family' in %s. Add it to the "
+            "manifest -- one of esp, nrf, renesas, rpi, samd, silabs, "
+            "stm32 (see .agents/notes/proposed/"
+            "2026-09-15-board-family-routing-single-source.md)."
+            % (board.id, board.manifest_path)
+        )
 
     def _iter_required_esp_tools(self):
         return [
@@ -322,47 +339,34 @@ class SeeedstudioPlatform(PlatformBase):
 
 
     def _add_dynamic_options(self, board):
-        global Architecture
-        board_name = board.id
-        if "esp32" in board_name:
-            Architecture = "esp"
-        if board_name == "seeed-xiao-ra4m1":
-            Architecture = "renesas"
+        """Inject family default debug tools into a board manifest.
 
-        if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
-            Architecture = "rpi"
+        Resolves the family from the board manifest itself (single source of
+        truth); user-custom external boards (no build.family) are returned
+        unchanged. Always returns the board object -- PlatformIO core calls
+        get_brief_data() on every entry of get_boards(), so a None return
+        crashes `pio boards` listing.
+        """
+        family = self.get_board_family(board)
+        if not family:
+            return board
 
-        if "nrf" in board_name:
-            Architecture = "nrf"
-        if "samd" in board_name:
-            Architecture = "samd"
-        if "mg24" in board_name:
-            Architecture = "siliconlab"
-        if "stm32" in board_name:
-            Architecture = "stm32"
-
-        if Architecture:
-            # 动态导入板子配置函数
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_tool = getattr(board_module, f"_add_{Architecture}_default_debug_tools")
-                return configure_tool(self, board)
-            except (ImportError, AttributeError) as e:
-                print(f"Error: in _add_dynamic_options {e} for board {board_name}")
-        else:
-            print("no config Architecture")
-            return
-
+        board_module = import_module(f"platform_cfg.{family}_cfg")
+        configure_tool = getattr(board_module, f"_add_{family}_default_debug_tools")
+        return configure_tool(self, board)
 
 
     def configure_debug_session(self, debug_config):
-        global Architecture
+        board_config = getattr(debug_config, "board_config", None)
+        if not board_config:
+            return
 
-        if Architecture:
-            # 动态导入板子配置函数
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_debug_seesion = getattr(board_module, f"configure_{Architecture}_debug_session")
-                configure_debug_seesion(self, debug_config)
-            except (ImportError, AttributeError) as e:
-                print(f"Error: in configure_debug_session {e} for board {Architecture}")
+        family = self.get_board_family(board_config)
+        if not family:
+            return
+
+        board_module = import_module(f"platform_cfg.{family}_cfg")
+        configure_debug_session = getattr(
+            board_module, f"configure_{family}_debug_session"
+        )
+        configure_debug_session(self, debug_config)

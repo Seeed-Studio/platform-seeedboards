@@ -1,4 +1,15 @@
 /*
+ * XIAO STM32C5 Zephyr framework fix -- full-file override.
+ * Target (inside the framework-zephyr package): drivers/usb/udc/udc_stm32.c
+ * Validated against: Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428)
+ * Upstream: https://github.com/zephyrproject-rtos/zephyr/pull/105957
+ * Reason: upstream udc_stm32.c in 4.4.0 lacks STM32C5 HAL2 USB support (the
+ * PR merged after 4.4.0). This file backports the PR's HAL2 branch and is
+ * required for XIAO STM32C5 USB CDC and the 1200-bps UF2 upload trigger.
+ * Exit condition: delete this file once the framework package carries
+ * PR#105957 (baseline warning will fire first when the tarball changes).
+ */
+/*
  * SPDX-FileCopyrightText: Copyright (c) 2023 Linaro Limited
  * SPDX-FileCopyrightText: Copyright (c) 2026 STMicroelectronics
  *

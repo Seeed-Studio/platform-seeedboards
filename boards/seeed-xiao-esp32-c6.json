@@ -1,6 +1,6 @@
 {
   "build": {
-    "core": "esp32",
+    "family": "esp",    "core": "esp32",
     "extra_flags": [
       "-DARDUINO_XIAO_ESP32C6",
       "-DARDUINO_USB_MODE=1",

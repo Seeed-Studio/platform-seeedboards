@@ -1,6 +1,7 @@
 # Edge AI 数据采集方式替代工作报告
 
-更新时间：2026-08-27
+Status: proposed
+(补充材料：英文姊妹笔记 2026-08-27-official-edge-ai-data-workflow.md 为本主题的规范决策记录；本文件保留背景细节。)
 
 ## 1. 开发背景
 

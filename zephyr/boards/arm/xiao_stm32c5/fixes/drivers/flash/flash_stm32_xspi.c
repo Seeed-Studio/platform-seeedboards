@@ -1,4 +1,12 @@
 /*
+ * XIAO STM32C5 Zephyr framework fix -- full-file override.
+ * Target (inside the framework-zephyr package): drivers/flash/flash_stm32_xspi.c
+ * Validated against: Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428)
+ * Reason: upstream Zephyr 4.4.0 has no STM32C5 XSPI flash support; this copy
+ * adds it for the XSPI1 external NOR flash (PY25Q128HA) on XIAO STM32C5.
+ * Exit condition: delete once upstream flash_stm32_xspi.c supports STM32C5.
+ */
+/*
  * Copyright (c) 2024 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0

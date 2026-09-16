@@ -1,3 +1,10 @@
+# XIAO STM32C5 Zephyr framework fix -- unified diff patch.
+# Target (inside the framework-zephyr package): cmake/modules/FindGnuLd.cmake
+# Validated against: Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428)
+# Reason: PlatformIO's GNU Arm Embedded GCC 8 writes `ld.bfd --version` to
+# stderr on Windows while Zephyr 4.4.0 reads only stdout, then calls
+# string(REGEX) with an empty argument, failing the first CMake configure.
+# Exit condition: delete once upstream FindGnuLd.cmake reads stderr too.
 diff --git a/cmake/modules/FindGnuLd.cmake b/cmake/modules/FindGnuLd.cmake
 --- a/cmake/modules/FindGnuLd.cmake
 +++ b/cmake/modules/FindGnuLd.cmake

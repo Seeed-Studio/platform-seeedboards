@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-Zephyr framework override applier (执行器 B).
+Zephyr framework override applier (executor B).
 
 Pure executor: copies one override file over a target path inside the
 framework-zephyr package. Reads no manifest, knows nothing about board/version —

@@ -1,135 +1,135 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-Zephyr framework fixes dispatcher (调度器).
+Zephyr framework fixes applier (directory convention -- no registry).
 
-Reads zephyr/fixes.yml and applies every matching fix to the framework-zephyr
-package, dispatching each to the right executor (zephyr_patch.apply_patch for
-patches, zephyr_override.apply_override for overrides). Two-level gating keeps
-fixes from leaking across boards or framework versions:
+Every file under
 
-  1) board/package gating — only the boards[<board.name>] section is taken;
-     a board absent from fixes.yml simply has no fixes applied.
-  2) version gating       — only fixes whose applies_to matches the current
-     Zephyr version (resolved by _get_framework_version()) are applied.
+    zephyr/boards/arm/<board>/fixes/
 
-This is the only module that reads the manifest; the executors are pure.
+is a fix for the installed framework-zephyr package; the directory IS the
+registration:
 
-Interface:
-    apply_all(platform_dir, framework_dir, zephyr_board, version)
+    <framework-relative-path>          full-file override
+    <framework-relative-path>.patch    unified-diff patch (idempotent)
+    fixes.baseline                     "<target> <sha256>" of the pristine
+                                       upstream file this fix was cut against
+
+Content gating replaces version strings: before an override lands (or when a
+patch hunk fails to match), the framework package's file is compared against
+the recorded baseline -- a mismatch means the tarball changed under us and
+the fix must be re-evaluated. Overrides warn (non-blocking, as before);
+patch hunk mismatches raise, enriched with baseline context when available.
+
+Executors are the unchanged pure modules zephyr_patch / zephyr_override.
+Interface (call site in builder/frameworks/zephyr.py is unchanged):
+    apply_all(platform_dir, framework_dir, zephyr_board, version=None)
 """
 
+import hashlib
 import os
-import sys
 from os.path import dirname, join
-
-try:
-    import yaml
-except ImportError:
-    import subprocess
-    subprocess.run(["pip", "install", "pyyaml"], check=True)
-    import yaml
 
 # Executors live next to this module.
 _HERE = dirname(__file__)
-if _HERE not in sys.path:
-    sys.path.insert(0, _HERE)
+if _HERE not in os.sys.path:
+    os.sys.path.insert(0, _HERE)
 
-import zephyr_patch
-import zephyr_override
+import zephyr_override  # noqa: E402
+import zephyr_patch  # noqa: E402
 
-
-FIXES_YML = "fixes.yml"
-PATCHES_SUBDIR = "patches"
-OVERRIDES_SUBDIR = "overrides"
+BASELINE_NAME = "fixes.baseline"
+PATCH_SUFFIX = ".patch"
 
 
-def apply_all(platform_dir, framework_dir, zephyr_board, version):
-    """Apply all fixes from zephyr/fixes.yml matching (zephyr_board, version).
+def apply_all(platform_dir, framework_dir, zephyr_board, version=None):
+    """Apply every fix under zephyr/boards/arm/<zephyr_board>/fixes/.
 
-    zephyr_board: board.name (e.g. "xiao_stm32c5"). Absent from fixes.yml => no-op.
-    version: Zephyr version string (e.g. "4.4.0", from _get_framework_version()).
+    Boards without a fixes/ directory are a no-op (nRF54 boards ship none).
     """
-    fixes_yml = join(platform_dir, "zephyr", FIXES_YML)
-    if not os.path.isfile(fixes_yml):
-        return  # no manifest → no fixes
+    fixes_dir = join(platform_dir, "zephyr", "boards", "arm", zephyr_board, "fixes")
+    if not os.path.isdir(fixes_dir):
+        return  # this board ships no local fixes
 
-    with open(fixes_yml, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
+    baseline = _load_baseline(fixes_dir)
+    applied = []
+    no_baseline = []
 
-    board_section = (data.get("boards") or {}).get(zephyr_board)
-    if not board_section:
-        return  # this board has no local fixes
+    for src in _iter_fix_files(fixes_dir):
+        rel = os.path.relpath(src, fixes_dir)
+        target = rel[: -len(PATCH_SUFFIX)] if rel.endswith(PATCH_SUFFIX) else rel
+        expected = baseline.get(target)
 
-    fixes = board_section.get("fixes") or []
-    if not fixes:
-        return
+        if rel.endswith(PATCH_SUFFIX):
+            _apply_patch_with_context(src, framework_dir, target, expected)
+        else:
+            zephyr_override.apply_override(src, framework_dir, target, expected)
 
-    print("Applying %d Zephyr fix(es) for board '%s' (Zephyr %s)..."
-          % (len(fixes), zephyr_board, version))
+        applied.append(target)
+        if not expected:
+            no_baseline.append(target)
 
-    for fix in fixes:
-        _apply_one_fix(platform_dir, framework_dir, zephyr_board, fix, version)
-
-
-def _apply_one_fix(platform_dir, framework_dir, zephyr_board, fix, version):
-    fix_id = fix.get("id", "<no-id>")
-    fix_type = fix.get("type")
-    applies_to = fix.get("applies_to") or []
-
-    if not _version_matches(version, applies_to):
-        print("  skip [%s]: version %s not in %s" % (fix_id, version, applies_to))
-        return
-
-    if fix_type == "patch":
-        src = join(platform_dir, "zephyr", PATCHES_SUBDIR, zephyr_board, fix.get("path", ""))
-        if not os.path.isfile(src):
-            raise RuntimeError("patch source not found for fix '%s': %s" % (fix_id, src))
-        zephyr_patch.apply_patch(src, framework_dir, fix.get("target"))
-
-    elif fix_type == "override":
-        src = join(platform_dir, "zephyr", OVERRIDES_SUBDIR, zephyr_board, fix.get("path", ""))
-        if not os.path.isfile(src):
-            raise RuntimeError("override source not found for fix '%s': %s" % (fix_id, src))
-        zephyr_override.apply_override(
-            src, framework_dir, fix.get("target"), fix.get("baseline_sha")
+    stale = sorted(set(baseline) - set(applied))
+    if stale:
+        print(
+            "WARNING: fixes.baseline lists targets with no fix file under "
+            "%s: %s" % (fixes_dir, ", ".join(stale))
         )
+    if no_baseline:
+        print(
+            "WARNING: no fixes.baseline entry for %s -- record the pristine "
+            "upstream sha256 so framework upgrades are detected" % ", ".join(no_baseline)
+        )
+    print(
+        "Applied %d Zephyr fix(es) for board '%s' (Zephyr %s)"
+        % (len(applied), zephyr_board, version)
+    )
 
-    else:
-        raise RuntimeError("unknown fix type %r for fix '%s'" % (fix_type, fix_id))
 
-
-def _version_matches(version, applies_to):
-    """applies_to: list of version specs. A plain value like "4.4.0" is an exact
-    match (string compare, no dependency on packaging). A spec starting with a
-    comparison operator (>=, <, ==, !=) is a PEP 440 range parsed via packaging
-    if available. Any spec matching → True; empty list → False."""
-    if not applies_to:
-        return False
-
-    for spec in applies_to:
-        spec = str(spec).strip()
-        if not spec:
-            continue
-
-        if spec[0] in "<>=!":
-            # range spec — needs packaging
-            try:
-                from packaging.specifiers import SpecifierSet
-                from packaging.version import Version
-                if Version(str(version)) in SpecifierSet(spec):
-                    return True
-            except Exception:
+def _iter_fix_files(fixes_dir):
+    for root, dirs, files in os.walk(fixes_dir):
+        dirs.sort()
+        for fname in sorted(files):
+            if fname == BASELINE_NAME:
                 continue
-            continue
+            yield join(root, fname)
 
-        # exact version — string compare first (no dependency), then Version
-        if str(version) == spec:
-            return True
-        try:
-            from packaging.version import Version
-            if Version(str(version)) == Version(spec):
-                return True
-        except Exception:
-            pass
 
-    return False
+def _load_baseline(fixes_dir):
+    baseline = {}
+    path = join(fixes_dir, BASELINE_NAME)
+    if not os.path.isfile(path):
+        return baseline
+    with open(path, "r", encoding="utf-8") as fp:
+        for line in fp:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 1)
+            if len(parts) == 2:
+                baseline[parts[0]] = parts[1].strip()
+    return baseline
+
+
+def _apply_patch_with_context(src_patch, framework_dir, target, expected_sha):
+    try:
+        zephyr_patch.apply_patch(src_patch, framework_dir, target)
+    except RuntimeError as exc:
+        detail = str(exc)
+        dst = join(framework_dir, target)
+        if expected_sha and os.path.isfile(dst):
+            actual = _sha256(dst)
+            if actual != expected_sha:
+                detail += (
+                    "; baseline drift: %s hashes %s, expected pristine %s -- "
+                    "the framework package likely changed, re-evaluate this fix"
+                    % (target, actual[:12], expected_sha[:12])
+                )
+        raise RuntimeError(detail)
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as fp:
+        for chunk in iter(lambda: fp.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

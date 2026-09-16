@@ -1,6 +1,6 @@
 {
   "build": {
-    "partitions": "default_8MB.csv",
+    "family": "esp",    "partitions": "default_8MB.csv",
     "core": "esp32",
     "extra_flags": [
       "-DARDUINO_XIAO_ESP32C5",

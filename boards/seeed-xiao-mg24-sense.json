@@ -1,6 +1,6 @@
 {
     "build": {
-      "core": "silabs",
+      "family": "silabs",      "core": "silabs",
       "f_cpu": "39000000L",
       "mcu": "cortex-m33",
       "variant": "xiao_mg24"

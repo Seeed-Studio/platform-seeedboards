@@ -79,7 +79,6 @@ def configure_rpi_default_packages(self, variables, targets):
             "board_build.core", board_config.get("build.core", "arduino"))
         # Use the same string identifier as seen in "pio system info" and registry
         sys_type = util.get_systype()
-        print("sys_type is:",sys_type)
         frameworks = variables.get("pioframework", [])
         # Configure OpenOCD package if used
         openocd_pkg = "tool-openocd-rp2040-earlephilhower"
@@ -90,7 +89,6 @@ def configure_rpi_default_packages(self, variables, targets):
         self.packages[picotool_pkg]["optional"] = False
         if picotool_pkg in self.packages:
             self.packages[picotool_pkg]["version"] = earle_picotool[sys_type]
-        print("build_core =:",build_core,)
         if "arduino" in frameworks:
             if build_core == "arduino":
                 self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
@@ -100,11 +98,13 @@ def configure_rpi_default_packages(self, variables, targets):
             elif build_core == "earlephilhower":
                 self.frameworks["arduino"]["package"] = "framework-arduinopico"
                 self.packages["framework-arduino-mbed"]["optional"] = True
-                self.packages.pop("toolchain-gccarmnoneeabi", None)
+                # Leave toolchain-gccarmnoneeabi in place (it stays optional,
+                # so it is never installed for rpi builds): popping it from
+                # the shared dict breaks any later in-process configuration
+                # of nrf/samd/silabs/stm32/renesas boards that require it.
                 self.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
                 # Configure toolchain download link dynamically
                 # RP2350 (RISC-V)
-                print("chip =:",chip)
                 if chip == "rp2350-riscv":
                     self.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_riscv[sys_type]
                 # RP2040, RP2350 (ARM)
@@ -113,7 +113,7 @@ def configure_rpi_default_packages(self, variables, targets):
             else:
                 sys.stderr.write(
                     "Error! Unknown build.core value '%s'. Don't know which Arduino core package to use." % build_core)
-                env.Exit(1)
+                sys.exit(1)
 
         # if we want to build a filesystem, we need the tools.
         if "buildfs" in targets:

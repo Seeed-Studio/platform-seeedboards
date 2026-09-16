@@ -1,106 +1,82 @@
-# Seeed Xiao Series: development platform for [PlatformIO](http://platformio.org)
+# Seeed Studio XIAO: development platform for [PlatformIO](https://platformio.org)
 
-The [Seeed Studio XIAO Series](https://wiki.seeedstudio.com/SeeedStudio_XIAO_Series_Introduction/) is a collection of thumb-sized, powerful microcontroller units (MCUs) tailor-made for space-conscious projects requiring high performance and wireless connectivity.
+The [Seeed Studio XIAO series](https://wiki.seeedstudio.com/SeeedStudio_XIAO_Series_Introduction/) is a family of thumb-sized MCUs for space-conscious projects. This repository is the PlatformIO platform package that lets you build for every XIAO board with one `platformio.ini` entry -- Arduino, ESP-IDF, or Zephyr, from compile to flash to debug.
 
-* [Home](http://platformio.org/platforms/seeedxiao) (home page in PlatformIO Platform Registry)
-* [Documentation](http://docs.platformio.org/page/platforms/seeedxiao.html) (advanced usage, packages, boards, frameworks, etc.)
+* [Platform Registry page](https://platformio.org/platforms/seeedxiao) · [Documentation](https://docs.platformio.org/page/platforms/seeedxiao.html)
+* Apache-2.0 licensed. ESP32 integration is based in part on [pioarduino](https://github.com/pioarduino/platform-espressif32) -- see Attribution below.
 
-## Usage
-
-1. [Install PlatformIO](http://platformio.org)
-2. Create PlatformIO project and configure a platform option in [platformio.ini](http://docs.platformio.org/page/projectconf.html) file:
+## Quick start
 
 ```ini
-[env:development]
+[env:xiao]
 platform = https://github.com/Seeed-Studio/platform-seeedboards.git
-board = ...
-framework = arduino
-...
+board = seeed-xiao-nrf54lm20b   ; any board id below
+framework = zephyr               ; arduino | espidf | zephyr
 ```
 
-## Configuration
+```bash
+pio run -e xiao        # build
+pio run -t upload      # flash
+```
 
-Please navigate to [documentation](http://docs.platformio.org/page/platforms/seeedxiao.html).
+## Supported boards
 
-## Attribution (ESP32)
+| Family | Boards (`board =` ids) | Frameworks |
+| --- | --- | --- |
+| ESP32 | `seeed-xiao-esp32-c3` `-c5` `-c6` `-s3-plus` `-s3-sense` | Arduino, ESP-IDF |
+| Nordic nRF52 | `seeed-xiao-mbed-nrf52840{,-plus,-sense,-sense-plus}`, `seeed-xiao-afruitnrf52-nrf52840{,-plus,-sense,-sense-plus}` | Arduino |
+| Nordic nRF54 | `seeed-xiao-nrf54l15`, `seeed-xiao-nrf54lm20a`, `seeed-xiao-nrf54lm20b` | Zephyr |
+| Raspberry Pi | `seeed-xiao-rp2040`, `seeed-xiao-rp2350` | Arduino |
+| SAMD | `seeed-xiao-samd` | Arduino |
+| STM32 | `seeed-xiao-stm32c5` | Zephyr |
+| Renesas | `seeed-xiao-ra4m1` | Arduino |
+| Silicon Labs | `seeed-xiao-mg24`, `seeed-xiao-mg24-sense` | Arduino |
 
-The ESP32-related platform/build integration in this repository is based in part on work from the pioarduino project:
+Zephyr boards route to per-generation framework packages automatically (Zephyr 4.2 for nRF54L15, 4.4 for nRF54LM20/STM32C5); upstream gaps are covered by per-board fixes under [`zephyr/boards/arm/<board>/fixes/`](zephyr/) that expire on their own as upstream catches up.
 
-- https://github.com/pioarduino/platform-espressif32
+The `examples/` tree doubles as the regression suite (CI builds every environment) -- from `zephyr-blink` to a full Nordic Edge AI sample set.
 
+## Repository map
+
+| Path | Owns |
+| --- | --- |
+| `boards/` | board manifests incl. the `build.family` routing key |
+| `platform.py` / `platform.json` | PlatformIO lifecycle entry; package & framework declarations |
+| `platform_cfg/` | per-family package defaults and debug tools |
+| `builder/` | family build/upload scripts + framework integrations (arduino / espidf / zephyr) |
+| `zephyr/` | Zephyr board definitions, bundled modules, per-board upstream fixes |
+| `examples/`, `scripts/ci/`, `.github/workflows/` | regression contracts and offline gates |
+| `.agents/` | engineering notes and agent workflow rules (see `AGENTS.md`) |
+
+## Developing this platform
+
+```bash
+pytest tests/ -q                      # unit tests (console script; see scripts/ci/AGENTS.md)
+python scripts/ci/verify_boards.py    # offline board-manifest gate
+python scripts/ci/verify_zephyr_routing.py
+python scripts/ci/smoke_pio_boards.py # pio boards listing smoke
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the change workflow, and the per-directory `AGENTS.md` files for layer-specific rules.
+
+## Recovery tools
+
+**XIAO nRF54L15** -- mass erase / factory firmware when the board is
+bricked by NVM write protection (APPROTECT): `scripts/factory_reset/factory_reset.{sh,bat}`,
+recover-only variant `recover_only.{sh,bat}`.
+
+**XIAO nRF54LM20A** -- removes APPROTECT, erases application flash and
+programs a known-good Zephyr blink image (built from `examples/zephyr-blink`,
+checksum in `firmware_lm20a_blink.sha256`):
+`scripts/factory_reset/factory_reset_lm20a.{sh,bat}`. Pass a CMSIS-DAP
+probe unique id as the first argument when several probes are connected.
+
+## Attribution
+
+The ESP32 platform/build integration is based in part on work from the
+pioarduino project (https://github.com/pioarduino/platform-espressif32).
 We acknowledge and thank the pioarduino maintainers and contributors.
 
-## Factory Reset for XIAO nRF54L15
+## License
 
-For XIAO nRF54L15 boards, a factory reset script is provided to recover the board from a bad state (e.g., when it's can not upload due to the internal NVM write protection). This script will perform a mass erase of the flash and program a factory firmware.
-
-### Location
-
-The scripts are located in the `scripts/factory_reset/` directory.
-
-### Usage
-
-The script will automatically create and manage a local Python virtual environment to install the necessary tools, so it can be run out-of-the-box.
-
-*   **For Windows:**
-    Navigate to the `scripts/factory_reset` directory and run:
-    ```powershell
-    .\factory_reset.bat
-    ```
-
-*   **For Linux and macOS:**
-    Navigate to the `scripts/factory_reset` directory and run:
-    ```shell
-    bash factory_reset.sh
-    ```
-
-### Mass Erase Only (Recover Mode)
-
-If you only need to remove APPROTECT and wipe the device (without programming factory firmware), use the "Recover Only" scripts.
-
-#### Usage Examples
-
-Windows:
-```powershell
-cd scripts\factory_reset
-./recover_only.bat
-```
-
-Linux / macOS:
-```bash
-cd scripts/factory_reset
-bash recover_only.sh
-```
-
-## Recovery Firmware for XIAO nRF54LM20A
-
-For XIAO nRF54LM20A boards, use the dedicated recovery scripts to remove
-APPROTECT, erase application flash, and program a known-good Zephyr blink
-firmware. This is a recovery image, not the factory test firmware and not a
-full restoration of manufacturing data.
-
-The recovery image is built from `examples/zephyr-blink` using the
-`seeed-xiao-nrf54lm20a` environment. Its SHA-256 checksum is recorded in
-`scripts/factory_reset/firmware_lm20a_blink.sha256`.
-
-The scripts reuse PlatformIO Core's `tool-openocd` package. If it is not
-already present, PlatformIO installs that package; no separate pyOCD virtual
-environment is created.
-
-Windows:
-
-```powershell
-cd scripts\factory_reset
-.\factory_reset_lm20a.bat
-```
-
-Linux / macOS:
-
-```bash
-cd scripts/factory_reset
-bash factory_reset_lm20a.sh
-```
-
-When more than one CMSIS-DAP probe is connected, pass its unique ID as the
-first argument to the script.
-
+Apache-2.0 -- see [LICENSE](LICENSE).

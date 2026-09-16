@@ -41,15 +41,24 @@ platform_name = env.subst("$PIOPLATFORM")
 board_name = env.get("BOARD", "")
 platform = env.PioPlatform()
 framework_package_name = platform.get_zephyr_package_name(board_name)
+zephyr_board = platform.get_zephyr_board_name(board_name)
+board_family = platform.get_board_family(board_name) if board_name else None
 framework_version = None
 
-if board_name and "nrf" in board_name:
+# Some upstream tooling keys off $PIOPLATFORM (west manifest HAL selection
+# in _preinstall_west_deps, the framework's bundled build script). Boards on
+# nRF/STM32 masquerade as the official upstream platforms for the duration
+# of this script; the tail of the file restores the real platform name.
+# Exception-window semantics preserved from the previous implementation: if
+# the framework build script raises, the masqueraded value stays set.
+PIOPLATFORM_MASQUERADE = {
+    "nrf": "nordicnrf52",
+    "stm32": "ststm32",
+}
+masquerade_platform = PIOPLATFORM_MASQUERADE.get(board_family)
+if masquerade_platform:
     env.Replace(
-        PIOPLATFORM="nordicnrf52"
-    )
-if board_name and "stm32" in board_name:
-    env.Replace(
-        PIOPLATFORM="ststm32"
+        PIOPLATFORM=masquerade_platform
     )
 # Clone hal_nordic package from west.yaml if not present
 framework_dir = platform.get_package_dir(framework_package_name)
@@ -943,16 +952,21 @@ _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_mcuboot_signing(framework_dir)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
 _patch_platformio_extra_modules(framework_dir)
-_provision_xiao_dfu_module(framework_dir)
-_patch_cdc_vidpid(framework_dir)
+# nRF54LM20B provisioning refreshes the board's DFU-reset module and
+# boot-mode retention in the framework package on every build. Other boards
+# (including STM32C5, whose module block below copies all bundled modules
+# anyway) must not depend on 20B-specific sources existing.
+if zephyr_board == "xiao_nrf54lm20b":
+    _provision_xiao_dfu_module(framework_dir)
+    _patch_cdc_vidpid(framework_dir)
 _provision_edge_ai()
 
-if board_name == "seeed-xiao-stm32c5":
-    # Copy every bundled Zephyr module under zephyr/modules/ into the framework
-    # package and register each via ZEPHYR_EXTRA_MODULES, which is Zephyr's
-    # official way to inject modules outside the west manifest (each module's
-    # zephyr/module.yml is then discovered normally). Add a new module by
-    # simply dropping it under zephyr/modules/<name>/ — no edit needed here.
+# The canonical Zephyr board name (build.zephyr.board_name) drives gating;
+# ZEPHYR_EXTRA_MODULES is Zephyr's official way to inject modules outside
+# the west manifest (each module's zephyr/module.yml is then discovered
+# normally). Add a new module by dropping it under zephyr/modules/<name>/
+# — no edit needed here.
+if zephyr_board == "xiao_stm32c5":
     modules_root = join(platform_dir, "zephyr", "modules")
     if os.path.isdir(modules_root):
         extra_modules = [
@@ -973,24 +987,20 @@ if board_name == "seeed-xiao-stm32c5":
             extra_modules.append(target_module_dir)
         os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(extra_modules)
 
-# Apply per-board Zephyr fixes (patches + overrides) registered in
-# zephyr/fixes.yml. Dispatched by zephyr_fixes.py — boards absent from the
-# manifest get no fixes, so there is no coupling across boards/packages.
+# Apply per-board Zephyr fixes from zephyr/boards/arm/<board>/fixes/
+# (directory convention, dispatched by zephyr_fixes.py — boards without a
+# fixes/ directory get no fixes, so there is no coupling across boards).
 sys.path.insert(0, join(platform_dir, "builder", "frameworks"))
 from zephyr_fixes import apply_all
 
-apply_all(platform_dir, framework_dir,
-          platform.get_zephyr_board_name(board_name),
-          _get_framework_version())
+apply_all(platform_dir, framework_dir, zephyr_board, _get_framework_version())
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
-    
-if board_name and "nrf" in board_name:
-    env.Replace(
-        PIOPLATFORM=platform_name
-    )
-if board_name and "stm32" in board_name:
+
+# Restore the real platform name after the masquerade above (restore is
+# intentionally skipped when the build script raises — unchanged behavior).
+if masquerade_platform:
     env.Replace(
         PIOPLATFORM=platform_name
     )

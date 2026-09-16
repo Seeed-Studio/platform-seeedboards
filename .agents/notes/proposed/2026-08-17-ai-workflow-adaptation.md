@@ -1,6 +1,21 @@
 # AI 工作流适配方案
 
-Status: proposed
+Status: proposed (partially implemented -- see Implementation status)
+
+## Implementation status (2026-09-15)
+
+已按本方案交付（见 .agents/notes/implemented/ 两份决策笔记与对应提交）：
+
+- **首批六份子目录 `AGENTS.md`**（boards/、platform_cfg/、builder/、zephyr/、examples/、scripts/ci/），根规则已导航。
+- **首个与第二个已验证 gate**：`scripts/ci/verify_boards.py`（manifest 完整性 + 家族/zephyr 路由链 + 有意识的板卡快照）与 `scripts/ci/verify_zephyr_routing.py`（路由与 fixes 布局闭合），均离线、可独立运行、带正反例 fixtures，接入 `.github/workflows/ci-verify.yml`；`scripts/ci/smoke_pio_boards.py` 覆盖 `pio boards` 列举崩溃类回归。
+- **`platformio-add-board` skill** 已建立（metadata-driven 加板流程与边界）。
+- **notes 生命周期**已用两份笔记完整演练 proposed → implemented。
+
+存留范围（本 note 保持 active 的原因）：
+
+- `platformio-pr-review` skill 未建（rollout 第 3 步）。
+- 候选不变式中的 "example 的 board/framework 组合有效" 与 "CI 不遗漏受支持 example" 未实现（其输入依赖 P4 的发现器统一，先行落地后可做）。
+- `platformio-zephyr-integration` skill 按本方案条件（形成稳定重复流程后）暂缓。
 
 ## Context
 
@@ -115,4 +130,4 @@ Status: proposed
 - [`AGENTS.md`](../../../AGENTS.md)
 - [`platformio-development`](../../skills/platformio-development/SKILL.md)
 - [`Development Notes`](../README.md)
-- [`PlatformIO refactoring study`](../../../docs/REFACTORING_PIO.md)
+- [`Board family routing single source`](../implemented/2026-09-15-board-family-routing-single-source.md)
