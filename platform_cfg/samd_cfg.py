@@ -1,10 +1,14 @@
 import sys
+
 IS_WINDOWS = sys.platform.startswith("win")
+
+# Black Magic Probe native USB VID:PID
+BLACKMAGIC_PROBE_HWIDS = [["0x1d50", "0x6018"]]
+# Default TCP port of the J-Link GDB server
+JLINK_GDB_PORT = "2331"
 
 
 def configure_samd_default_packages(self, variables, targets):
-    if not variables.get("board"):
-        return super().configure_default_packages(variables, targets)
     board = self.board_config(variables.get("board"))
     upload_protocol = variables.get(
         "upload_protocol", board.get("upload.protocol", "")
@@ -32,7 +36,6 @@ def configure_samd_default_packages(self, variables, targets):
     self.packages["framework-cmsis"]["optional"] = False
     self.packages["framework-cmsis"]["version"] = "~2.50400.0"
 
-    
     for name in disabled_pkgs:
         # OpenOCD should be available when debugging
         if name == "tool-openocd" and variables.get("build_type", "") == "debug":
@@ -47,14 +50,14 @@ def _add_samd_default_debug_tools(self, board):
     if "tools" not in debug:
         debug["tools"] = {}
 
-    # Atmel Ice / J-Link / BlackMagic Probe
+    # Black Magic Probe / J-Link / Atmel ICE / CMSIS-DAP / ST-Link
     tools = ("blackmagic", "jlink", "atmel-ice", "cmsis-dap", "stlink")
     for link in tools:
         if link not in upload_protocols or link in debug["tools"]:
             continue
         if link == "blackmagic":
             debug["tools"]["blackmagic"] = {
-                "hwids": [["0x1d50", "0x6018"]],
+                "hwids": BLACKMAGIC_PROBE_HWIDS,
                 "require_debug_port": True,
             }
 
@@ -74,7 +77,7 @@ def _add_samd_default_debug_tools(self, board):
                         "-device",
                         debug.get("jlink_device"),
                         "-port",
-                        "2331",
+                        JLINK_GDB_PORT,
                     ],
                     "executable": (
                         "JLinkGDBServerCL.exe"
@@ -87,9 +90,12 @@ def _add_samd_default_debug_tools(self, board):
 
         else:
             openocd_chipname = debug.get("openocd_chipname")
-            assert openocd_chipname
+            assert openocd_chipname, (
+                "Missing debug.openocd_chipname for %s" % board.id
+            )
             openocd_cmds = ["set CHIPNAME %s" % openocd_chipname]
             if link == "stlink" and "at91sam3" in openocd_chipname:
+                # 0x2ba01477 is the standard ARM Cortex-M3 SW-DP ID (SAM3 boards)
                 openocd_cmds.append("set CPUTAPID 0x2ba01477")
             server_args = [
                 "-s",

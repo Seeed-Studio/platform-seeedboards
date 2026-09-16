@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from platform import system
+from platform import system as platform_system
 from os import makedirs
 from os.path import basename, isdir, join
 
@@ -51,7 +51,6 @@ env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
 upload_protocol = env.subst("$UPLOAD_PROTOCOL")
-build_mcu = env.get("BOARD_MCU", board.get("build.mcu", ""))
 
 
 env.Replace(
@@ -184,7 +183,7 @@ elif upload_protocol.startswith("jlink"):
 
     env.Replace(
         __jlink_cmd_script=_jlink_cmd_script,
-        UPLOADER="JLink.exe" if system() == "Windows" else "JLinkExe",
+        UPLOADER="JLink.exe" if platform_system() == "Windows" else "JLinkExe",
         UPLOADERFLAGS=[
             "-device", env.BoardConfig().get("debug", {}).get("jlink_device"),
             "-speed", env.GetProjectOption("debug_speed", "4000"),
@@ -198,7 +197,7 @@ elif upload_protocol.startswith("jlink"):
 
 elif upload_protocol == "sam-ba":
     bossac = join(platform.get_package_dir("tool-bossac") or "", "bossac")
-    if system() == "Windows":
+    if platform_system() == "Windows":
         bossac += ".exe"
     env.Replace(
         UPLOADER=bossac,

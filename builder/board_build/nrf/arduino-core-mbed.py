@@ -77,30 +77,6 @@ def configure_flash_layout(board_config):
     )
 
 
-def configure_fpu_flags(board_config):
-    board_cpu = board_config.get("build.cpu", "")
-    if board_cpu not in ("cortex-m4", "cortex-m7"):
-        return
-
-    fpv_version = "4-sp" if board_cpu == "cortex-m4" else "5"
-    env.Append(
-        ASFLAGS=[
-            "-mfloat-abi=soft",
-            "-mfpu=fpv%s-d16" % fpv_version
-        ],
-
-        CCFLAGS=[
-            "-mfloat-abi=soft",
-            "-mfpu=fpv%s-d16" % fpv_version
-        ],
-
-        LINKFLAGS=[
-            "-mfloat-abi=soft",
-            "-mfpu=fpv%s-d16" % fpv_version
-        ]
-    )
-
-
 cflags = set(load_flags("cflags"))
 cxxflags = set(load_flags("cxxflags"))
 ccflags = cflags.intersection(cxxflags)
@@ -172,12 +148,6 @@ env.Append(
 #
 
 configure_flash_layout(board)
-
-#
-# Configure FPU flags
-#
-
-# configure_fpu_flags(board)
 
 #
 # Linker requires preprocessing with specific defines

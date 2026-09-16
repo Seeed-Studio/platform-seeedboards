@@ -12,27 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
-import sys
 from platformio import util
 
-IS_WINDOWS = sys.platform.startswith("win")
-
-
-openocd_path = {
-    # Windows
-    "windows": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip",
-    # Linux
-    "linux": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz",
-    # Mac
-    "mac": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz"
-}
-
+# Pinned GCC ARM toolchain package version required by the Silicon Labs core
+GCCARM_TOOLCHAIN_VERSION = "1.120301.0"
 
 
 def configure_silabs_default_packages(self, variables, targets):
-    self.packages["toolchain-gccarmnoneeabi"]["version"] = '1.120301.0'
+    self.packages["toolchain-gccarmnoneeabi"]["version"] = GCCARM_TOOLCHAIN_VERSION
     self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
 
     self.packages["framework-arduino-silabs"]["optional"] = False
@@ -57,8 +44,6 @@ def configure_silabs_default_packages(self, variables, targets):
 def _add_silabs_default_debug_tools(self, board):
 
     debug = board.manifest.get("debug", {})
-    upload_protocols = board.manifest.get("upload", {}).get(
-        "protocols", [])
     if "tools" not in debug:
         debug["tools"] = {}
 

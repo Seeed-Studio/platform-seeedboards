@@ -16,9 +16,6 @@
 # Default flags for bare-metal programming (without any framework layers)
 #
 
-from SCons.Script import DefaultEnvironment
-
-# env = DefaultEnvironment()
 Import("env")
 env.Append(
     ASFLAGS=[
