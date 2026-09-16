@@ -20,7 +20,7 @@ FAMILY_BY_PROBE_BOARD = {
     "seeed-xiao-ra4m1": "renesas",
     "seeed-xiao-rp2040": "rpi",
     "seeed-xiao-samd": "samd",
-    "seeed-xiao-mg24": "siliconlab",
+    "seeed-xiao-mg24": "silabs",
     "seeed-xiao-stm32c5": "stm32",
 }
 
@@ -29,7 +29,7 @@ FAMILY_BY_PROBE_BOARD = {
 def platform_instance():
     # Function-scoped on purpose: family cfg modules mutate the shared
     # packages dict cumulatively (some even delete other families' tools,
-    # e.g. siliconlab_cfg), so one instance must not be reused across
+    # e.g. silabs_cfg), so one instance must not be reused across
     # families -- mirroring the one-process-per-pio-run reality.
     import pathlib
 

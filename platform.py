@@ -128,8 +128,8 @@ class SeeedstudioPlatform(PlatformBase):
         """Return the Zephyr board.name (e.g. 'xiao_stm32c5') for a PIO board id.
 
         Reads build.zephyr.board_name from the board manifest. Used to locate
-        per-board fixes under zephyr/{patches,overrides}/<board>/.
-        Returns '' if the board declares none (no local fixes dir to apply).
+        the board's tree under zephyr/boards/arm/<board>/ (including its
+        fixes/ directory). Returns '' if the board declares none.
         """
         if not board_name:
             return ""
@@ -171,7 +171,7 @@ class SeeedstudioPlatform(PlatformBase):
             return None
         raise KeyError(
             "Board '%s' is missing 'build.family' in %s. Add it to the "
-            "manifest -- one of esp, nrf, renesas, rpi, samd, siliconlab, "
+            "manifest -- one of esp, nrf, renesas, rpi, samd, silabs, "
             "stm32 (see .agents/notes/implemented/"
             "2026-09-15-board-family-routing-single-source.md)."
             % (board.id, board.manifest_path)
