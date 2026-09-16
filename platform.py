@@ -41,29 +41,10 @@ if IS_WINDOWS:
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 Architecture = ""
-ZEPHYR_PACKAGE_BY_BOARD = {
-    "seeed-xiao-nrf54l15": "framework-zephyr-nrf54l15",
-    "seeed-xiao-nrf54lm20a": "framework-zephyr-nrf54lm20",
-    "seeed-xiao-nrf54lm20b": "framework-zephyr-nrf54lm20",
-    # seeed-xiao-stm32c5 shares the exact same Zephyr 4.4.0 tarball as nrf54lm20
-    # (identical content), so it maps to framework-zephyr-nrf54lm20 directly. No
-    # separate framework-zephyr-stm32c5 package is shipped — PlatformIO would
-    # URL-dedupe an identically-versioned package into the nrf54lm20 dir anyway,
-    # leaving the name misleading. STM32C5 specifics (pinctrl via the hal_stm32
-    # west module; udc/xspi/adc overrides) come in per-board via zephyr/fixes.yml.
-    "seeed-xiao-stm32c5": "framework-zephyr-nrf54lm20",
-}
 
-# Maps a PIO board id to its Zephyr board.name (e.g. "seeed-xiao-stm32c5" ->
-# "xiao_stm32c5"). Used by the fixes dispatcher to locate per-board fixes
-# under zephyr/{patches,overrides}/<board.name>/. Must stay in sync with the
-# board directories under zephyr/boards/arm/.
-ZEPHYR_BOARD_NAME_BY_BOARD = {
-    "seeed-xiao-nrf54l15": "xiao_nrf54l15",
-    "seeed-xiao-nrf54lm20a": "xiao_nrf54lm20a",
-    "seeed-xiao-nrf54lm20b": "xiao_nrf54lm20b",
-    "seeed-xiao-stm32c5": "xiao_stm32c5",
-}
+# Per-board Zephyr framework package name and Zephyr board.name now live in
+# each board's manifest (build.zephyr.package / build.zephyr.variant); see
+# get_zephyr_package_name / get_zephyr_board_name below and zephyr/README.md.
 
 class SeeedstudioPlatform(PlatformBase):
     def __init__(self, *args, **kwargs):
@@ -120,25 +101,23 @@ class SeeedstudioPlatform(PlatformBase):
         if "zephyr" not in frameworks or "zephyr" not in self.frameworks:
             return
 
-        package_name = ZEPHYR_PACKAGE_BY_BOARD.get(board_name)
+        package_name = self.board_config(board_name).get("build.zephyr.package", "")
         if not package_name:
-            return
+            sys.stderr.write(
+                "Error: board '%s' uses the zephyr framework but boards/%s.json "
+                "has no build.zephyr.package. Add it (e.g. "
+                "\"framework-zephyr-nrf54lm20\") — see zephyr/README.md.\n"
+                % (board_name, board_name))
+            sys.exit(1)
 
         self.frameworks["zephyr"]["package"] = package_name
 
-        if board_name == "seeed-xiao-stm32c5":
-            # STM32C5 reuses framework-zephyr-nrf54lm20 (same Zephyr 4.4.0 tarball;
-            # no separate c5 package is shipped). STM32C5-specific fixes are applied
-            # per-board via zephyr/fixes.yml by builder/frameworks/zephyr_fixes.py.
-            print("Zephyr: seeed-xiao-stm32c5 reuses framework-zephyr-nrf54lm20 "
-                  "(same Zephyr 4.4.0 tarball; STM32C5 specifics via zephyr/fixes.yml)")
-
     def get_zephyr_package_name(self, board_name=None):
         if board_name:
-            return ZEPHYR_PACKAGE_BY_BOARD.get(
-                board_name,
-                self.frameworks.get("zephyr", {}).get("package", "framework-zephyr-nrf54lm20"),
-            )
+            manifest_pkg = self.board_config(board_name).get(
+                "build.zephyr.package", "")
+            if manifest_pkg:
+                return manifest_pkg
 
         package_name = self.frameworks.get("zephyr", {}).get("package")
         if package_name:
@@ -148,10 +127,16 @@ class SeeedstudioPlatform(PlatformBase):
     def get_zephyr_board_name(self, board_name):
         """Return the Zephyr board.name (e.g. 'xiao_stm32c5') for a PIO board id.
 
-        Used to locate per-board fixes under zephyr/{patches,overrides}/<board>/.
-        Returns '' if the board has no mapping (no local fixes dir to apply).
+        Derived from the board manifest's build.zephyr.variant: the first
+        component of `board[@revision]/soc/...` is the board.name, which keys
+        the per-board fixes under zephyr/{patches,overrides}/<board>/ and in
+        zephyr/fixes.yml (a board revision collapses to its shared board dir).
+        Returns '' if the board declares no variant (no local fixes to apply).
         """
-        return ZEPHYR_BOARD_NAME_BY_BOARD.get(board_name, "")
+        if not board_name:
+            return ""
+        variant = self.board_config(board_name).get("build.zephyr.variant", "")
+        return variant.split("/")[0].split("@")[0] if variant else ""
 
     def _iter_required_esp_tools(self):
         return [
