@@ -19,6 +19,9 @@ def configure_nrf_default_packages(self, variables, targets):
             
             self.packages["framework-cmsis"]["optional"] = False
             self.packages["tool-adafruit-nrfutil"]["optional"] = False
+            # The Adafruit nRF52 core (1.10x) links only on the GCC 7
+            # line; GCC 12 fails with undefined USB CDC symbols.
+            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.70201.0"
         
 
 
@@ -39,7 +42,10 @@ def configure_nrf_default_packages(self, variables, targets):
             for p in self.packages:
                 if p in ("tool-cmake", "tool-dtc", "tool-ninja"):
                     self.packages[p]["optional"] = False
-            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
+            # Zephyr 4.4 builds use the GCC 12 line (12.3.1), matching the
+            # upstream nordicnrf52 pin. GCC 14 removes CMSIS 6 intrinsics
+            # (__sxtb16 et al) -- validated broken by the zephyr matrix.
+            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.120301.0"
             if not IS_WINDOWS:
                 self.packages["tool-gperf"]["optional"] = False
 
