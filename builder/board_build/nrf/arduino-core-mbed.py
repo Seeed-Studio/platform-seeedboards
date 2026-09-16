@@ -187,7 +187,12 @@ if not board.get("build.ldscript", ""):
     ldscript = os.path.join(
         FRAMEWORK_DIR, "variants", board.get("build.variant"), "linker_script.ld")
     if board.get("build.arduino.ldscript", ""):
-        ldscript = env.subst(board.get("build.arduino.ldscript"))
+        # The manifest value is a bare file name -- resolve it inside the
+        # variant directory (same pattern as nrf_arduino.py), never as a
+        # CWD-relative path.
+        ldscript = os.path.join(
+            FRAMEWORK_DIR, "variants", board.get("build.variant"),
+            env.subst(board.get("build.arduino.ldscript")))
     if os.path.isfile(ldscript):
         preprocessed_linker_script = env.Command(
             os.path.join(
