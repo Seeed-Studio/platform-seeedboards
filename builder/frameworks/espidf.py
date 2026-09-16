@@ -11,6 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Attribution:
+# This ESP-IDF framework script is based in part on pioarduino project
+# work: https://github.com/pioarduino/platform-espressif32
+# Modified by Seeed Studio.
 
 """
 Espressif IDF
@@ -24,7 +29,6 @@ import copy
 import importlib.util
 import json
 import os
-import platform as sys_platform
 import re
 import requests
 import shutil
@@ -58,6 +62,7 @@ _cm_spec = importlib.util.spec_from_file_location("component_manager", _componen
 _component_manager = importlib.util.module_from_spec(_cm_spec)
 _cm_spec.loader.exec_module(_component_manager)
 sys.modules["component_manager"] = _component_manager
+board_memory_fingerprint = _component_manager.board_memory_fingerprint
 
 _penv_setup_file = str(Path(platform.get_dir()) / "builder" / "penv_setup.py")
 _spec = importlib.util.spec_from_file_location("penv_setup", _penv_setup_file)
@@ -77,12 +82,15 @@ os.environ["IDF_COMPONENT_OVERWRITE_MANAGED_COMPONENTS"] = "1"
 config = env.GetProjectConfig()
 board = env.BoardConfig()
 pio_orig_frwrk = env.GetProjectOption("framework")
-mcu = board.get("build.mcu", "esp32")
+mcu = board.get("build.mcu", None)
+if not mcu:
+    sys.stderr.write("Error: Missing required board manifest field 'build.mcu'\n")
+    env.Exit(1)
 chip_variant = board.get("build.chip_variant", "").lower()
 chip_variant = chip_variant if chip_variant else mcu
 flash_speed = board.get("build.f_flash", "40000000L")
 flash_frequency = str(flash_speed.replace("000000L", ""))
-flash_mode = board.get("build.flash_mode", "dio")
+flash_mode = board.get("build.flash_mode", None)
 boot_mode = board.get("build.boot", None)
 idf_variant = mcu.lower()
 flag_custom_sdkonfig = False
@@ -154,6 +162,81 @@ def create_silent_action(action_func):
     silent_action = env.Action(action_func)
     silent_action.strfunction = lambda target, source, env: ''
     return silent_action
+
+
+def copy_idf_component_archives(lib_src, lib_dst):
+    """Copy all .a archives from IDF component directories into lib_dst.
+
+    Archives are collected recursively so nested component sub-build outputs are
+    included. Duplicate archive basenames are kept with numeric suffixes
+    (for example, libfoo.a, libfoo_2.a, ...). Raises FileNotFoundError when
+    lib_src does not exist or is not a directory.
+    """
+    lib_src = Path(lib_src)
+    lib_dst = Path(lib_dst)
+    if not lib_src.is_dir():
+        raise FileNotFoundError(
+            f"IDF library source directory does not exist or is not a directory: {lib_src}"
+        )
+    if not lib_dst.is_dir():
+        raise FileNotFoundError(
+            f"IDF library destination directory does not exist or is not a directory: {lib_dst}"
+        )
+
+    copied_names = {}
+    for folder in sorted(lib_src.iterdir()):
+        if not folder.is_dir():
+            continue
+
+        # topdown=True lets the in-place dirs.sort() below control traversal
+        # order so duplicate suffix assignment stays deterministic.
+        for root, dirs, files in os.walk(folder, topdown=True):
+            dirs.sort()
+            files.sort()
+            for filename in files:
+                if not filename.endswith(".a"):
+                    continue
+
+                copied_names[filename] = copied_names.get(filename, 0) + 1
+                dst_name = (
+                    filename
+                    if copied_names[filename] == 1
+                    else f"{filename[:-2]}_{copied_names[filename]}.a"
+                )
+                shutil.copyfile(Path(root) / filename, lib_dst / dst_name)
+
+
+def get_requested_cli_targets():
+    """Return requested PlatformIO targets, with sys.argv fallback for IDE runs."""
+    targets = [str(t).strip() for t in COMMAND_LINE_TARGETS if str(t).strip()]
+    if targets:
+        return targets
+
+    # In some IDE-triggered invocations (e.g. VS Code), COMMAND_LINE_TARGETS
+    # can be empty during script loading, so parse raw argv as a fallback.
+    argv = [str(arg) for arg in sys.argv]
+    parsed_targets = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("-t", "--target"):
+            if i + 1 < len(argv):
+                parsed_targets.append(argv[i + 1])
+                i += 1
+        elif arg.startswith("--target="):
+            parsed_targets.append(arg.split("=", 1)[1])
+        elif arg.startswith("-t") and arg != "-t":
+            parsed_targets.append(arg[2:])
+        i += 1
+
+    normalized = []
+    seen = set()
+    for target in parsed_targets:
+        cleaned = str(target).strip().strip('"\'')
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            normalized.append(cleaned)
+    return normalized
 
 if "arduino" in env.subst("$PIOFRAMEWORK"):
     _arduino_pkg_dir = platform.get_package_dir("framework-arduinoespressif32")
@@ -241,10 +324,25 @@ if "espidf" in pio_orig_frwrk:
 
 # Check for board-specific configurations that require sdkconfig generation
 def has_board_specific_config():
-    """Check if board has configuration that needs to be applied to sdkconfig."""
+    """Check if board has configuration that needs to be applied to sdkconfig.
+    
+    Returns True when any board manifest field would produce sdkconfig flags,
+    including flash mode, CPU frequency, flash size, memory type, or PSRAM.
+    """
+    # Always true when basic board build fields exist (flash mode, f_cpu, flash size, etc.)
+    if board.get("build.f_cpu", None) or board.get("build.f_flash", None):
+        return True
+    if flash_mode:
+        return True
+    if board.get("upload", {}).get("flash_size", None):
+        return True
+
     # Check for PSRAM support
     extra_flags = board.get("build.extra_flags", [])
-    has_psram = any("-DBOARD_HAS_PSRAM" in flag for flag in extra_flags)
+    if isinstance(extra_flags, str):
+        has_psram = "-DBOARD_HAS_PSRAM" in extra_flags
+    else:
+        has_psram = any("-DBOARD_HAS_PSRAM" in flag for flag in extra_flags)
     
     # Check for special memory types  
     memory_type = None
@@ -415,7 +513,7 @@ def HandleArduinoIDFsettings(env):
                 flash_size = env.GetProjectOption("board_upload.flash_size", None)
             except:
                 pass
-        
+
         # Fallback to board.json manifest
         if not flash_size:
             flash_size = board.get("upload", {}).get("flash_size", None)
@@ -431,15 +529,37 @@ def HandleArduinoIDFsettings(env):
             for size in flash_sizes:
                 if size != flash_size:
                     board_config_flags.append(f"# CONFIG_ESPTOOLPY_FLASHSIZE_{size} is not set")
-            
+
             # Set the specific flash size configs
             board_config_flags.append(f"CONFIG_ESPTOOLPY_FLASHSIZE=\"{flash_size}\"")
             board_config_flags.append(f"CONFIG_ESPTOOLPY_FLASHSIZE_{flash_size}=y")
 
+        # Check for PSRAM support based on board flags (needed before frequency config)
+        extra_flags = board.get("build.extra_flags", "")
+        # Handle both string and list formats
+        if isinstance(extra_flags, str):
+            has_psram = "-DBOARD_HAS_PSRAM" in extra_flags
+        else:
+            has_psram = any("-DBOARD_HAS_PSRAM" in flag for flag in extra_flags)
+        
+        # Additional PSRAM detection methods
+        if not has_psram:
+            # Check if memory_type contains psram indicators
+            if memory_type and ("opi" in memory_type.lower() or "psram" in memory_type.lower()):
+                has_psram = True
+            # Check build.psram_type
+            elif "psram_type" in board.get("build", {}):
+                has_psram = True
+            # Check for SPIRAM mentions in extra_flags
+            elif isinstance(extra_flags, str) and "PSRAM" in extra_flags:
+                has_psram = True
+            elif not isinstance(extra_flags, str) and any("PSRAM" in str(flag) for flag in extra_flags):
+                has_psram = True
+
         # Handle Flash and PSRAM frequency configuration with platformio.ini override support
         # Priority: platformio.ini > board.json manifest
         # From 80MHz onwards, Flash and PSRAM frequencies must be identical
-        
+
         # Get f_flash with override support
         f_flash = None
         if hasattr(env, 'GetProjectOption'):
@@ -449,7 +569,7 @@ def HandleArduinoIDFsettings(env):
                 pass
         if not f_flash:
             f_flash = board.get("build.f_flash", None)
-        
+
         # Get f_boot with override support
         f_boot = None
         if hasattr(env, 'GetProjectOption'):
@@ -459,7 +579,7 @@ def HandleArduinoIDFsettings(env):
                 pass
         if not f_boot:
             f_boot = board.get("build.f_boot", None)
-        
+
         # Get f_psram with override support (ESP32-P4 specific)
         f_psram = None
         if hasattr(env, 'GetProjectOption'):
@@ -469,10 +589,10 @@ def HandleArduinoIDFsettings(env):
                 pass
         if not f_psram:
             f_psram = board.get("build.f_psram", None)
-        
+
         # Determine the frequencies to use
         # ESP32-P4: f_flash for Flash, f_psram for PSRAM (doesn't affect bootloader name)
-        
+
         if mcu == "esp32p4":
             # ESP32-P4: f_flash is always used for Flash frequency
             # f_psram is used for PSRAM frequency (if set), otherwise use f_flash
@@ -532,15 +652,16 @@ def HandleArduinoIDFsettings(env):
                 if mcu == "esp32p4":
                     board_config_flags.append(f"CONFIG_ESPTOOLPY_FLASHFREQ_VAL={flash_freq_val}")
                 
-                # Configure PSRAM frequency
-                # Disable other SPIRAM speed options first
-                psram_freqs = ["20", "40", "80", "120", "200"]
-                for freq in psram_freqs:
-                    if freq != psram_freq_str:
-                        board_config_flags.append(f"# CONFIG_SPIRAM_SPEED_{freq}M is not set")
-                # Then set the specific SPIRAM configs
-                board_config_flags.append(f"CONFIG_SPIRAM_SPEED={psram_freq_str}")
-                board_config_flags.append(f"CONFIG_SPIRAM_SPEED_{psram_freq_str}M=y")
+                # Configure PSRAM frequency only if board has PSRAM
+                if has_psram:
+                    # Disable other SPIRAM speed options first
+                    psram_freqs = ["20", "40", "80", "120", "200"]
+                    for freq in psram_freqs:
+                        if freq != psram_freq_str:
+                            board_config_flags.append(f"# CONFIG_SPIRAM_SPEED_{freq}M is not set")
+                    # Then set the specific SPIRAM configs
+                    board_config_flags.append(f"CONFIG_SPIRAM_SPEED={psram_freq_str}")
+                    board_config_flags.append(f"CONFIG_SPIRAM_SPEED_{psram_freq_str}M=y")
                 
                 # Enable experimental features for Flash frequencies > 80MHz
                 if flash_freq_val > 80:
@@ -548,28 +669,6 @@ def HandleArduinoIDFsettings(env):
                     board_config_flags.append("CONFIG_SPI_FLASH_HPM_ENABLE=y")
                     board_config_flags.append("CONFIG_SPI_FLASH_HPM_AUTO=y")
 
-        # Check for PSRAM support based on board flags
-        extra_flags = board.get("build.extra_flags", "")
-        # Handle both string and list formats
-        if isinstance(extra_flags, str):
-            has_psram = "-DBOARD_HAS_PSRAM" in extra_flags
-        else:
-            has_psram = any("-DBOARD_HAS_PSRAM" in flag for flag in extra_flags)
-        
-        # Additional PSRAM detection methods
-        if not has_psram:
-            # Check if memory_type contains psram indicators
-            if memory_type and ("opi" in memory_type.lower() or "psram" in memory_type.lower()):
-                has_psram = True
-            # Check build.psram_type
-            elif "psram_type" in board.get("build", {}):
-                has_psram = True
-            # Check for SPIRAM mentions in extra_flags
-            elif isinstance(extra_flags, str) and "PSRAM" in extra_flags:
-                has_psram = True
-            elif not isinstance(extra_flags, str) and any("PSRAM" in str(flag) for flag in extra_flags):
-                has_psram = True
-        
         if has_psram:
             # Enable basic SPIRAM support
             board_config_flags.append("CONFIG_SPIRAM=y")
@@ -639,6 +738,11 @@ def HandleArduinoIDFsettings(env):
             board_config_flags.extend([
                 "# CONFIG_SPIRAM is not set"
             ])
+            if mcu == "esp32":
+                board_config_flags.extend([
+                    "# CONFIG_BOOTLOADER_SPI_CUSTOM_WP_PIN is not set",
+                    "CONFIG_BOOTLOADER_SPI_WP_PIN=7"
+                ])
 
         # Use flash_memory_type for flash config
         if flash_memory_type and "opi" in flash_memory_type.lower():
@@ -718,7 +822,8 @@ def HandleArduinoIDFsettings(env):
             env.Exit(1)
         
         # Generate checksum for validation (maintains original logic)
-        checksum = get_MD5_hash(checksum_source.strip() + mcu)
+        checksum = get_MD5_hash(checksum_source.strip() + mcu
+                                + board_memory_fingerprint(env, board))
         
         with open(sdkconfig_src, 'r', encoding='utf-8') as src, open(sdkconfig_dst, 'w', encoding='utf-8') as dst:
             # Write checksum header (critical for compilation decision logic)
@@ -735,17 +840,26 @@ def HandleArduinoIDFsettings(env):
                     continue
                 
                 # Check if we have a custom replacement for this flag
+                # Search from the end so that later entries (user overrides) win
                 flag_replaced = False
-                for custom_flag in idf_config_flags[:]:  # Create copy for safe removal
-                    custom_flag_name = extract_flag_name(custom_flag.replace("'", ""))
-                    
+                last_match_idx = None
+                for idx in range(len(idf_config_flags) - 1, -1, -1):
+                    custom_flag_name = extract_flag_name(idf_config_flags[idx].replace("'", ""))
                     if flag_name == custom_flag_name:
-                        cleaned_flag = custom_flag.replace("'", "")
-                        dst.write(cleaned_flag + "\n")
-                        print(f"Replace: {line.strip()} with: {cleaned_flag}")
-                        idf_config_flags.remove(custom_flag)
-                        flag_replaced = True
-                        break
+                        if last_match_idx is None:
+                            last_match_idx = idx
+                        else:
+                            # Remove earlier duplicate (lower priority)
+                            idf_config_flags.pop(idx)
+                            if last_match_idx > idx:
+                                last_match_idx -= 1
+                
+                if last_match_idx is not None:
+                    custom_flag = idf_config_flags.pop(last_match_idx)
+                    cleaned_flag = custom_flag.replace("'", "")
+                    dst.write(cleaned_flag + "\n")
+                    print(f"Replace: {line.strip()} with: {cleaned_flag}")
+                    flag_replaced = True
                 
                 if not flag_replaced:
                     dst.write(line)
@@ -778,11 +892,25 @@ def HandleArduinoIDFsettings(env):
     
     # Convert to list for processing
     idf_config_list = [line for line in idf_config_flags.splitlines() if line.strip()]
-    
+
     # Write final configuration file with checksum
+    # Include the mtime of any referenced file (not just the raw "file://..."
+    # string) so that editing the file changes the hash and triggers recompilation. 
     custom_sdk_config_flags = ""
     if config.has_option("env:" + env["PIOENV"], "custom_sdkconfig"):
-        custom_sdk_config_flags = env.GetProjectOption("custom_sdkconfig").rstrip("\n") + "\n"
+        raw = env.GetProjectOption("custom_sdkconfig")
+        file_mtime = ""
+        for entry in raw.splitlines():
+            entry = entry.strip()
+            if entry.startswith("file://"):
+                file_ref = entry[7:]
+                file_path = file_ref if os.path.isabs(file_ref) else str(Path(PROJECT_DIR) / file_ref)
+                try:
+                    file_mtime = str(os.path.getmtime(file_path))
+                except OSError:
+                    pass
+                break
+        custom_sdk_config_flags = (file_mtime + "\n" if file_mtime else "") + raw.rstrip("\n") + "\n"
     
     write_sdkconfig_file(idf_config_list, custom_sdk_config_flags)
 
@@ -825,6 +953,8 @@ if flag_custom_sdkonfig == True and "arduino" in env.subst("$PIOFRAMEWORK") and 
         ARDUINO_LIB_COMPILE_FLAG="Build",
     )
     env["INTEGRATION_EXTRA_DATA"].update({"arduino_lib_compile_flag": env.subst("$ARDUINO_LIB_COMPILE_FLAG")})
+    # Remove lib_deps during Hybrid compile pass; they will be compiled in the subsequent Arduino compile
+    config.set("env:" + env["PIOENV"], "lib_deps", "")
 
 def get_project_lib_includes(env):
     project = ProjectAsLibBuilder(env, "$PROJECT_DIR")
@@ -1150,12 +1280,30 @@ def filter_args(args, allowed, ignore=None):
 
 def get_app_flags(app_config, default_config):
     def _extract_flags(config):
+        import shlex
         flags = {}
         for cg in config["compileGroups"]:
             flags[cg["language"]] = []
             for ccfragment in cg["compileCommandFragments"]:
-                fragment = ccfragment.get("fragment", "").strip("\" ")
+                raw_fragment = ccfragment.get("fragment", "")
+                fragment = raw_fragment.strip("\" ")
                 if not fragment or fragment.startswith("-D"):
+                    continue
+                # Handle GCC response files (@file) introduced in IDF 5.5.3+
+                # Read the file contents and extract flags so they are
+                # included in the global build environment
+                if fragment.startswith("@"):
+                    tokens = shlex.split(raw_fragment.strip())
+                    for t in tokens:
+                        if t.startswith("@"):
+                            resp_path = t[1:]
+                            if os.path.isfile(resp_path):
+                                with open(resp_path, encoding="utf-8") as f:
+                                    for rf in shlex.split(f.read()):
+                                        if not rf.startswith("-D"):
+                                            flags[cg["language"]].append(rf)
+                        elif not t.startswith("-D"):
+                            flags[cg["language"]].append(t)
                     continue
                 flags[cg["language"]].extend(
                     click.parser.split_arg_string(fragment.strip())
@@ -1287,9 +1435,12 @@ def extract_linker_script_fragments(
         for line in fp.readlines():
             if "sections.ld: CUSTOM_COMMAND" not in line:
                 continue
-            for fragment_match in re.finditer(r"(\S+\.lf\b)+", line):
+            # Ninja escapes special characters with '$': spaces become '$ ',
+            # colons become '$:'. The regex must treat '$'+char as part of
+            # the path so that paths containing spaces are not split.
+            for fragment_match in re.finditer(r"(?:\$.|[^\s])+\.lf\b", line):
                 result.append(_normalize_fragment_path(
-                    BUILD_DIR, fragment_match.group(0).replace("$:", ":")
+                    BUILD_DIR, fragment_match.group(0).replace("$:", ":").replace("$ ", " ")
                 ))
 
             break
@@ -1370,14 +1521,11 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
         '--objdump "{objdump}"'
     ).format(**args)
 
-    # Select appropriate linker script based on chip and revision
-    # ESP32-P4 has different linker scripts for rev < 3 and rev >= 3
-    if idf_variant == "esp32p4" and chip_variant == "esp32p4":
-        # Regular ESP32-P4 (rev >= 3): use sections.rev3.ld.in
-        linker_script_name = "sections.rev3.ld.in"
-    else:
-        # ESP32-P4 ES variant (rev < 3) or other chips: use sections.ld.in
-        linker_script_name = "sections.ld.in"
+    linker_script_name = "sections.ld.in"
+#    # Check for P4 >= rev3
+#    if idf_variant == "esp32p4" and chip_variant == "esp32p4":
+#        # ESP32-P4 rev >= 3 has different linker script
+#        linker_script_name = "sections.rev3.ld.in"
     
     initial_ld_script = str(Path(FRAMEWORK_DIR) / "components" / "esp_system" / "ld" / idf_variant / linker_script_name)
 
@@ -1388,11 +1536,110 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
             str(Path(BUILD_DIR) / "esp-idf" / "esp_system" / "ld" / linker_script_name),
         )
 
-    return env.Command(
+    ld_script = env.Command(
         str(Path("$BUILD_DIR") / "sections.ld"),
         initial_ld_script,
         env.VerboseAction(cmd, "Generating project linker script $TARGET"),
     )
+
+    # Relinker post-processing: move selected functions from IRAM to Flash
+    relinker_function = config.get("env:" + env["PIOENV"], "custom_relinker_function", "")
+    relinker_library = config.get("env:" + env["PIOENV"], "custom_relinker_library", "")
+    relinker_object = config.get("env:" + env["PIOENV"], "custom_relinker_object", "")
+    
+    # Validate that all three relinker settings are provided together
+    relinker_settings = {
+        "custom_relinker_function": relinker_function,
+        "custom_relinker_library": relinker_library,
+        "custom_relinker_object": relinker_object,
+    }
+    relinker_set = [key for key, value in relinker_settings.items() if value]
+    relinker_missing = [key for key, value in relinker_settings.items() if not value]
+    
+    if relinker_set and relinker_missing:
+        # Some but not all settings are provided - this is an error
+        sys.stderr.write(
+            "Error: Incomplete relinker configuration in [env:%s]\n"
+            "All three custom_relinker_* settings must be provided together:\n"
+            "  - Set: %s\n"
+            "  - Missing: %s\n"
+            "Either provide all three settings or remove all of them.\n"
+            % (env["PIOENV"], ", ".join(relinker_set), ", ".join(relinker_missing))
+        )
+        env.Exit(1)
+    
+    if relinker_function and relinker_library and relinker_object:
+        # All three settings are provided - proceed with relinker
+        # Normalize relinker CSV paths to absolute paths relative to PROJECT_DIR
+        _relinker_library = relinker_library if os.path.isabs(relinker_library) else str(Path(PROJECT_DIR) / relinker_library)
+        _relinker_object = relinker_object if os.path.isabs(relinker_object) else str(Path(PROJECT_DIR) / relinker_object)
+        _relinker_function = relinker_function if os.path.isabs(relinker_function) else str(Path(PROJECT_DIR) / relinker_function)
+        
+        _relinker_dir = str(Path(platform.get_dir()) / "builder" / "relinker")
+        _relinker_script = str(Path(_relinker_dir) / "relinker.py")
+        _relinker_objdump = args["objdump"]
+        _relinker_missing_raw = config.get(
+            "env:" + env["PIOENV"], "custom_relinker_missing_function_info", "no"
+        ).strip().lower()
+        
+        # Validate the value
+        valid_true_values = ("yes", "true", "1")
+        valid_false_values = ("no", "false", "0")
+        if _relinker_missing_raw not in valid_true_values and _relinker_missing_raw not in valid_false_values:
+            sys.stderr.write(
+                f"Warning: Invalid value '{_relinker_missing_raw}' for custom_relinker_missing_function_info. "
+                f"Valid values are: {', '.join(valid_true_values + valid_false_values)}. "
+                f"Defaulting to 'no'.\n"
+            )
+            _relinker_missing_raw = "no"
+        
+        _relinker_missing = _relinker_missing_raw in valid_true_values
+        _relinker_cmd = (
+            '"$ESPIDF_PYTHONEXE" "{script}" '
+            '--input "$BUILD_DIR/sections.ld" '
+            '--output "$BUILD_DIR/sections.ld" '
+            '--library "{library}" '
+            '--object "{object}" '
+            '--function "{function}" '
+            '--sdkconfig "{sdkconfig}" '
+            '--objdump "{objdump}" '
+            '--idf-path "{idf_path}"'
+        ).format(
+            script=_relinker_script,
+            library=_relinker_library,
+            object=_relinker_object,
+            function=_relinker_function,
+            sdkconfig=SDKCONFIG_PATH,
+            objdump=_relinker_objdump,
+            idf_path=FRAMEWORK_DIR,
+        )
+        if _relinker_missing:
+            _relinker_cmd += ' --missing_function_info'
+        def write_relinker_stamp(target, source, env):
+            with open(str(target[0]), 'w') as f:
+                f.write('done')
+
+        _relinker_config_module = str(Path(_relinker_dir) / "configuration.py")
+        _relinker_sources = [
+            str(Path("$BUILD_DIR") / "sections.ld"),
+            _relinker_script,
+            _relinker_config_module,
+            _relinker_library,
+            _relinker_object,
+            _relinker_function,
+            SDKCONFIG_PATH,
+        ]
+        relinker_step = env.Command(
+            str(Path("$BUILD_DIR") / "sections.ld.relinked"),
+            _relinker_sources,
+            [
+                env.VerboseAction(_relinker_cmd, "Running relinker to optimize IRAM usage"),
+                env.VerboseAction(write_relinker_stamp, ""),
+            ],
+        )
+        env.Depends(relinker_step, ld_script)
+
+    return ld_script
 
 
 # A temporary workaround to avoid modifying CMake mainly for the "heap" library.
@@ -1406,6 +1653,7 @@ def _fix_component_relative_include(config, build_flags, source_index):
 
 
 def prepare_build_envs(config, default_env, debug_allowed=True):
+    import shlex
     build_envs = []
     target_compile_groups = config.get("compileGroups", [])
     if not target_compile_groups:
@@ -1429,7 +1677,28 @@ def prepare_build_envs(config, default_env, debug_allowed=True):
         build_env = default_env.Clone()
         build_env.SetOption("implicit_cache", 1)
         for cc in compile_commands:
-            build_flags = cc.get("fragment", "").strip("\" ")
+            raw_fragment = cc.get("fragment", "")
+            # Handle GCC response files (@file) introduced in IDF 5.5.3+
+            # Read the file contents and add flags individually instead of
+            # passing @file to GCC, which avoids shlex parsing issues
+            if raw_fragment.strip().startswith("@"):
+                tokens = shlex.split(raw_fragment.strip())
+                extra_flags = []
+                for t in tokens:
+                    if t.startswith("@"):
+                        # Read the response file and add its flags
+                        resp_path = t[1:]
+                        if os.path.isfile(resp_path):
+                            with open(resp_path) as f:
+                                extra_flags.extend(shlex.split(f.read()))
+                    else:
+                        extra_flags.append(t)
+                # Response file flags are already in the global env via
+                # get_app_flags; skip them here to avoid duplicates
+                # (duplicate -specs= causes GCC errors, duplicate
+                # -mlongcalls is harmless but wasteful)
+                continue
+            build_flags = raw_fragment.strip("\" ")
             if not build_flags.startswith("-D"):
                 if build_flags.startswith("-include") and ".." in build_flags:
                     source_index = cg.get("sourceIndexes")[0]
@@ -1450,9 +1719,82 @@ def prepare_build_envs(config, default_env, debug_allowed=True):
     return build_envs
 
 
+def _ensure_generated_sources(config, project_src_dir, build_dir):
+    """Run ninja to build any generated source files that don't exist yet."""
+    generated_sources = [
+        s for s in config.get("sources", [])
+        if s.get("isGenerated") and not s["path"].endswith(".rule")
+    ]
+    if not generated_sources:
+        return
+
+    ninja_buildfile = str(Path(build_dir) / "build.ninja")
+    if not os.path.isfile(ninja_buildfile):
+        return
+
+    # Read ninja build file once to find which generated targets have CUSTOM_COMMANDs
+    ninja_custom_targets = set()
+    with open(ninja_buildfile, encoding="utf8") as fp:
+        for line in fp:
+            if "CUSTOM_COMMAND" in line and line.startswith("build "):
+                # Extract the output target(s) before the colon
+                outputs = re.split(
+                    r":\s+CUSTOM_COMMAND\b", line, maxsplit=1
+                )[0].replace("build ", "").strip()
+                for out in outputs.split():
+                    out = fs.to_unix_path(
+                        out.strip()
+                        .replace("${cmake_ninja_workdir}", "")
+                        .replace("$:", ":")
+                    ).lstrip("./")
+                    if out:
+                        ninja_custom_targets.add(out)
+
+    generated_targets = []
+    for source in generated_sources:
+        src_path = source["path"]
+        if not os.path.isabs(src_path):
+            abs_path = str(Path(project_src_dir) / src_path)
+        else:
+            abs_path = src_path
+        # Ninja targets are relative to build_dir, not project_src_dir
+        try:
+            ninja_target = fs.to_unix_path(
+                str(Path(abs_path).resolve().relative_to(Path(build_dir).resolve()))
+            ).lstrip("./")
+        except ValueError:
+            continue
+        if ninja_target not in ninja_custom_targets:
+            continue
+        generated_targets.append((ninja_target, src_path))
+
+    if not generated_targets:
+        return
+
+    idf_env = os.environ.copy()
+    populate_idf_env_vars(idf_env)
+    NINJA_DIR = platform.get_package_dir("tool-ninja")
+    ninja_exe = os.path.join(NINJA_DIR, "ninja")
+    all_targets = [t for t, _ in generated_targets]
+    result = exec_command(
+        [ninja_exe, "-C", build_dir, "-k", "0", *all_targets],
+        env=idf_env,
+    )
+    if result["returncode"] != 0:
+        # Non-fatal: some targets (ULP, cert bundles) are built by other
+        # mechanisms later. SCons will error if a source is truly missing.
+        # print("Warning: ninja could not generate some sources")
+        if result.get("err"):
+            print(result["err"])
+
+
 def compile_source_files(
     config, default_env, project_src_dir, prepend_dir=None, debug_allowed=True
 ):
+    active_build_dir = (
+        str(Path(BUILD_DIR) / prepend_dir) if prepend_dir else BUILD_DIR
+    )
+    _ensure_generated_sources(config, project_src_dir, active_build_dir)
     build_envs = prepare_build_envs(config, default_env, debug_allowed)
     objects = []
     # Canonical, symlink-resolved absolute path of the components directory
@@ -1472,19 +1814,25 @@ def compile_source_files(
 
             obj_path = str(Path("$BUILD_DIR") / (prepend_dir or ""))
             src_path_obj = Path(src_path).resolve()
+            build_dir_path = Path(active_build_dir).resolve()
             try:
                 rel = src_path_obj.relative_to(components_dir_path)
                 obj_path = str(Path(obj_path) / str(rel))
             except ValueError:
-                # Preserve project substructure when possible
+                # Generated sources in the build directory
                 try:
-                    rel_prj = src_path_obj.relative_to(Path(project_src_dir).resolve())
-                    obj_path = str(Path(obj_path) / str(rel_prj))
+                    rel_build = src_path_obj.relative_to(build_dir_path)
+                    obj_path = str(Path(obj_path) / str(rel_build))
                 except ValueError:
-                    if not os.path.isabs(source["path"]):
-                        obj_path = str(Path(obj_path) / source["path"])
-                    else:
-                        obj_path = str(Path(obj_path) / os.path.basename(src_path))
+                    # Preserve project substructure when possible
+                    try:
+                        rel_prj = src_path_obj.relative_to(Path(project_src_dir).resolve())
+                        obj_path = str(Path(obj_path) / str(rel_prj))
+                    except ValueError:
+                        if not os.path.isabs(source["path"]):
+                            obj_path = str(Path(obj_path) / source["path"])
+                        else:
+                            obj_path = str(Path(obj_path) / os.path.basename(src_path))
 
             preserve_source_file_extension = board.get(
                 "build.esp-idf.preserve_source_file_extension", "yes"
@@ -1712,7 +2060,7 @@ def build_bootloader(sdk_config):
                     bootloader_script_in_path = str(Path(FRAMEWORK_DIR) / "components" / "bootloader" / "subproject" / "main" / "ld" / idf_variant / script_name_in)
                     
                     # ESP32-P4 specific: Check for bootloader.rev3.ld.in
-                    if idf_variant == "esp32p4" and chip_variant == "esp32p4":
+                    if idf_variant == "esp32p4" and chip_variant == "esp32p4" and script_basename == "bootloader.ld":
                         bootloader_rev3_path = str(Path(FRAMEWORK_DIR) / "components" / "bootloader" / "subproject" / "main" / "ld" / idf_variant / "bootloader.rev3.ld.in")
                         if os.path.isfile(bootloader_rev3_path):
                             bootloader_script_in_path = bootloader_rev3_path
@@ -1959,12 +2307,12 @@ def preprocess_linker_file(src_ld_script, target_ld_script, config_dir=None, ext
     if framework_version_list[0] >= 6:
         include_dirs = [f'"{config_dir}"']
         include_dirs.append(f'"{fs.to_unix_path(str(Path(FRAMEWORK_DIR) / "components" / "esp_system" / "ld"))}"')
-
+        
         if extra_include_dirs:
             include_dirs.extend(f'"{fs.to_unix_path(dir_path)}"' for dir_path in extra_include_dirs)
-
+        
         cflags_value = "-I" + " -I".join(include_dirs)
-
+        
         return env.Command(
             target_ld_script,
             src_ld_script,
@@ -2054,12 +2402,29 @@ def _get_uv_exe():
     return get_executable_path(str(Path(PLATFORMIO_DIR) / "penv"), "uv")
 
 
-def install_python_deps():
+def _get_python_deps():
+    """Get the required Python dependencies for ESP-IDF"""
+    deps = {
+        # https://github.com/platformio/platform-espressif32/issues/635
+        "cryptography": "~=44.0.0",
+        "pyparsing": ">=3.1.0,<4",
+        "idf-component-manager": "~=2.4.11",
+        "esp-idf-kconfig": "~=3.7.0"
+    }
+
+    if IS_WINDOWS:
+        deps["windows-curses"] = ">=2.4.2"
+
+    return deps
+
+
+def install_python_deps(deps=None):
     UV_EXE = _get_uv_exe()
-    # Same uv-optional stance as _create_venv: fall back to the venv's own
-    # pip when uv is not installed in the PlatformIO penv.
+    # Same uv-optional stance as _create_venv below: fall back to the venv's
+    # own pip when uv is not installed in the PlatformIO penv.
     if not os.path.isfile(UV_EXE):
         UV_EXE = None
+    deps = deps or _get_python_deps()
 
     def _get_installed_uv_packages(python_exe_path):
         result = {}
@@ -2076,7 +2441,7 @@ def install_python_deps():
         except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as e:
             print(f"Warning! Couldn't extract the list of installed Python packages: {e}")
             return {}
-        
+
         for p in packages:
             result[p["name"]] = pepver_to_semver(p["version"])
 
@@ -2085,19 +2450,6 @@ def install_python_deps():
     skip_python_packages = str(Path(FRAMEWORK_DIR) / ".pio_skip_pypackages")
     if os.path.isfile(skip_python_packages):
         return
-
-    deps = {
-        # https://github.com/platformio/platformio-core/issues/4614
-        "urllib3": "<2",
-        # https://github.com/platformio/platform-espressif32/issues/635
-        "cryptography": "~=44.0.0",
-        "pyparsing": ">=3.1.0,<4",
-        "idf-component-manager": "~=2.4.6",
-        "esp-idf-kconfig": "~=2.5.0"
-    }
-
-    if sys_platform.system() == "Darwin" and "arm" in sys_platform.machine().lower():
-        deps["chardet"] = ">=3.0.2,<4"
 
     python_exe_path = get_python_exe()
     installed_packages = _get_installed_uv_packages(python_exe_path)
@@ -2129,23 +2481,6 @@ def install_python_deps():
                 )
             )
 
-    if IS_WINDOWS and "windows-curses" not in installed_packages:
-        # Install windows-curses in the IDF Python environment
-        if UV_EXE:
-            env.Execute(
-                env.VerboseAction(
-                    f'"{UV_EXE}" pip install --python "{python_exe_path}" windows-curses',
-                    "Installing windows-curses package with uv",
-                )
-            )
-        else:
-            env.Execute(
-                env.VerboseAction(
-                    f'"{python_exe_path}" -m pip install windows-curses',
-                    "Installing windows-curses package with pip",
-                )
-            )
-
 
 def get_idf_venv_dir():
     # The name of the IDF venv contains the IDF version to avoid possible conflicts and
@@ -2172,7 +2507,12 @@ def ensure_python_venv_available():
             print("Failed to extract Python version from IDF virtual env!")
             return None
 
-    def _is_venv_outdated(venv_data_file):
+    def _get_deps_hash(deps_dict):
+        import hashlib
+        deps_str = json.dumps(deps_dict, sort_keys=True)
+        return hashlib.sha256(deps_str.encode()).hexdigest()
+
+    def _is_venv_outdated(venv_data_file, current_deps):
         try:
             with open(venv_data_file, "r", encoding="utf8") as fp:
                 venv_data = json.load(fp)
@@ -2188,6 +2528,11 @@ def ensure_python_venv_available():
                     print(
                         "Warning! Python version in the IDF virtual environment"
                         " differs from the current Python!"
+                    )
+                    return True
+                if venv_data.get("deps_hash", "") != _get_deps_hash(current_deps):
+                    print(
+                        "Warning! Python dependencies have changed!"
                     )
                     return True
                 return False
@@ -2237,17 +2582,39 @@ def ensure_python_venv_available():
             sys.stderr.write("Error: Failed to create a proper virtual environment. Missing the Python executable!\n")
             env.Exit(1)
 
-    venv_dir = get_idf_venv_dir()
-    venv_data_file = str(Path(venv_dir) / "pio-idf-venv.json")
-    if not os.path.isfile(venv_data_file) or _is_venv_outdated(venv_data_file):
+    def _is_venv_interpreter_valid(venv_dir):
+        python_path = get_executable_path(venv_dir, "python")
+        return os.path.isfile(python_path)
+
+    def _recreate_and_save(venv_dir, deps, venv_data_file):
         _create_venv(venv_dir)
-        install_python_deps()
+        install_python_deps(deps)
         with open(venv_data_file, "w", encoding="utf8") as fp:
             venv_info = {
                 "version": IDF_ENV_VERSION,
-                "python_version": _get_idf_venv_python_version()
+                "python_version": _get_idf_venv_python_version(),
+                "deps_hash": _get_deps_hash(deps)
             }
             json.dump(venv_info, fp, indent=2)
+
+    # Define deps here so we can track changes
+    deps = _get_python_deps()
+
+    venv_dir = get_idf_venv_dir()
+    venv_data_file = str(Path(venv_dir) / "pio-idf-venv.json")
+    recreate = False
+    if not os.path.isfile(venv_data_file):
+        recreate = True
+    elif not _is_venv_interpreter_valid(venv_dir):
+        print("Warning! Python interpreter in the IDF virtual environment is missing. Recreating...")
+        recreate = True
+    elif _is_venv_outdated(venv_data_file, deps):
+        recreate = True
+
+    if recreate:
+        _recreate_and_save(venv_dir, deps, venv_data_file)
+    else:
+        install_python_deps(deps)
 
 
 def get_python_exe():
@@ -2406,6 +2773,16 @@ project_ld_script = generate_project_ld_script(
 )
 env.Depends("$BUILD_DIR/$PROGNAME$PROGSUFFIX", project_ld_script)
 
+# If relinker is configured, ensure the ELF depends on the relinked stamp
+_relinker_stamp = str(Path(BUILD_DIR) / "sections.ld.relinked")
+_rl_env_section = "env:" + env["PIOENV"]
+if os.path.exists(_relinker_stamp) or (
+    config.get(_rl_env_section, "custom_relinker_function", "") and
+    config.get(_rl_env_section, "custom_relinker_library", "") and
+    config.get(_rl_env_section, "custom_relinker_object", "")
+):
+    env.Depends("$BUILD_DIR/$PROGNAME$PROGSUFFIX", _relinker_stamp)
+
 elf_config = get_project_elf(target_configs)
 default_config_name = find_default_component(target_configs)
 framework_components_map = get_components_map(
@@ -2413,6 +2790,17 @@ framework_components_map = get_components_map(
     ["STATIC_LIBRARY", "OBJECT_LIBRARY"],
     [project_target_name, default_config_name],
 )
+
+project_config = target_configs.get(project_target_name, {})
+default_config = target_configs.get(default_config_name, {})
+project_defines = get_app_defines(project_config)
+project_flags = get_app_flags(project_config, default_config)
+link_args = extract_link_args(elf_config)
+
+# Merge compile flags (including response file contents like -mlongcalls
+# and -specs=picolibc.specs) into the global env BEFORE building
+# components so all compilations use the correct flags
+env.MergeFlags(project_flags)
 
 build_components(env, framework_components_map, PROJECT_DIR)
 
@@ -2422,12 +2810,6 @@ if not elf_config:
 
 for component_config in framework_components_map.values():
     env.Depends(project_ld_script, component_config["lib"])
-
-project_config = target_configs.get(project_target_name, {})
-default_config = target_configs.get(default_config_name, {})
-project_defines = get_app_defines(project_config)
-project_flags = get_app_flags(project_config, default_config)
-link_args = extract_link_args(elf_config)
 app_includes = get_app_includes(elf_config)
 
 #
@@ -2542,7 +2924,7 @@ env.Depends("$BUILD_DIR/$PROGNAME$PROGSUFFIX", partition_table)
 #
 
 project_flags.update(link_args)
-env.MergeFlags(project_flags)
+env.MergeFlags(link_args)
 env.Prepend(
     CPPPATH=app_includes["plain_includes"],
     CPPDEFINES=project_defines,
@@ -2669,7 +3051,7 @@ ulp_dir = str(Path(PROJECT_DIR) / "ulp")
 # ULP support: ESP32, ESP32-S2, ESP32-S3, ESP32-C6, ESP32-P4
 # No ULP: ESP32-C2, ESP32-C3, ESP32-C5, ESP32-H2
 if os.path.isdir(ulp_dir) and os.listdir(ulp_dir) and mcu not in ("esp32c2", "esp32c3", "esp32c5", "esp32h2"):
-    env.SConscript("ulp.py", exports="env sdk_config project_config app_includes idf_variant")
+    env.SConscript("../board_build/esp/ulp.py", exports="env sdk_config project_config app_includes idf_variant")
 
 #
 # Compile Arduino IDF sources
@@ -2698,17 +3080,18 @@ if ("arduino" in env.subst("$PIOFRAMEWORK")) and ("espidf" not in env.subst("$PI
         # Ensure destinations exist
         for d in (lib_dst, ld_dst, mem_var, str(Path(mem_var) / "include")):
             Path(d).mkdir(parents=True, exist_ok=True)
-        src = [str(Path(lib_src) / x) for x in os.listdir(lib_src)]
-        src = [folder for folder in src if not os.path.isfile(folder)] # folders only
-        for folder in src:
-            files = [str(Path(folder) / x) for x in os.listdir(folder)]
-            for file in files:
-                if file.strip().endswith(".a"):
-                    shutil.copyfile(file, str(Path(lib_dst) / file.split(os.path.sep)[-1]))
+        # Walk each component directory recursively so that nested archives
+        # (e.g. mbedtls vendored libraries in mbedtls/mbedtls/library/) are
+        # also copied back into the package.  When two archives share the same
+        # filename the duplicate is renamed with a numeric suffix (_2, _3, ...),
+        # mirroring the rename logic used by esp32-arduino-lib-builder's
+        # copy-libs.sh so the package stays consistent.
+        copy_idf_component_archives(lib_src, lib_dst)
 
         _replace_copy(str(Path(lib_dst) / "libspi_flash.a"), str(Path(mem_var) / "libspi_flash.a"))
         _replace_copy(str(Path(env_build) / "memory.ld"), str(Path(ld_dst) / "memory.ld"))
-        if mcu == "esp32s3":
+        _replace_copy(str(Path(env_build) / "sections.ld"), str(Path(ld_dst) / "sections.ld"))
+        if sdk_config.get("CONFIG_SOC_PSRAM_DMA_CAPABLE", False):
             _replace_copy(str(Path(lib_dst) / "libesp_psram.a"), str(Path(mem_var) / "libesp_psram.a"))
             _replace_copy(str(Path(lib_dst) / "libesp_system.a"), str(Path(mem_var) / "libesp_system.a"))
             _replace_copy(str(Path(lib_dst) / "libfreertos.a"), str(Path(mem_var) / "libfreertos.a"))
@@ -2736,12 +3119,18 @@ if ("arduino" in env.subst("$PIOFRAMEWORK")) and ("espidf" not in env.subst("$PI
         PYTHON_EXE = env.subst("$PYTHONEXE")
         pio_exe_path = str(Path(os.path.dirname(PYTHON_EXE)) / ("pio" + (".exe" if IS_WINDOWS else "")))
         pio_cmd = env["PIOENV"]
-        env.Execute(
+        child_targets = [t for t in get_requested_cli_targets() if t != "checkprogsize"]
+        child_target_args = " ".join(f'-t "{target}"' for target in child_targets)
+        child_run_cmd = (
+            f'"{pio_exe_path}" run -e "{pio_cmd}" {child_target_args}'.strip()
+        )
+        if int(ARGUMENTS.get("PIOVERBOSE", 0)):
+            forwarded = ", ".join(child_targets) if child_targets else "(none)"
+            print(f"[HybridCompile] Forwarding child targets: {forwarded}")
+            print(f"[HybridCompile] Child command: {child_run_cmd}")
+        child_rc = env.Execute(
             env.VerboseAction(
-                (
-                    '"%s" run -e ' % pio_exe_path
-                    + " ".join(['"%s"' % pio_cmd])
-                ),
+                child_run_cmd,
                 "*** Starting Arduino compile %s with custom libraries ***" % pio_cmd,
             )
         )
@@ -2755,6 +3144,11 @@ if ("arduino" in env.subst("$PIOFRAMEWORK")) and ("espidf" not in env.subst("$PI
             from component_manager import ComponentManager
             component_manager = ComponentManager(env)
             component_manager.restore_pioarduino_build_py()
+
+        # The child `pio run` already performs the full Arduino build in a
+        # fully configured environment. Stop here to avoid re-running binary
+        # post-actions in the outer, partially configured SCons environment.
+        env.Exit(child_rc if child_rc else 0)
     silent_action = create_silent_action(idf_lib_copy)
     env.AddPostAction("checkprogsize", silent_action)
 
@@ -2820,22 +3214,10 @@ if ota_partition_params["size"] and ota_partition_params["offset"]:
     )
     extra_imgs = board.get("upload.arduino.flash_extra_images", [])
     if extra_imgs:
-        extra_img_dir = Path(env.subst("$PROJECT_DIR")) / "variants" / "tasmota"
+        extra_img_dir = Path(ARDUINO_FRAMEWORK_DIR)
         env.Append(
              FLASH_EXTRA_IMAGES=[(offset, str(extra_img_dir / img)) for offset, img in extra_imgs]
         )
-
-def _parse_size(value):
-    if isinstance(value, int):
-        return value
-    elif value.isdigit():
-        return int(value)
-    elif value.startswith("0x"):
-        return int(value, 16)
-    elif value[-1].upper() in ("K", "M"):
-        base = 1024 if value[-1].upper() == "K" else 1024 * 1024
-        return int(value[:-1]) * base
-    return value
 
 #
 # Configure application partition offset

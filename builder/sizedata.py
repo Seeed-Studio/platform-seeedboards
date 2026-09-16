@@ -2,7 +2,6 @@ import re
 
 Import("env")
 
-print("in sizedata.py")
 
 def pioSizeIsRamSectionCustom(env, section):
     if section and re.search(

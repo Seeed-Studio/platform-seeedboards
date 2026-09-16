@@ -35,43 +35,45 @@
       "type": "framework",
       "optional": true,
       "owner": "espressif",
-      "version": "https://github.com/espressif/arduino-esp32/releases/download/3.3.7/esp32-core-3.3.7.tar.xz"
+      "version": "https://github.com/espressif/arduino-esp32/releases/download/3.3.11/esp32-core-3.3.11.tar.xz"
     },
     "framework-arduinoespressif32-libs": {
       "type": "framework",
       "optional": true,
       "owner": "espressif",
-      "version": "https://github.com/espressif/arduino-esp32/releases/download/3.3.7/esp32-core-3.3.7-libs.tar.xz"
+      "version": "https://github.com/espressif/arduino-esp32/releases/download/3.3.11/esp32-core-3.3.11-libs.tar.xz"
     },
     "framework-arduino-c2-skeleton-lib": {
       "type": "framework",
       "optional": true,
       "owner": "espressif",
-      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c2-skeleton/c2_87912cd291_compile_skeleton.zip"
+      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c2-skeleton/c2_b774170ff46_compile_skeleton.zip"
     },
     "framework-arduino-c61-skeleton-lib": {
       "type": "framework",
       "optional": true,
       "owner": "espressif",
-      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c61-skeleton/c61_87912cd291_compile_skeleton.zip"
+      "version": "https://github.com/pioarduino/platform-espressif32/releases/download/c61-skeleton/c61_b774170ff46_compile_skeleton.zip"
     },
     "framework-espidf": {
       "type": "framework",
       "optional": true,
-      "owner": "platformio",
-      "version": "~3.50503.0"
+      "owner": "pioarduino",
+      "version": "https://github.com/pioarduino/esp-idf/releases/download/v5.5.5/esp-idf-v5.5.5.tar.xz"
     },
     "toolchain-xtensa-esp-elf": {
       "type": "toolchain",
       "optional": true,
-      "owner": "platformio",
-      "version": "14.2.0+20251107"
+      "owner": "pioarduino",
+      "package-version": "14.2.0+20260121",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/xtensa-esp-elf-14.2.0_20260121.zip"
     },
     "toolchain-riscv32-esp": {
       "type": "toolchain",
       "optional": true,
-      "owner": "platformio",
-      "version": "14.2.0+20251107"
+      "owner": "pioarduino",
+      "package-version": "14.2.0+20260121",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/riscv32-esp-elf-14.2.0_20260121.zip"
     },
     "toolchain-esp32ulp": {
       "type": "toolchain",
@@ -83,28 +85,30 @@
     "tool-xtensa-esp-elf-gdb": {
       "type": "debugger",
       "optional": true,
-      "owner": "platformio",
-      "version": "14.2.0+20240403"
+      "owner": "pioarduino",
+      "package-version": "17.1.0+20260402",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/xtensa-esp-gdb-17.1_20260402.zip"
     },
     "tool-riscv32-esp-elf-gdb": {
       "type": "debugger",
       "optional": true,
-      "owner": "platformio",
-      "version": "14.2.0+20240403"
+      "owner": "pioarduino",
+      "package-version": "17.1.0+20260402",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/riscv32-esp-gdb-17.1_20260402.zip"
     },
     "tool-esptoolpy": {
       "type": "uploader",
       "optional": true,
-      "owner": "seeedstudio",
-      "package-version": "5.1.2",
-      "version": "https://files.seeedstudio.com/arduino/platformio/esptoolpy-v5.1.2.zip"
+      "owner": "pioarduino",
+      "package-version": "5.3.0",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/esptoolpy-v5.3.0.zip"
     },
     "tool-esp_install": {
       "type": "tool",
       "optional": false,
-      "owner": "seeedstudio",
+      "owner": "pioarduino",
       "package-version": "5.3.4",
-      "version": "https://files.seeedstudio.com/arduino/platformio/esp_install-v5.3.4.zip"
+      "version": "https://github.com/pioarduino/esp_install/releases/download/v5.3.4/esp_install-v5.3.4.zip"
     },
     "tool-esp-rom-elfs": {
       "type": "tool",
@@ -122,8 +126,9 @@
     "tool-openocd-esp32": {
       "type": "debugger",
       "optional": true,
-      "owner": "platformio",
-      "version": "~2.1100.0"
+      "owner": "pioarduino",
+      "package-version": "2.1200.20260424",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/openocd-v0.12.0-esp32-20260424.zip"
     },
     "tool-mklittlefs": {
       "optional": true,
@@ -138,23 +143,23 @@
     "tool-cppcheck": {
       "type": "tool",
       "optional": true,
-      "owner": "seeedstudio",
-      "package-version": "2.11.0+230717",
-      "version": "https://files.seeedstudio.com/arduino/platformio/cppcheck-v2.11.0-230717.zip"
+      "owner": "pioarduino",
+      "package-version": "2.20.1",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/cppcheck-v2.20.1.zip"
     },
     "tool-clangtidy": {
       "type": "tool",
       "optional": true,
-      "owner": "seeedstudio",
-      "package-version": "18.1.1",
-      "version": "https://files.seeedstudio.com/arduino/platformio/clangtidy-v18.1.1.zip"
+      "owner": "pioarduino",
+      "package-version": "21.1.0",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/clangtidy-v21.1.0.zip"
     },
     "tool-pvs-studio": {
       "type": "tool",
       "optional": true,
-      "owner": "seeedstudio",
+      "owner": "pioarduino",
       "package-version": "7.36.91321",
-      "version": "https://files.seeedstudio.com/arduino/platformio/pvs-studio-v7.36.91321.zip"
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/pvs-studio-v7.36.91321.zip"
     },
     "tool-cmake": {
       "optional": true,
@@ -172,9 +177,11 @@
       "version": "^1.7.0"
     },
     "tool-scons": {
+      "type": "tool",
       "optional": true,
-      "owner": "platformio",
-      "version": "~4.40801.0"
+      "owner": "pioarduino",
+      "package-version": "4.40801.0",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/scons-4.8.1.zip"
     },
     "toolchain-gccarmnoneeabi": {
       "type": "toolchain",
