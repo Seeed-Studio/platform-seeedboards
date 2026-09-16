@@ -37,6 +37,12 @@
       "protocol": "nrfutil-mcumgr",
       "use_1200bps_touch": true,
       "wait_for_upload_port": true,
+      "cdc": {
+        "app_vidpid": "2886:8013",
+        "loader_vidpids": [
+          "2886:0013"
+        ]
+      },
       "pyocd_target": "nrf54lm20a",
       "pyocd_frequency": 4000000,
       "protocols": [
