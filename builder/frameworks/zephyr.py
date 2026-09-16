@@ -60,11 +60,8 @@ if masquerade_platform:
     env.Replace(
         PIOPLATFORM=masquerade_platform
     )
-# Clone hal_nordic package from west.yaml if not present
 framework_dir = platform.get_package_dir(framework_package_name)
 platform_dir = platform.get_dir()
-west_yml_path = join(framework_dir, "west.yml")
-hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 
 # Copy custom board definitions into Zephyr framework boards directory
 # so that Zephyr CMake can discover them during build configuration.
@@ -100,17 +97,9 @@ def _get_framework_version():
     return framework_version
 
 
-def _board_copy_mode():
-    # The framework package is persistent across PlatformIO projects. Refresh
-    # every bundled board so changes in this platform package (DTS, pinctrl,
-    # Kconfig, or board metadata) are not hidden by a stale framework copy.
-    return "refresh"
-
-
 if os.path.isdir(platform_boards_dir):
     os.makedirs(framework_vendor_boards_dir, exist_ok=True)
     import shutil
-    board_copy_mode = _board_copy_mode()
     for board_name_dir in os.listdir(platform_boards_dir):
         src = join(platform_boards_dir, board_name_dir)
         dst = join(framework_vendor_boards_dir, board_name_dir)
@@ -119,8 +108,6 @@ if os.path.isdir(platform_boards_dir):
             continue
         if os.path.isdir(stale_arm_dst):
             shutil.rmtree(stale_arm_dst)
-        if board_copy_mode == "missing-only" and os.path.exists(dst):
-            continue
         # Refresh copied board definitions on every build so local DTS/Kconfig
         # changes always override any stale board copies inside the framework.
         if os.path.islink(dst) and not os.path.exists(dst):
@@ -134,13 +121,6 @@ if os.path.isdir(platform_boards_dir):
 
 import re
 import time
-
-
-def _ensure_system_path_available():
-    """Keep system tools like git available for west/zephyr helper scripts."""
-    current_path = os.environ.get("PATH", "")
-    if current_path:
-        os.environ["PATH"] = current_path
 
 
 def _get_zephyr_venv_dir():
@@ -644,7 +624,6 @@ def _preinstall_west_deps(framework_dir, platform_name_hint):
 
     hal_modules_by_platform = {
         "nordicnrf52": {"hal_nordic"},
-        "nordicnrf51": {"hal_nordic"},
         "ststm32": {"hal_st", "hal_stm32"},
     }
     required_hal_modules = hal_modules_by_platform.get(platform_name_hint)
@@ -800,15 +779,14 @@ def _provision_xiao_dfu_module(framework_dir):
 def _patch_cdc_vidpid(framework_dir):
     """Force the XIAO nRF54LM20B app CDC to Seeed 0x2886:0x8013.
 
-    The VID/PID override belongs in the board's Kconfig.defconfig, but the
-    board-copy step is 'missing-only' for Zephyr >=4.4 (see commit f629163),
-    so a framework copy made before the override was added is never refreshed
-    and the device enumerates with Zephyr's stock 0x2fe3:0x0004 -- which the
-    1200-bps DFU upload path (nrf_build.py _APP_CDC_VIDPID="2886:8013") cannot
-    find, so auto-flashing falls back to manual DFU. Inject the override into
-    the framework's copied Kconfig.defconfig on every build (idempotent), so
-    new and existing installs both get 2886:8013 without touching the
-    missing-only copy logic.
+    The VID/PID override belongs in the board's Kconfig.defconfig, but a
+    framework package cached before the override was added still carries the
+    pre-override copied Kconfig.defconfig, and the device enumerates with
+    Zephyr's stock 0x2fe3:0x0004 -- which the 1200-bps DFU upload path
+    (nrf_build.py _APP_CDC_VIDPID="2886:8013") cannot find, so auto-flashing
+    falls back to manual DFU. Inject the override into the framework's copied
+    Kconfig.defconfig on every build (idempotent), so new and existing
+    installs both get 2886:8013.
     """
     path = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
                 "Kconfig.defconfig")
@@ -942,7 +920,6 @@ def _provision_edge_ai():
 # Pre-install west dependencies with retry before platformio-build.py runs
 # This ensures they exist when install-deps.py checks, avoiding its
 # destructive clean_up() on any single failure.
-_ensure_system_path_available()
 _ensure_zephyr_python_env()
 _ensure_minimal_west_workspace(framework_dir)
 _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))

@@ -256,7 +256,6 @@ def run_build(
     project_dir: Path,
     env_name: str | None,
     project_conf: Path | None,
-    override_platform_to_local: bool,
     verbose: bool,
     *,
     log_path: Path | None,
@@ -268,8 +267,6 @@ def run_build(
 
     if env_name:
         cmd += ["-e", env_name]
-
-    # override_platform_to_local is handled via project_conf
 
     if verbose:
         print("+", " ".join(cmd), flush=True)
@@ -337,7 +334,6 @@ def build_projects(
                     project_dir,
                     env_name=None,
                     project_conf=override_conf,
-                    override_platform_to_local=override,
                     verbose=verbose,
                     log_path=log_path,
                 )
@@ -370,7 +366,6 @@ def build_projects(
                     project_dir,
                     env_name=env,
                     project_conf=override_conf,
-                    override_platform_to_local=override,
                     verbose=verbose,
                     log_path=log_path,
                 )

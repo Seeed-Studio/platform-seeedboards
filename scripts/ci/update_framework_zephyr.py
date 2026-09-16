@@ -18,7 +18,6 @@ import sys
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
 
 
 REGISTRY_API_URL = "https://api.registry.platformio.org/v3/packages/platformio/tool/framework-zephyr"
@@ -54,7 +53,7 @@ def _fetch_latest_version_name() -> str:
     raise RuntimeError("Unable to determine latest framework-zephyr version from registry API")
 
 
-def _find_object_span(text: str, start_key_pos: int) -> Tuple[int, int]:
+def _find_object_span(text: str, start_key_pos: int) -> tuple[int, int]:
     """Return (obj_start_index, obj_end_index_exclusive) for the JSON object after a key.
 
     This is a small JSON-aware brace matcher that understands strings/escapes.
@@ -95,7 +94,7 @@ def _find_object_span(text: str, start_key_pos: int) -> Tuple[int, int]:
     raise ValueError("Unterminated object while matching braces")
 
 
-def _update_platform_json_text(text: str, latest_version: str) -> Tuple[UpdateResult, str]:
+def _update_platform_json_text(text: str, latest_version: str) -> tuple[UpdateResult, str]:
     packages_pos = text.find('"packages"')
     if packages_pos == -1:
         raise ValueError('Could not find top-level "packages" in platform.json')
@@ -135,7 +134,7 @@ def _write_github_output(**kv: str) -> None:
             f.write(f"{k}={v}\n")
 
 
-def main(argv: list[str]) -> int:
+def main() -> int:
     platform_json_path = Path(os.environ.get("PLATFORM_JSON", str(DEFAULT_PLATFORM_JSON)))
 
     if not platform_json_path.exists():
@@ -163,4 +162,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())
