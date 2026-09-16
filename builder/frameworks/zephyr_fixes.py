@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-Zephyr framework fixes dispatcher (调度器).
+Zephyr framework fixes dispatcher.
 
 Reads zephyr/fixes.yml and applies every matching fix to the framework-zephyr
 package, dispatching each to the right executor (zephyr_patch.apply_patch for
