@@ -32,8 +32,6 @@ def configure_samd_default_packages(self, variables, targets):
     self.packages["framework-cmsis"]["optional"] = False
     self.packages["framework-cmsis"]["version"] = "~2.50400.0"
 
-    print("optional is:",self.packages["framework-cmsis"]["optional"])
-    print("optional is:",self.packages["framework-cmsis"]["version"])
     
     for name in disabled_pkgs:
         # OpenOCD should be available when debugging
