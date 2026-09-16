@@ -21,6 +21,10 @@ zephyr/
 
 `<board>` = Zephyr board name（即 `zephyr/boards/arm/<同名>/` 的目录名，等于
 `board.yml` 的 `board.name`），由 `platform.get_zephyr_board_name()` 解析。
+Derived from the board manifest's `build.zephyr.variant`: the first component
+of `board[@revision]/soc/...` (before any `/` and `@`); a board revision
+(e.g. `xiao_nrf54lm20a@2.0.0/...`) collapses to its shared board directory
+`xiao_nrf54lm20a`.
 
 ## 选用哪种机制？
 
@@ -47,11 +51,34 @@ zephyr/
    填 `path/target/applies_to/reason`，override 建议填 `baseline_sha`。
 3. **无需改任何 builder 代码**。
 
-## 加新板子
+## Adding a new board
 
-1. `platform.py` 的 `ZEPHYR_PACKAGE_BY_BOARD` 与 `ZEPHYR_BOARD_NAME_BY_BOARD` 各加一行。
-2. 新建 `zephyr/patches/<board.name>/` 与 `zephyr/overrides/<board.name>/`（有修复才建）。
-3. `fixes.yml` 加 `boards[<board.name>]` 节。
+No Python code changes are needed — board-level data lives in
+`boards/<board-id>.json`:
+
+1. Declare two fields under `build.zephyr` in `boards/<board-id>.json`:
+   `package` (the framework-zephyr package this board builds against, e.g.
+   `framework-zephyr-nrf54lm20`) and `variant` (in `board[@revision]/soc/...`
+   form, e.g. `xiao_nrf54lm20a@2.0.0/nrf54lm20a/cpuapp`). The first
+   component of the variant (before `/` and `@`) is the board.name — the key
+   of this directory's fixes mechanism.
+2. Create `zephyr/patches/<board.name>/` and `zephyr/overrides/<board.name>/`
+   (only if the board has fixes).
+3. Add a `boards[<board.name>]` section in `fixes.yml`.
+
+`scripts/ci/verify_board_manifests.py` validates in CI that these fields are
+present (a missing declaration fails the check instead of silently falling
+back to the default package) and cross-checks that every `fixes.yml` key
+matches a manifest-derived board name.
+
+> **Package sharing note**: `seeed-xiao-stm32c5` declares
+> `framework-zephyr-nrf54lm20` directly — it uses the **exact same** Zephyr
+> 4.4.0 tarball as nrf54lm20 (identical content), so no separate
+> `framework-zephyr-stm32c5` package is shipped; even if one were shipped,
+> PlatformIO would URL-dedupe an identically-versioned package into the
+> nrf54lm20 directory, leaving only a misleading name behind. STM32C5
+> board-level differences (pinctrl via the hal_stm32 west module;
+> udc/xspi/adc overrides) are injected per board via `fixes.yml`.
 
 ## 适配新 Zephyr 版本（升级 framework 包）
 
