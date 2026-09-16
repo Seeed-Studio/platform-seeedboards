@@ -210,23 +210,13 @@ elif upload_protocol == "sam-ba":
         ],
         UPLOADCMD='$UPLOADER $UPLOADERFLAGS "${SOURCE.get_abspath()}"'
     )
-    if board.get("build.core") in ("adafruit", "seeed", "sparkfun") and board.get(
-            "build.mcu").startswith(("samd51", "same51")):
-        # special flags for the latest bossac tool
-        env.Append(
-            UPLOADERFLAGS=[
-            "-U", "--offset", board.get("upload.offset_address")])
+    env.Append(UPLOADERFLAGS=["--erase"])
+    if env.BoardConfig().get("upload.native_usb", False):
+        env.Append(UPLOADERFLAGS=["-U"])
 
-    else:
-        env.Append(UPLOADERFLAGS=["--erase"])
-        if env.BoardConfig().get("upload.native_usb", False):
-            env.Append(UPLOADERFLAGS=["-U"])
-        
-        upload_offset = board.get("upload.offset_address")
-        if upload_offset:
-            env.Append(UPLOADERFLAGS=["--offset", upload_offset])
-    if "sam3x8e" in build_mcu:
-        env.Append(UPLOADERFLAGS=["--boot"])
+    upload_offset = board.get("upload.offset_address")
+    if upload_offset:
+        env.Append(UPLOADERFLAGS=["--offset", upload_offset])
     if int(ARGUMENTS.get("PIOVERBOSE", 0)):
         env.Prepend(UPLOADERFLAGS=["--info", "--debug"])
 

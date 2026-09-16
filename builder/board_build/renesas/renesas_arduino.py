@@ -144,16 +144,10 @@ env.Append(
 env.Append(
     LINKFLAGS=[
         "-mfloat-abi=hard",
-        "-mfpu=fpv%s-sp-d16" % ("5" if board.id == "portenta_c33" else "4"),
+        "-mfpu=fpv4-sp-d16",
+        "--specs=nano.specs",
     ]
 )
-
-if board.id != "portenta_c33":
-    env.Append(
-        LINKFLAGS=[
-            "--specs=nano.specs",
-        ]
-    )
 
 #
 # Add Linker scripts
