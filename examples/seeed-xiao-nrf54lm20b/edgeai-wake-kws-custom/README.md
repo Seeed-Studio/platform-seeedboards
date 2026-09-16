@@ -1,82 +1,123 @@
-# XIAO nRF54LM20B 自定义唤醒词与关键词识别（Axon NPU）
+# XIAO nRF54LM20B custom wake word & keyword spotting (Axon NPU)
 
-这是一个本地适配 sample。它复用 XIAO 板载 PDM 麦克风、nPM1300 麦克风供电、USB CDC 日志和 Axon NPU。目前已接入下列两份自定义模型；两者都由 Axon NPU 加速。
+This is a locally adapted sample. It reuses the on-board XIAO PDM microphone,
+the nPM1300 microphone supply, USB CDC logging, and the Axon NPU. It currently
+ships two custom models, both accelerated by the Axon NPU:
 
-- WW：`Hello_Seeed_95647_wake_word.zip`，solution 95647，标签 `hello seeed`；
-- KWS：`seeed_key word_95649_kws.zip`，solution 95649，类别顺序为 `OTHER, SILENCE, no, ok, opus, stop, yes`。
+- WW: `Hello_Seeed_95647_wake_word.zip`, solution 95647, label `hello seeed`;
+- KWS: `seeed_key word_95649_kws.zip`, solution 95649, class order
+  `OTHER, SILENCE, no, ok, opus, stop, yes`.
 
-模型分别是：
+The models are:
 
-- 唤醒词模型（WW）：持续监听，检测成功后进入关键词窗口；
-- 关键词模型（KWS）：在窗口中识别命令词，超时后回到唤醒词监听。
+- Wake word model (WW): continuously listens; on a detection it opens the
+  keyword window;
+- Keyword spotting model (KWS): recognizes command words inside the window;
+  on timeout it returns to wake-word listening.
 
-## 训练前固定的音频接口
+## Audio interface fixed before training
 
-固件使用板载 MSM261DGT006 PDM 麦克风，当前音频配置由 `src/dmic.h` 定义。训练数据、Edge AI Lab 项目和最终固件必须一致：
+The firmware uses the on-board MSM261DGT006 PDM microphone; the audio
+configuration is defined by `src/dmic.h`. The training data, the Edge AI Lab
+project, and the final firmware must all agree:
 
-- 单声道、左声道；
-- 16 kHz PCM；
-- 16-bit 有符号采样；
-- 模型的输入窗口大小必须等于 `DMIC_SAMPLES_IN_BLOCK`；
-- 音频预处理（例如 mel 特征）由导出的 Nordic Edge AI Lab 模型描述，固件不能自行改变其配置。
+- mono, left channel;
+- 16 kHz PCM;
+- 16-bit signed samples;
+- the model's input window size must equal `DMIC_SAMPLES_IN_BLOCK`;
+- audio preprocessing (e.g. mel features) is described by the exported
+  Nordic Edge AI Lab model; the firmware must not change its configuration
+  on its own.
 
-不要在训练完成后随意修改 `src/dmic.h` 的采样率、块大小或通道配置。若模型导出的窗口与固件不一致，`ww_init()` 或 `kws_init()` 的断言会阻止设备运行。
+Do not casually change the sample rate, block size, or channel configuration
+in `src/dmic.h` after training. If a model's exported window disagrees with
+the firmware, an assertion in `ww_init()` or `kws_init()` blocks the device
+from running.
 
-## 训练与导出（Nordic Edge AI Lab）
+## Training & export (Nordic Edge AI Lab)
 
-当前 Nordic 官方的 Wake Word 与 Keyword Spotting 都是 **No data required**
-流程：输入英文短语/命令文本，平台自动生成训练数据、训练并为 nRF54LM20B
-的 Axon NPU 生成模型。不要为这两个任务创建 Neuton/CPU 模型。
+Nordic's official Wake Word and Keyword Spotting are both **No data
+required** flows: you enter English phrase/command text and the platform
+auto-generates training data, trains, and produces a model for the
+nRF54LM20B Axon NPU. Do not create Neuton/CPU models for these two tasks.
 
-1. 登录 [Nordic Edge AI Lab](https://ai.lab.nordicsemi.com)，在 **My Solutions** 选择 **Add New Solution**。
-2. 创建 WW：**Model type = Axon**，**Task type = Wake Word Detection**；输入 1–3 个英文单词（4–30 个英文字符），试听发音后点击 **Start**。官方预计约 1 小时。
-3. 创建 KWS：**Model type = Axon**，**Task type = Keyword Spotting**；添加命令词后点击 **Start**。建议单词命令、约 1 秒内说完、避免读音相近的词；官方预计约 2–3 小时。
-4. 两个项目训练完成后，在 **Results** 中下载各自的模型 archive。分别使用浏览器麦克风或录音进行 Live Test；WW 优先运行 **Auto Tune**，KWS 对每个命令调节 **threshold** 和 **predictions in a row**。
-5. 记录每个模型包的输入窗口、输出类别及索引顺序、检测阈值和 Axon buffer 要求。真实板端/目标环境录音只用于独立验收与阈值校准，不能省略。
+1. Sign in to [Nordic Edge AI Lab](https://ai.lab.nordicsemi.com) and, under
+   **My Solutions**, choose **Add New Solution**.
+2. Create the WW: **Model type = Axon**, **Task type = Wake Word
+   Detection**; enter 1–3 English words (4–30 English characters), preview
+   the pronunciation, then click **Start**. The official ETA is ~1 hour.
+3. Create the KWS: **Model type = Axon**, **Task type = Keyword Spotting**;
+   add the command words and click **Start**. Prefer single-word commands,
+   spoken in ~1 second, with distinct pronunciations; official ETA ~2–3
+   hours.
+4. Once both projects finish training, download each model archive from
+   **Results**. Live Test each with a browser microphone or recording; run
+   **Auto Tune** on the WW first, then tune **threshold** and **predictions
+   in a row** per command on the KWS.
+5. Record each model package's input window, output classes and index order,
+   detection threshold, and Axon buffer requirements. Recordings taken on
+   the real board / in the target environment are for independent acceptance
+   and threshold calibration only and cannot be skipped.
 
-官方链接：
+Official links:
 
 - [Wake Word Detection](https://docs.nordicsemi.com/r/bundle/edge-ai-lab/page/wake_word.html)
 - [Keyword Spotting](https://docs.nordicsemi.com/r/bundle/edge-ai-lab/page/keyword_spotting.html)
-- [Edge AI Add-on（Axon 板端集成）](https://docs.nordicsemi.com/bundle/addon-edge-ai_latest/page/index.html)
+- [Edge AI Add-on (Axon on-device integration)](https://docs.nordicsemi.com/bundle/addon-edge-ai_latest/page/index.html)
 
-## 安装导出的模型
+## Installing the exported models
 
-将导出物**整体**复制到下列目录，且不要将 WW 和 KWS 文件混在同一个目录：
+Copy each export **in full** into the directory below; do not mix WW and KWS
+files in the same directory:
 
 ```text
 src/ww/nrf_edgeai_generated/
 src/kws/nrf_edgeai_generated/
 ```
 
-只训练完成一侧时，可以只替换一侧目录；另一侧仍会使用 sample 23 的参考模型。
+If you only finished training one side, you may replace just that side's
+directory; the other side keeps using sample 23's reference model.
 
-WW 包需要包含：
+The WW package must contain:
 
 ```text
 nrf_edgeai_generated/nrf_edgeai_user_model.h
 ```
 
-并提供它调用的模型实例函数。CMake 会将 WW 和 KWS wrapper 分别绑定到各自的模型头文件，避免两个包同名 `nrf_edgeai_user_model.h` 的冲突。对于当前已安装的模型，wrapper 调用：
+plus the model instance function it calls. CMake binds the WW and KWS
+wrappers to their respective model headers separately, so the two packages'
+same-named `nrf_edgeai_user_model.h` files do not collide. For the models
+currently installed, the wrappers call:
 
 ```c
 nrf_edgeai_user_model_95647();
 nrf_edgeai_user_model_95649();
 ```
 
-若后续 Lab 导出的 solution ID 改变，只修改对应的 `src/ww/wakeword.c` 或 `src/kws/kws.c`，不要修改生成模型文件。
+If a later Lab export changes the solution ID, edit only the corresponding
+`src/ww/wakeword.c` or `src/kws/kws.c`; do not edit the generated model files.
 
-## 必须修改的三个位置
+## The three places you must edit
 
-1. `zephyr/prj.conf`：将 `CONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE` 与 `CONFIG_NRF_AXON_PSUM_BUFFER_SIZE` 改成**两个模型所需值中的较大值**。
-2. `src/kws/kws.c`：更新 `enum keyword_class` 和 `keyword_detection_ctxs[]`，使顺序、个数和名称与 KWS 模型输出严格一致。`silence`、`unknown` 的索引也必须正确。
-3. `src/main.c`：将启动日志中的示例短语/关键词改成你训练的内容；按现场测试结果调整 Kconfig 中 WW 历史阈值和 KWS EMA/置信度阈值。
+1. `zephyr/prj.conf`: set `CONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE` and
+   `CONFIG_NRF_AXON_PSUM_BUFFER_SIZE` to the **larger of the two models'
+   required values**.
+2. `src/kws/kws.c`: update `enum keyword_class` and
+   `keyword_detection_ctxs[]` so the order, count, and names strictly match
+   the KWS model's output. The indices for `silence` and `unknown` must also
+   be correct.
+3. `src/main.c`: update the example phrase/keywords in the boot log to what
+   you trained; tune the WW history threshold and the KWS EMA/confidence
+   thresholds in Kconfig based on on-site testing.
 
-唤醒词 wrapper 目前把“模型最高概率类别”视为检测候选。若你的唤醒词模型包含多个输出类别，必须在 `src/ww/wakeword.c` 中明确只接受目标唤醒词所在类别，不能只依赖最高概率。
+The wake-word wrapper currently treats "the model's highest-probability
+class" as the detection candidate. If your wake-word model has multiple
+output classes, you must explicitly accept only the target wake-word class
+in `src/ww/wakeword.c`; do not rely on the top probability alone.
 
-## 构建与烧录
+## Build & flash
 
-在本目录执行：
+From this directory:
 
 ```powershell
 pio run -e seeed-xiao-nrf54lm20b
@@ -84,20 +125,25 @@ pio run -t upload -e seeed-xiao-nrf54lm20b
 pio device monitor -b 115200
 ```
 
-默认运行方式为“唤醒词触发 KWS”。测试模式可在 `zephyr/prj.conf` 中切换：
+The default run mode is "wake word gates KWS". Test modes can be switched in
+`zephyr/prj.conf`:
 
 ```ini
-CONFIG_APP_MODE_WW_GATED_KWS=y  # 默认
+CONFIG_APP_MODE_WW_GATED_KWS=y  # default
 # CONFIG_APP_MODE_WW_ONLY=y
 # CONFIG_APP_MODE_KWS_ONLY=y
 ```
 
-## 首次验收清单
+## First acceptance checklist
 
-- 两个模型都确认为 Axon，而不是 Neuton/CPU 包。
-- 设备启动、DMIC 初始化、Axon 初始化均无错误。
-- 训练时的采样率、窗口长度、通道和预处理与固件相同。
-- KWS 输出类别数与 `KEYWORDS_COUNT` 断言一致。
-- 在未参与训练的录音和真实环境中分别统计误唤醒、漏唤醒、命令误识别和端到端延迟。
+- Both models are confirmed to be Axon, not Neuton/CPU packages.
+- The device boots; DMIC and Axon initialization complete without errors.
+- The training sample rate, window length, channel, and preprocessing match
+  the firmware.
+- The KWS output class count matches the `KEYWORDS_COUNT` assertion.
+- Count false wakes, missed wakes, command misrecognitions, and end-to-end
+  latency separately on recordings not used in training and in the real
+  environment.
 
-模型版本、数据集划分、buffer 值、类别映射和现场测试结果请记录到同目录的 `MODEL_CARD.md`。
+Record model versions, dataset splits, buffer values, class mappings, and
+on-site test results in `MODEL_CARD.md` in the same directory.
