@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-Zephyr framework patch applier (执行器 A).
+Zephyr framework patch applier (executor A).
 
 Pure executor: applies one unified-diff patch to the framework-zephyr package.
 Reads no manifest, knows nothing about board/version, does no directory scan —

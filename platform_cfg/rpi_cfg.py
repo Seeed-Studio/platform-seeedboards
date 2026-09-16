@@ -79,7 +79,6 @@ def configure_rpi_default_packages(self, variables, targets):
             "board_build.core", board_config.get("build.core", "arduino"))
         # Use the same string identifier as seen in "pio system info" and registry
         sys_type = util.get_systype()
-        print("sys_type is:",sys_type)
         frameworks = variables.get("pioframework", [])
         # Configure OpenOCD package if used
         openocd_pkg = "tool-openocd-rp2040-earlephilhower"
@@ -90,7 +89,6 @@ def configure_rpi_default_packages(self, variables, targets):
         self.packages[picotool_pkg]["optional"] = False
         if picotool_pkg in self.packages:
             self.packages[picotool_pkg]["version"] = earle_picotool[sys_type]
-        print("build_core =:",build_core,)
         if "arduino" in frameworks:
             if build_core == "arduino":
                 self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
@@ -107,7 +105,6 @@ def configure_rpi_default_packages(self, variables, targets):
                 self.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
                 # Configure toolchain download link dynamically
                 # RP2350 (RISC-V)
-                print("chip =:",chip)
                 if chip == "rp2350-riscv":
                     self.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_riscv[sys_type]
                 # RP2040, RP2350 (ARM)

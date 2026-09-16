@@ -23,12 +23,12 @@ def configure_esp_default_packages(self, variables, targets):
     _mark_required("tool-esptoolpy")
     
     # Enable check tools only when "check_tool" is enabled
-    # self.packages里就是json文件中的所有 packages 项
+    # self.packages mirrors the packages section of platform.json.
     for p in self.packages:
         if p in ("tool-cppcheck", "tool-clangtidy", "tool-pvs-studio"):
             self.packages[p]["optional"] = False if str(variables.get("check_tool")).strip("['']") in p else True
 
-    #设置 tool-xtensa-esp-elf-gdb 与 tool-riscv32-esp-elf-gdb 两个工具链为必选项
+    # Require both ESP GDB packages regardless of MCU architecture.
     for gdb_package in ("tool-xtensa-esp-elf-gdb", "tool-riscv32-esp-elf-gdb"):
         _mark_required(gdb_package)
         # if IS_WINDOWS:
@@ -36,7 +36,7 @@ def configure_esp_default_packages(self, variables, targets):
             # launch a GDB server in pipe mode while v11 works fine
             # self.packages[gdb_package]["version"] = "~11.2.0"
 
-    # 如果是 "esp32", "esp32s2", "esp32s3" 则必须使用 toolchain-xtensa-esp-elf 工具链，不是这几款就不用 toolchain-xtensa-esp-elf，把toolchain-xtensa-esp-elf删除
+    # Xtensa MCUs need the Xtensa toolchain; drop it for every other MCU.
     if mcu in ("esp32", "esp32s2", "esp32s3"):
         _mark_required("toolchain-xtensa-esp-elf")
     else:
@@ -48,11 +48,12 @@ def configure_esp_default_packages(self, variables, targets):
         # RISC-V based toolchain for ESP32C3, ESP32C6 ESP32S2, ESP32S3 ULP
         _mark_required("toolchain-riscv32-esp")
 
-    # ROM ELF 文件：espidf.py 在 ESP-IDF 构建中通过 ESP_ROM_ELF_DIR 引用该包，
-    # 未声明/未安装会导致 KeyError（pioarduino 上游对所有 ESP 构建安装此包）
+    # ROM ELF files: espidf.py references this package via ESP_ROM_ELF_DIR
+    # during ESP-IDF builds; pioarduino installs it for all ESP builds.
     _mark_required("tool-esp-rom-elfs")
 
-    # esp32c2 / esp32c61 无预编译 Arduino libs，需要对应的 skeleton 包
+    # esp32c2 / esp32c61 have no prebuilt Arduino libs; skeleton packages
+    # provide the minimal compile stubs.
     if mcu == "esp32c2":
         _mark_required("framework-arduino-c2-skeleton-lib")
     if mcu == "esp32c61":
