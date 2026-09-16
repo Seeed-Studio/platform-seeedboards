@@ -55,16 +55,40 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
         env.Replace(UPLOAD_PORT=basename(env.subst("$UPLOAD_PORT")))
 
 
-# USB CDC identities for the nRF54LM20B three-image (firmware-loader) layout.
+# USB CDC identities for the three-image (firmware-loader) layout boards.
 # DFU is performed by the loader image (usb_mcumgr, slot1), NOT by mcuboot, so
 # when the board is in DFU mode the *loader's* CDC is what enumerates.
+# Declared per board in the manifest's upload.cdc so uploading to one board
+# never grabs another board's CDC port:
 #   APP_CDC    : the running user app (Seeed VID 0x2886, CDC_ACM_SERIAL_PID
-#                0x8013, set in the framework board Kconfig).
-#   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID 0x0013, baked into
-#                scripts/factory_flash/firmware/USB_DFU.hex). Listed as a tuple
-#                so a legacy loader VID:PID can be added in one line if needed.
-_APP_CDC_VIDPID = "2886:8013"
-_LOADER_CDC_VIDPIDS = ("2886:0013",)
+#                per board, set in the framework board Kconfig).
+#   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID baked into the
+#                factory USB_DFU.hex). A list so a legacy loader VID:PID can
+#                be added in one line if needed.
+
+
+def _missing_cdc_field(field):
+    sys.stderr.write(
+        "Error: upload protocol 'nrfutil-mcumgr' requires '%s' in "
+        "boards/%s.json (see upload.cdc in seeed-xiao-nrf54lm20b.json).\n"
+        % (field, board.id))
+    env.Exit(1)
+
+
+def _app_cdc_vidpid():
+    """App CDC VID:PID for the board being uploaded to."""
+    vidpid = board.get("upload.cdc.app_vidpid", "")
+    if not vidpid:
+        _missing_cdc_field("upload.cdc.app_vidpid")
+    return vidpid.upper()
+
+
+def _loader_cdc_vidpids():
+    """DFU loader CDC VID:PID candidates for the board being uploaded to."""
+    vidpids = board.get("upload.cdc.loader_vidpids", [])
+    if not vidpids:
+        _missing_cdc_field("upload.cdc.loader_vidpids")
+    return [v.upper() for v in vidpids]
 
 
 def _find_port_by_vidpid(vidpid, ports=None):
@@ -76,7 +100,7 @@ def _find_port_by_vidpid(vidpid, ports=None):
 
 
 def _find_loader_port(ports=None):
-    for vidpid in _LOADER_CDC_VIDPIDS:
+    for vidpid in _loader_cdc_vidpids():
         port = _find_port_by_vidpid(vidpid, ports)
         if port:
             return port
@@ -128,7 +152,7 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
             return
 
     # (3) App CDC present -> touch 1200 -> poll for the loader CDC.
-    app_port = explicit or _find_port_by_vidpid(_APP_CDC_VIDPID)
+    app_port = explicit or _find_port_by_vidpid(_app_cdc_vidpid())
     if app_port:
         env.Replace(UPLOAD_PORT=app_port)
         print("Touching %s at 1200 baud → DFU..." % app_port)
@@ -145,9 +169,9 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
 
     # (4) Nothing recognized -> prompt manual DFU and poll for the loader CDC.
     sys.stdout.write(
-        "No app CDC (VID:PID=2886:8013) found. To recover, hold Button 0 "
-        "(P0.09) and press reset to enter DFU mode. Waiting for the DFU "
-        "loader CDC (VID:PID=2886:0013)...\n")
+        "No app CDC (VID:PID=%s) found. To recover, hold Button 0 (P0.09) "
+        "and press reset to enter DFU mode. Waiting for the DFU loader CDC "
+        "(VID:PID=%s)...\n" % (_app_cdc_vidpid(), "/".join(_loader_cdc_vidpids())))
     sys.stdout.flush()
     port = _wait_for_loader_port(60)
     if not port:
