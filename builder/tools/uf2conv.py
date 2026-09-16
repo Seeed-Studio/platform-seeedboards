@@ -8,7 +8,6 @@ Reference: https://github.com/microsoft/uf2
 """
 
 import struct
-import sys
 import argparse
 
 # UF2 magic numbers
