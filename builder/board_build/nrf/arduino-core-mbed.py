@@ -186,7 +186,7 @@ configure_flash_layout(board)
 if not board.get("build.ldscript", ""):
     ldscript = os.path.join(
         FRAMEWORK_DIR, "variants", board.get("build.variant"), "linker_script.ld")
-    if board.get("build.mbed.ldscript", ""):
+    if board.get("build.arduino.ldscript", ""):
         ldscript = env.subst(board.get("build.arduino.ldscript"))
     if os.path.isfile(ldscript):
         preprocessed_linker_script = env.Command(

@@ -136,10 +136,11 @@ if not env.get("PIOFRAMEWORK"):
 # referenced get_package_dir("framework-zephyr") -- a package name this
 # platform never declares -- and would have crashed had it ever run.)
 
-target_elf = None
 if "nobuild" in COMMAND_LINE_TARGETS:
     target_elf = join("$BUILD_DIR", "${PROGNAME}.elf")
-    target_firm = join("$BUILD_DIR", "${PROGNAME}.bin")
+    # Keep in sync with the ElfToHex artifact below (this builder produces
+    # .hex, never .bin).
+    target_firm = join("$BUILD_DIR", "${PROGNAME}.hex")
 else:
     target_elf = env.BuildProgram()
     target_firm = env.ElfToHex(join("$BUILD_DIR", "${PROGNAME}"), target_elf)

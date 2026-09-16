@@ -354,7 +354,7 @@ env.Append(
     )
 )
 
-is_arduino_pico_build = env.BoardConfig().get("build.core", "arduino") == "earlephilhower" and "arduino" in env.get("PIOFRAMEWORK")
+is_arduino_pico_build = env.BoardConfig().get("build.core", "arduino") == "earlephilhower" and "arduino" in env.get("PIOFRAMEWORK", [])
 if is_arduino_pico_build:
     pubkey = join(env.subst("$PROJECT_SRC_DIR"), "public.key")
     if isfile(pubkey):
@@ -468,7 +468,9 @@ from platformio.device.finder import is_pattern_port
 from fnmatch import fnmatch
 
 def find_rpi_disk(initial_port):
-    msdlabels = ("RPI-RP2")
+    # 1-tuple on purpose: a plain ("RPI-RP2") is a string and would match
+    # per-character in the label search below.
+    msdlabels = ("RPI-RP2",)
     item:str
     for item in list_logical_devices():
         if item["path"].startswith("/net"):

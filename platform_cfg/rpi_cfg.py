@@ -113,7 +113,7 @@ def configure_rpi_default_packages(self, variables, targets):
             else:
                 sys.stderr.write(
                     "Error! Unknown build.core value '%s'. Don't know which Arduino core package to use." % build_core)
-                env.Exit(1)
+                sys.exit(1)
 
         # if we want to build a filesystem, we need the tools.
         if "buildfs" in targets:
