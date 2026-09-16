@@ -30,7 +30,7 @@ FAMILY_BUILD_SCRIPTS = {
     "renesas": "board_build/renesas/renesas_build.py",
     "rpi": "board_build/rpi/rpi_build.py",
     "samd": "board_build/samd/samd_build.py",
-    "siliconlab": "board_build/siliconlab/siliconlab_build.py",
+    "silabs": "board_build/silabs/silabs_build.py",
     "stm32": "board_build/stm32/stm32_build.py",
 }
 

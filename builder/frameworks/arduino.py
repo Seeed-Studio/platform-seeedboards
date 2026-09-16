@@ -42,7 +42,7 @@ FAMILY_ARDUINO_SCRIPTS = {
     "renesas": "../board_build/renesas/renesas_arduino.py",
     "rpi": "../board_build/rpi/rpi_arduino.py",
     "samd": "../board_build/samd/samd_arduino.py",
-    "siliconlab": "../board_build/siliconlab/siliconlab_arduino.py",
+    "silabs": "../board_build/silabs/silabs_arduino.py",
 }
 
 family = board.get("build.family", None)

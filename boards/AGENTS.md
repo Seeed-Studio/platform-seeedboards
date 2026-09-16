@@ -4,7 +4,7 @@ Board manifests are the public PlatformIO interface and the single source
 of truth for board identity routing.
 
 - Every manifest carries `build.family` (one of esp, nrf, renesas, rpi,
-  samd, siliconlab, stm32); builder/platform dispatch reads only this key.
+  samd, silabs, stm32); builder/platform dispatch reads only this key.
 - Zephyr-capable boards carry `build.zephyr.package` (declared in
   platform.json) and `build.zephyr.board_name` (matching a
   zephyr/boards/arm/<name>/ directory); `build.zephyr.variant` starts with

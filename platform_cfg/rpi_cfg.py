@@ -103,7 +103,7 @@ def configure_rpi_default_packages(self, variables, targets):
                 # Leave toolchain-gccarmnoneeabi in place (it stays optional,
                 # so it is never installed for rpi builds): popping it from
                 # the shared dict breaks any later in-process configuration
-                # of nrf/samd/siliconlab/stm32/renesas boards that require it.
+                # of nrf/samd/silabs/stm32/renesas boards that require it.
                 self.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
                 # Configure toolchain download link dynamically
                 # RP2350 (RISC-V)

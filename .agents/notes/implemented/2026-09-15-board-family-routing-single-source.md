@@ -39,7 +39,7 @@ only `name`/`url`/`vendor` and the repo already ships custom keys such as
 `build.zephyr.variant` and `build.softdevice`).
 
 1. Every `boards/*.json` gains `"family"` under `build`, with values
-   `esp | nrf | renesas | rpi | samd | siliconlab | stm32`.
+   `esp | nrf | renesas | rpi | samd | silabs | stm32`.
    - `platform.py` resolves the family through one accessor,
      `get_board_family(board)`.
    - `builder/main.py` and `builder/frameworks/arduino.py` read

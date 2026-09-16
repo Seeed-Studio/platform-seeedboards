@@ -20,7 +20,7 @@ FAMILY_BY_PROBE_BOARD = {
     "seeed-xiao-ra4m1": "renesas",
     "seeed-xiao-rp2040": "rpi",
     "seeed-xiao-samd": "samd",
-    "seeed-xiao-mg24": "siliconlab",
+    "seeed-xiao-mg24": "silabs",
     "seeed-xiao-stm32c5": "stm32",
 }
 
@@ -39,8 +39,8 @@ def platform_instance():
 
 
 class TestCrossFamilyIsolation:
-    def test_siliconlab_then_rpi_in_one_process(self):
-        """Regression: siliconlab_cfg used to delete rpi/esp/nrf tool
+    def test_silabs_then_rpi_in_one_process(self):
+        """Regression: silabs_cfg used to delete rpi/esp/nrf tool
         packages from the shared dict, crashing any later in-process
         configuration of those families (KeyError in rpi_cfg)."""
         import pathlib

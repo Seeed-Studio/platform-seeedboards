@@ -40,7 +40,7 @@ VALID_FAMILIES = (
     "renesas",
     "rpi",
     "samd",
-    "siliconlab",
+    "silabs",
     "stm32",
 )
 

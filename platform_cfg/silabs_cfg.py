@@ -31,7 +31,7 @@ openocd_path = {
 
 
 
-def configure_siliconlab_default_packages(self, variables, targets):
+def configure_silabs_default_packages(self, variables, targets):
     self.packages["toolchain-gccarmnoneeabi"]["version"] = '1.120301.0'
     self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
 
@@ -54,7 +54,7 @@ def configure_siliconlab_default_packages(self, variables, targets):
 
 
 
-def _add_siliconlab_default_debug_tools(self, board):
+def _add_silabs_default_debug_tools(self, board):
 
     debug = board.manifest.get("debug", {})
     upload_protocols = board.manifest.get("upload", {}).get(
@@ -90,7 +90,7 @@ def _add_siliconlab_default_debug_tools(self, board):
     board.manifest["debug"] = debug
     return board
 
-def configure_siliconlab_debug_session(self, debug_config):
+def configure_silabs_debug_session(self, debug_config):
     if debug_config.speed:
         if "jlink" in (debug_config.server or {}).get("executable", "").lower():
             debug_config.server["arguments"].extend(
