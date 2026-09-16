@@ -122,12 +122,16 @@ def _add_renesas_default_debug_tools(self, board):
                 ],
             }
 
-        debug["tools"][link]["onboard"] = link in debug.get(
-            "onboard_tools", []
-        )
-        debug["tools"][link]["default"] = link in debug.get(
-            "default_tools", []
-        )
+        # Only decorate tools this loop actually created: the cmsis-dap
+        # branch is gated on a board-id whitelist, so a board listing
+        # cmsis-dap without a branch would otherwise KeyError here.
+        if link in debug["tools"]:
+            debug["tools"][link]["onboard"] = link in debug.get(
+                "onboard_tools", []
+            )
+            debug["tools"][link]["default"] = link in debug.get(
+                "default_tools", []
+            )
 
     board.manifest["debug"] = debug
     return board
