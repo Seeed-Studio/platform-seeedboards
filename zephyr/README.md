@@ -19,9 +19,9 @@ zephyr/
 └── README.md         # 本文件
 ```
 
-`<board>` = Zephyr board name（即 `zephyr/boards/arm/<同名>/` 的目录名，等于
-`board.yml` 的 `board.name`），由 `platform.get_zephyr_board_name()` 解析。
-Derived from the board manifest's `build.zephyr.variant`: the first component
+`<board>` = the Zephyr board name (the directory name under
+`zephyr/boards/arm/<same name>/`, equal to the `board.yml` `board.name`),
+derived by `platform.get_zephyr_board_name()` from the board manifest's `build.zephyr.variant`: the first component
 of `board[@revision]/soc/...` (before any `/` and `@`); a board revision
 (e.g. `xiao_nrf54lm20a@2.0.0/...`) collapses to its shared board directory
 `xiao_nrf54lm20a`.
