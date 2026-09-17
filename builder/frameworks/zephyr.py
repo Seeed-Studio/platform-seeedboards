@@ -40,7 +40,7 @@ Import("env")
 platform_name = env.subst("$PIOPLATFORM")
 board_name = env.get("BOARD", "")
 platform = env.PioPlatform()
-framework_package_name = platform.get_zephyr_package_name(board_name)
+framework_package_name = env.BoardConfig().get("build.zephyr.package", "")
 framework_version = None
 
 if board_name and "nrf" in board_name:
