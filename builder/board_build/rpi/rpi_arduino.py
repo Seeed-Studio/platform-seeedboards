@@ -29,4 +29,6 @@ if not isfile(build_script):
         "Error: Missing PlatformIO build script %s!\n" % build_script)
     env.Exit(1)
 
+# Process user .pio sources before the core build (upstream hook).
+env.SConscript("_build_pioasm.py")
 SConscript(build_script)

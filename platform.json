@@ -208,7 +208,7 @@
     "tool-jlink": {
       "optional": true,
       "owner": "platformio",
-      "version": "^1.72000.0"
+      "version": "^1.81206.0"
     },
     "toolchain-rp2040-earlephilhower": {
       "type": "toolchain",
@@ -226,13 +226,13 @@
       "type": "framework",
       "optional": true,
       "owner": "earlephilhower",
-      "version": "https://github.com/earlephilhower/arduino-pico.git#b506c010f7766cfb181c8da6db93cb8d554460f6"
+      "version": "https://github.com/earlephilhower/arduino-pico.git#fd65f6d4ab168d4bb181a3709738fe353ac93585"
     },
     "framework-picosdk": {
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "https://github.com/maxgerhardt/pico-sdk.git"
+      "version": "https://github.com/maxgerhardt/pico-sdk.git#4315984000afe20ac82c78c597a3c4a591f524b0"
     },
     "tool-picotool-rp2040-earlephilhower": {
       "optional": true,
@@ -335,6 +335,11 @@
       "type": "framework",
       "optional": true,
       "version": "https://files.seeedstudio.com/arduino/platformio/framework-arduino-silabs-3.0.0.zip"
+    },
+    "tool-pioasm-rp2040-earlephilhower": {
+      "optional": true,
+      "owner": "earlephilhower",
+      "version": "https://github.com/maxgerhardt/pioasm-dummy/archive/refs/heads/main.zip"
     }
   }
 }
