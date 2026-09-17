@@ -189,7 +189,7 @@ env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
 variant = board.get("build.variant", "")
-zephyr_package_name = platform.get_zephyr_package_name(board.id)
+zephyr_package_name = board.get("build.zephyr.package", "")
 
 
 def _get_dfu_upload_offset(board_config):

@@ -42,9 +42,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 Architecture = ""
 
-# Per-board Zephyr framework package name and Zephyr board.name now live in
-# each board's manifest (build.zephyr.package / build.zephyr.variant); see
-# get_zephyr_package_name / get_zephyr_board_name below and zephyr/README.md.
+# Per-board Zephyr framework package name and Zephyr board.name live in each
+# board's manifest (build.zephyr.package / build.zephyr.variant). Builders read
+# build.zephyr.package directly; see get_zephyr_board_name below and
+# zephyr/README.md.
 
 class SeeedstudioPlatform(PlatformBase):
     def __init__(self, *args, **kwargs):
@@ -111,18 +112,6 @@ class SeeedstudioPlatform(PlatformBase):
             sys.exit(1)
 
         self.frameworks["zephyr"]["package"] = package_name
-
-    def get_zephyr_package_name(self, board_name=None):
-        if board_name:
-            manifest_pkg = self.board_config(board_name).get(
-                "build.zephyr.package", "")
-            if manifest_pkg:
-                return manifest_pkg
-
-        package_name = self.frameworks.get("zephyr", {}).get("package")
-        if package_name:
-            return package_name
-        return "framework-zephyr-nrf54lm20"
 
     def get_zephyr_board_name(self, board_name):
         """Return the Zephyr board.name (e.g. 'xiao_stm32c5') for a PIO board id.
