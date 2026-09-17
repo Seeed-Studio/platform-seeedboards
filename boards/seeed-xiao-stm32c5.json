@@ -15,10 +15,6 @@
         }
     },
     "debug": {
-        "default_tools": [
-            "stlink"
-        ],
-        "openocd_target": "stm32c5x.cfg",
         "svd_path": "STM32C5A3.svd"
     },
     "frameworks": [
@@ -31,8 +27,7 @@
         "offset_address": "0x08008000",
         "protocol": "uf2",
         "protocols": [
-            "uf2",
-            "stlink"
+            "uf2"
         ],
         "require_upload_port": true,
         "uf2": {
