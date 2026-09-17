@@ -24,6 +24,9 @@
       "sd_name": "s140",
       "sd_version": "7.3.0",
       "sd_fwid": "0x0123"
+    },
+    "bsp": {
+      "name": "mbed"
     }
   },
   "connectivity": [

@@ -12,28 +12,33 @@ def configure_nrf_default_packages(self, variables, targets):
             self.board_config(board).get("upload.protocol", ""))
 
         self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-        # if board in ("seeed-xiao-afruitnrf52-nrf52840", "seeed-xiao-ble-nrf52840-sense"):
-        if "afruitnrf52-nrf52840" in board:
-            self.frameworks["arduino"][
-                "package"] = "framework-arduinoadafruitnrf52"
-            
-            self.packages["framework-cmsis"]["optional"] = False
-            self.packages["tool-adafruit-nrfutil"]["optional"] = False
-        
-
-
-
-        if "mbed-nrf52840" in board:
-            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
-            self.packages["tool-openocd"]["optional"] = False
-            self.packages["tool-bossac-nordicnrf52"]["optional"] = False
-            self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
-                # needed to build the ZIP file
-            self.packages["tool-adafruit-nrfutil"]["optional"] = False
-
-            self.frameworks["arduino"][
-                "script"
-            ] = "builder/board_build/nrf/arduino-core-mbed.py"
+        # Arduino BSP selection for nRF52840 boards comes from the manifest's
+        # build.bsp.name ("adafruit" or "mbed"), not the board id substring.
+        # Only nRF52840-family Arduino boards declare a BSP; nRF54 boards are
+        # zephyr-only and never reach here.
+        if "arduino" in frameworks:
+            board_config = self.board_config(board)
+            if (board_config.get("build.mcu", "") or "").startswith("nrf52"):
+                bsp = board_config.get("build.bsp.name", "")
+                if bsp not in ("adafruit", "mbed"):
+                    sys.stderr.write(
+                        "Error: board '%s' builds Arduino on an nRF52 MCU but "
+                        "boards/%s.json has no valid build.bsp.name (expected "
+                        "\"adafruit\" or \"mbed\").\n" % (board, board))
+                    sys.exit(1)
+                if bsp == "adafruit":
+                    self.frameworks["arduino"]["package"] = "framework-arduinoadafruitnrf52"
+                    self.packages["framework-cmsis"]["optional"] = False
+                    self.packages["tool-adafruit-nrfutil"]["optional"] = False
+                else:  # mbed
+                    self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
+                    self.packages["tool-openocd"]["optional"] = False
+                    self.packages["tool-bossac-nordicnrf52"]["optional"] = False
+                    self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
+                    # needed to build the ZIP file
+                    self.packages["tool-adafruit-nrfutil"]["optional"] = False
+                    self.frameworks["arduino"][
+                        "script"] = "builder/board_build/nrf/arduino-core-mbed.py"
 
         if "zephyr" in frameworks:
             for p in self.packages:
