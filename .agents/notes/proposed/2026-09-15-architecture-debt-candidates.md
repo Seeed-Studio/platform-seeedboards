@@ -60,3 +60,23 @@ representative build matrix from the routing note's evidence pattern
 - [`zephyr-fixes-board-dir`](../implemented/2026-09-15-zephyr-fixes-board-dir.md)
 - [`builder/frameworks/zephyr.py`](../../../builder/frameworks/zephyr.py)
 - [`platform.py`](../../../platform.py)
+
+## Upstream-alignment status (2026-09-16 audit)
+
+Aligned to upstream current state: esp (pioarduino 2026-09, commit
+5b169ce), zephyr toolchain (GCC 12.3.1, 22096ce), rpi (quick-toolchain
+5.0.0 + arduino-pico 2026-09 + pioasm + RP2350 fixes, 299453e).
+
+Blocked on upstream variant availability (verified 2026-09-16):
+
+- renesas: registry framework-arduinorenesas-uno ~1.6.0 still ships no
+  XIAORA4M1 variant (upstream variants: MINIMA/MUXTO/NANOR4/OPTA/
+  PORTENA_C33/UNOWIFIR4) -> keep the self-hosted 1.2.2 tarball until
+  the variant is upstreamed (contribution opportunity).
+- nrf52 arduino: current Adafruit core carries no xiao_nrf52840
+  variant (only feather_* family) and platformio's framework-arduino-
+  mbed does not ship the XIAO variants either -> keep the Seeed-hosted
+  adafruit tarball + ArduinoCore-mbed-pio-2.9.2 until upstreamed.
+- silabs: no upstream Arduino platform exists; the in-repo builder is
+  the only implementation (track SiliconLabsSoftware/arduino releases
+  for the source tarball refresh cadence).
