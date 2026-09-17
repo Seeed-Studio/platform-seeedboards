@@ -316,7 +316,7 @@ class SeeedstudioPlatform(PlatformBase):
             Architecture = "stm32"
 
         if Architecture:
-            # 动态导入板子配置函数
+            # Dynamically import the board config function
             try:
                 board_module = import_module(f"platform_cfg.{Architecture}_cfg")
                 configure_tool = getattr(board_module, f"_add_{Architecture}_default_debug_tools")
@@ -333,7 +333,7 @@ class SeeedstudioPlatform(PlatformBase):
         global Architecture
 
         if Architecture:
-            # 动态导入板子配置函数
+            # Dynamically import the board config function
             try:
                 board_module = import_module(f"platform_cfg.{Architecture}_cfg")
                 configure_debug_seesion = getattr(board_module, f"configure_{Architecture}_debug_session")
