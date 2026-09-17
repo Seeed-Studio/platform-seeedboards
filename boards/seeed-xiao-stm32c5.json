@@ -18,7 +18,8 @@
         "default_tools": [
             "stlink"
         ],
-        "openocd_target": "stm32c5x.cfg"
+        "openocd_target": "stm32c5x.cfg",
+        "svd_path": "STM32C5A3.svd"
     },
     "frameworks": [
         "zephyr"
