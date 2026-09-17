@@ -280,9 +280,9 @@
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40400.260428/framework-zephyr-3.40400.260428.tar.gz",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40402.0/framework-zephyr-3.40402.0.tar.gz",
       "optionalVersions": [
-        "3.40400.260428"
+        "3.40402.0"
       ]
     },
     "tool-adafruit-nrfutil": {
