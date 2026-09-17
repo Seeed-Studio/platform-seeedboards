@@ -1,124 +1,118 @@
-# Edge AI 数据采集方式替代工作报告
+# Edge AI data-collection replacement work report
 
 Status: proposed
-(补充材料：英文姊妹笔记 2026-08-27-official-edge-ai-data-workflow.md 为本主题的规范决策记录；本文件保留背景细节。)
+(Supplementary material: the English sibling note 2026-08-27-official-edge-ai-data-workflow.md is the canonical decision record for this topic; this file preserves the background detail.)
 
-## 1. 开发背景
+## 1. Background
 
-当前项目的目标是为 Seeed Studio XIAO nRF54LM20B 建立完整的手势识别流程：
+The project goal is a complete gesture-recognition pipeline on the Seeed Studio XIAO nRF54LM20B:
 
 ```text
-IMU 数据采集 → 数据集整理 → Edge AI Lab 训练 → Axon NPU 部署 → 板端识别
+IMU data collection -> dataset preparation -> Edge AI Lab training -> Axon NPU deployment -> on-device recognition
 ```
 
-项目早期为了尽快验证 USB CDC 和板载 LSM6DS3TR-C IMU，开发了自定义 sample：
+Early on, to validate USB CDC and the onboard LSM6DS3TR-C IMU quickly, a custom sample was developed:
 
 ```text
 examples/seeed-xiao-nrf54lm20b/edgeai-gesture-data-collection
 ```
 
-该 sample 使用 USB CDC 命令控制固定时长录制，PC 端脚本负责自动发送命令、接收
-CSV、按标签保存，并通过 `prepare_dataset.py` 合并为上传文件。
+That sample uses USB CDC commands to control fixed-length recordings; a PC script sends commands automatically, receives CSV, saves by label, and merges everything into an upload file via `prepare_dataset.py`.
 
-这套方案适合硬件 bring-up 和小规模 PoC，但与 Nordic 官方的数据采集、标注和数据
-清洗流程不完全一致，用户需要维护自定义命令、录制时序、标签和数据转换逻辑。
+This approach suits hardware bring-up and small PoCs, but it does not fully match Nordic's official data collection, labeling, and cleaning flow -- users maintain custom commands, recording timing, labels, and data-conversion logic.
 
-## 2. 官方数据集获取方式
+## 2. Official dataset acquisition
 
-Nordic Edge AI Lab 当前提供的推荐工作流是：
+Nordic Edge AI Lab's current recommended workflow is:
 
 ```text
 Data Collection Firmware / Data Forwarder
-        ↓
+        v
 Data Collection Desktop app
-        ↓
+        v
 Dataset Builder
-        ↓
+        v
 Edge AI Lab dataset upload
 ```
 
-各部分职责如下：
+Responsibilities:
 
-- **Data Collection Firmware / Data Forwarder**：从开发板持续转发原始传感器数据。
-- **Data Collection Desktop app**：接收和可视化数据，并对手势片段进行标注。
-- **Dataset Builder**：将标注后的连续录音切分、清洗、整理成训练所需的数据集。
-- **Edge AI Lab**：选择特征、目标列和 Session ID，执行训练、验证和模型导出。
+- **Data Collection Firmware / Data Forwarder**: continuously forwards raw sensor data from the board.
+- **Data Collection Desktop app**: receives and visualizes the data and labels gesture segments.
+- **Dataset Builder**: splits, cleans, and organizes the labeled continuous recordings into a training dataset.
+- **Edge AI Lab**: selects features, target column, and Session ID; runs training, validation, and model export.
 
-相比当前 DIY 方案，官方流程更适合正式数据集，因为连续录音、标签、手势分段和
-清洗都有明确的工具支持。
+Compared with the current DIY approach, the official flow fits production datasets better: continuous recordings, labels, gesture segmentation, and cleaning all have dedicated tool support.
 
-## 3. 替代决策
+## 3. Replacement decision
 
-后续正式数据采集计划采用 Nordic 官方的 Data Forwarder + Data Collection Desktop
-app + Dataset Builder 流程，逐步替代当前 DIY 采集方式。
+Future production data collection will adopt the official Nordic Data Forwarder + Data Collection Desktop app + Dataset Builder flow, gradually replacing the DIY collection.
 
-当前 DIY sample 暂时保留，定位调整为：
+The DIY sample stays for now, repositioned as:
 
-- 验证 XIAO nRF54LM20B 的 IMU、USB CDC 和采样率配置；
-- 在官方工具尚未完成 XIAO nRF54LM20B 适配前，快速生成少量 PoC 数据；
-- 作为底层 CDC 数据通路的回归样例。
+- validating the XIAO nRF54LM20B IMU, USB CDC, and sample-rate configuration;
+- quickly producing small amounts of PoC data before the official tools support the XIAO nRF54LM20B;
+- a regression sample for the underlying CDC data path.
 
-DIY sample 不再作为正式生产数据采集工具的长期目标。
+The DIY sample is no longer the long-term production data-collection tool.
 
-## 4. 迁移时需要保持的接口
+## 4. Interfaces to preserve during migration
 
-无论使用 DIY sample 还是官方工具，送入训练流程的数据都必须与板端推理保持一致：
+Whether using the DIY sample or the official tools, data entering training must stay consistent with on-device inference:
 
-| 项目 | 要求 |
+| Item | Requirement |
 |---|---|
-| 传感器 | 3 轴加速度 + 3 轴陀螺仪 |
-| 采样率 | 100 Hz |
-| 特征顺序 | `acc_x`, `acc_y`, `acc_z`, `gyro_x`, `gyro_y`, `gyro_z` |
-| 目标列 | 数字 `class`，从 `0` 开始连续编号 |
-| Session ID | 每次独立连续录音使用不同的数字 ID，并在平台中选择为 Session ID |
-| 数据值 | 所有特征和辅助列都必须是数值，不能包含字符串或空值 |
+| Sensors | 3-axis accelerometer + 3-axis gyroscope |
+| Sample rate | 100 Hz |
+| Feature order | `acc_x`, `acc_y`, `acc_z`, `gyro_x`, `gyro_y`, `gyro_z` |
+| Target column | numeric `class`, consecutively numbered from `0` |
+| Session ID | a distinct numeric ID per independent continuous recording, selected as Session ID on the platform |
+| Data values | every feature and auxiliary column must be numeric; no strings or empty values |
 
-官方流程还要求对非连续手势进行分段，使手势峰值位于窗口中间，并删除录音开头、
-结尾和错误操作产生的无效数据。
+The official flow additionally requires segmenting non-continuous gestures so the gesture peak sits mid-window, and discarding invalid data from recording starts, ends, and mistakes.
 
-## 5. 当前 DIY 方案与官方方案对比
+## 5. DIY vs official comparison
 
-| 项目 | 当前 DIY sample | 官方推荐流程 |
+| Item | Current DIY sample | Official recommended flow |
 |---|---|---|
-| 板端输出 | 固定时长、命令控制的 CSV | 持续转发原始传感器数据 |
-| 标签方式 | `label <name>` 命令 | Desktop app 中标注录音片段 |
-| 数据切分 | PC 脚本按文件保存，切分能力有限 | Dataset Builder 自动切分和清洗 |
-| 数据格式 | 需要自定义脚本转换 | 官方工具生成上传格式 |
-| 适用场景 | bring-up、快速 PoC | 正式数据集和模型训练 |
-| 维护成本 | 项目自行维护协议和脚本 | 跟随 Nordic 官方工具链 |
+| Board output | fixed-length, command-controlled CSV | continuous raw sensor forwarding |
+| Labeling | `label <name>` command | annotate recording segments in the Desktop app |
+| Data splitting | PC script saving per file, limited splitting | automatic splitting and cleaning in Dataset Builder |
+| Data format | needs custom conversion scripts | official tools generate the upload format |
+| Fit | bring-up, quick PoC | production datasets and model training |
+| Maintenance cost | project maintains its own protocol and scripts | follows the official Nordic toolchain |
 
-## 6. 分阶段实施计划
+## 6. Phased implementation plan
 
-### 阶段 A：确认官方工具链
+### Phase A: confirm the official toolchain
 
-1. 下载并运行官方 Data Collection Firmware/Data Forwarder。
-2. 确认 Data Collection Desktop app 能发现并连接目标设备。
-3. 确认 XIAO nRF54LM20B 的 USB CDC 或其他传输接口与官方协议兼容。
-4. 使用官方 Dataset Builder 生成一个包含 `idle` 和 `swipe_left` 的最小数据集。
+1. Download and run the official Data Collection Firmware / Data Forwarder.
+2. Confirm the Data Collection Desktop app discovers and connects to the target device.
+3. Confirm the XIAO nRF54LM20B's USB CDC or another transport is compatible with the official protocol.
+4. Use the official Dataset Builder to produce a minimal dataset containing `idle` and `swipe_left`.
 
-### 阶段 B：适配 XIAO nRF54LM20B
+### Phase B: adapt the XIAO nRF54LM20B
 
-1. 若官方 firmware 不直接支持 XIAO nRF54LM20B，复用当前 IMU 驱动和 USB CDC 配置。
-2. 将板端输出格式调整为 Data Forwarder 所需的协议和字段。
-3. 保留 100 Hz 采样率、六轴顺序和与板端推理一致的单位。
-4. 用 Desktop app 和 Dataset Builder 完成端到端验证。
+1. If the official firmware does not directly support the XIAO nRF54LM20B, reuse the current IMU driver and USB CDC configuration.
+2. Adjust the board output format to the protocol and fields the Data Forwarder expects.
+3. Keep the 100 Hz sample rate, six-axis order, and units consistent with on-device inference.
+4. Complete end-to-end validation with the Desktop app and Dataset Builder.
 
-### 阶段 C：替换正式文档与示例入口
+### Phase C: replace the official documentation and example entry
 
-1. 将官方工具链作为 README 的首选数据采集方式。
-2. 将 DIY sample 标记为 PoC/底层通信验证工具。
-3. 保留 `prepare_dataset.py` 作为离线兼容工具，但不再作为官方推荐流程。
-4. 使用官方 Dataset Builder 输出的数据训练并导出模型，再回到板端验证。
+1. Make the official toolchain the README's primary data-collection path.
+2. Mark the DIY sample as a PoC / low-level communication validation tool.
+3. Keep `prepare_dataset.py` as an offline compatibility tool, but no longer part of the recommended flow.
+4. Train and export a model using official Dataset Builder output, then verify on the board.
 
-## 7. 训练验证注意事项
+## 7. Training-validation notes
 
-- 第一次跑通流程可以使用 Edge AI Lab 自动 Holdout Validation（80% 训练、20% 验证）。
-- 只有在拥有独立录音批次或独立操作者数据时，才上传单独的 Holdout Dataset。
-- 分类任务至少需要两个类别，每个类别至少 20 个样本；正式模型还应包含 `idle` 和
-  `unknown`，避免把非目标动作误判为目标手势。
-- 训练时的传感器顺序、采样率、单位和板端推理必须完全一致。
+- For a first end-to-end pass, Edge AI Lab's automatic Holdout Validation (80% train / 20% validation) is fine.
+- Upload a separate Holdout Dataset only when independent recording batches or independent-operator data exist.
+- Classification needs at least two classes with at least 20 samples each; a production model should also include `idle` and `unknown` to avoid misclassifying non-target motions as target gestures.
+- Sensor order, sample rate, and units during training must exactly match on-device inference.
 
-## 8. 官方参考链接
+## 8. Official reference links
 
 - [Nordic Edge AI Lab](https://ai.lab.nordicsemi.com)
 - [Edge AI Lab documentation](https://docs.nordicsemi.com/bundle/edge-ai-lab)
@@ -128,8 +122,6 @@ DIY sample 不再作为正式生产数据采集工具的长期目标。
 - [Data Forwarder sample](https://nrfconnectdocs.nordicsemi.com/addons/addon-edge-ai/latest/samples/data_forwarder/README.html)
 - [Compile a model for the Axon NPU](https://docs.nordicsemi.com/r/bundle/edge-ai-lab/page/compile_model.html/compile-for-axon-npu)
 
-## 9. 当前结论
+## 9. Current conclusion
 
-当前 DIY sample 已完成 USB CDC 数据采集和离线数据集整理验证，但它应被视为早期
-验证工具。正式数据采集应迁移到 Nordic 官方 Data Forwarder、Data Collection Desktop
-app 和 Dataset Builder，以降低数据标注、切分、清洗和格式兼容方面的维护成本。
+The DIY sample has proven USB CDC data collection and offline dataset preparation, but it should be treated as an early validation tool. Production data collection should migrate to the official Nordic Data Forwarder, Data Collection Desktop app, and Dataset Builder to reduce the maintenance cost of labeling, splitting, cleaning, and format compatibility.

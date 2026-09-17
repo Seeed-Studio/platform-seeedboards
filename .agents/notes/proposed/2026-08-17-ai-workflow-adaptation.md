@@ -1,129 +1,237 @@
-# AI 工作流适配方案
+# AI workflow adaptation
 
 Status: proposed (partially implemented -- see Implementation status)
 
 ## Implementation status (2026-09-15)
 
-已按本方案交付（见 .agents/notes/implemented/ 两份决策笔记与对应提交）：
+Delivered per this proposal (see the two decision notes under
+.agents/notes/implemented/ and their commits):
 
-- **首批六份子目录 `AGENTS.md`**（boards/、platform_cfg/、builder/、zephyr/、examples/、scripts/ci/），根规则已导航。
-- **首个与第二个已验证 gate**：`scripts/ci/verify_boards.py`（manifest 完整性 + 家族/zephyr 路由链 + 有意识的板卡快照）与 `scripts/ci/verify_zephyr_routing.py`（路由与 fixes 布局闭合），均离线、可独立运行、带正反例 fixtures，接入 `.github/workflows/ci-verify.yml`；`scripts/ci/smoke_pio_boards.py` 覆盖 `pio boards` 列举崩溃类回归。
-- **`platformio-add-board` skill** 已建立（metadata-driven 加板流程与边界）。
-- **notes 生命周期**已用两份笔记完整演练 proposed → implemented。
+- **First batch of six subdirectory `AGENTS.md` files** (boards/,
+  platform_cfg/, builder/, zephyr/, examples/, scripts/ci/); the root
+  rules navigate to them.
+- **First and second verified gates**: `scripts/ci/verify_boards.py`
+  (manifest integrity + family/zephyr routing chains + the conscious
+  board snapshot) and `scripts/ci/verify_zephyr_routing.py` (routing
+  and fixes-layout closure) -- both offline, standalone-runnable, with
+  positive/negative fixtures, wired into
+  `.github/workflows/ci-verify.yml`; `scripts/ci/smoke_pio_boards.py`
+  covers the `pio boards` listing-crash regression class.
+- **`platformio-add-board` skill** established (the metadata-driven
+  board-addition flow and its boundaries).
+- **Notes lifecycle** exercised end-to-end with two notes moving
+  proposed -> implemented.
 
-存留范围（本 note 保持 active 的原因）：
+Remaining scope (why this note stays active):
 
-- `platformio-pr-review` skill 未建（rollout 第 3 步）。
-- 候选不变式中的 "example 的 board/framework 组合有效" 与 "CI 不遗漏受支持 example" 未实现（其输入依赖 P4 的发现器统一，先行落地后可做）。
-- `platformio-zephyr-integration` skill 按本方案条件（形成稳定重复流程后）暂缓。
+- The `platformio-pr-review` skill is not built (rollout step 3).
+- The "example board/framework combinations are valid" and "CI misses
+  no supported example" candidate invariants are unimplemented (they
+  depend on unifying the discoverers first; that landed afterwards, so
+  they are now unblocked).
+- The `platformio-zephyr-integration` skill stays deferred per this
+  proposal's condition (until a stable, repeated flow emerges).
 
 ## Context
 
-`platform-seeedboards` 是 PlatformIO 平台包：其核心风险是 board metadata、包选择、构建适配、Zephyr 外部依赖、缓存状态、上传行为和硬件验证之间的集成一致性。它不同于 DeepSeek Harness 的 TypeScript plugin monorepo，不能直接复制后者的 package 规则、双语文档、每文件覆盖率或模型 transcript 快照。
+`platform-seeedboards` is a PlatformIO platform package: its core risk
+is integration consistency across board metadata, package selection,
+build adaptation, Zephyr external dependencies, cache state, upload
+behavior, and hardware validation. It differs from DeepSeek Harness's
+TypeScript plugin monorepo and cannot copy that project's package
+rules, bilingual documentation, per-file coverage, or model-transcript
+snapshots.
 
-当前根 `AGENTS.md` 已将仓库边界与开发流程分开：根规则说明适用范围、职责、兼容性和 notes；`platformio-development` skill 承担需要 fork 的实际改动与验证步骤。本方案定义下一步如何逐步补齐局部规则、skills、notes 生命周期和自动化验证。
+The current root `AGENTS.md` already separates repository boundaries
+from the development process: root rules state scope, ownership,
+compatibility, and notes; the `platformio-development` skill owns the
+fork-based change-and-validate steps. This proposal defines the next
+steps for local rules, skills, the notes lifecycle, and automated
+verification.
 
 ## Proposal
 
-### 1. 建立有限的 `AGENTS.md` 分层
+### 1. Establish a limited `AGENTS.md` layering
 
-根 `AGENTS.md` 保持为全仓库入口：仓库真源、受保护的用户契约、任务入口、证据要求和 Development Notes 导航。它不重复 fork、cache、build 或 PR 的操作步骤。
+The root `AGENTS.md` stays the repository entry point: source of
+truth, protected user contracts, task entry points, evidence
+requirements, and Development Notes navigation. It does not duplicate
+fork, cache, build, or PR operational steps.
 
-第一批候选子目录如下。每份子目录规则只写该目录特有、反复被遗漏且后果明显的约束；根规则必须在相关任务中要求读取它们，因为从仓库根目录启动 Codex 时不会自动预读全部嵌套 `AGENTS.md`。
+First batch candidate subdirectories. Each file carries only the
+directory-specific, repeatedly-missed, high-consequence constraints;
+the root rules must require reading them, because launching from the
+repository root does not auto-read nested `AGENTS.md` files.
 
-| 目录 | 需要保护的事实 | 首批规则方向 |
+| Directory | Fact to protect | First rules |
 | --- | --- | --- |
-| `boards/` | board ID、framework list、upload/debug/内存声明是公开 PlatformIO 接口 | board manifest 只放 PlatformIO board 能力；不得用临时 builder 逻辑掩盖 manifest 缺失。 |
-| `platform_cfg/` | 家族默认包与调试配置 | 只表达家族共性；板级差异应有显式 profile 或 board 来源。 |
-| `builder/` | framework 入口与家族构建/产物/上传适配 | 保持 framework 与 family 责任分离；禁止仅凭 board 名称字符串扩散特例。 |
-| `zephyr/` | local board、module、fix、patch、override 与 framework version 的对应关系 | 每项兼容修复说明适用版本和退出条件；禁止把 package cache 当作真源。 |
-| `examples/` | 用户可复制的示例和稳定文档路径 | example 是回归契约，不只为 CI；变更需保留或明确迁移稳定路径。 |
-| `scripts/ci/` | example 发现、构建选择、日志和固件产物 | 发现规则按声明的 framework/board 选择，不依赖脆弱目录命名。 |
+| `boards/` | board ID, framework list, upload/debug/memory declarations are the public PlatformIO interface | board manifests carry only PlatformIO board capabilities; never paper over a missing manifest value with builder logic |
+| `platform_cfg/` | family default packages and debug configuration | express family commonality only; board-level differences need an explicit profile or board source |
+| `builder/` | framework entry and family build/artifact/upload adaptation | keep the framework vs family responsibility split; no special cases keyed on board-name strings alone |
+| `zephyr/` | local board, module, fix, patch, override vs framework version correspondence | every compatibility fix states its applicable version and exit condition; never treat the package cache as the source of truth |
+| `examples/` | user-copyable examples and stable doc paths | examples are regression contracts, not just CI; changes must preserve or explicitly migrate stable paths |
+| `scripts/ci/` | example discovery, build selection, logs, firmware artifacts | discovery selects by declared framework/board, not fragile directory naming |
 
-暂不为每个 `builder/board_build/<family>` 或 `.github/` 建立规则。只有当父级规则无法清楚覆盖、且维护者反复需要同一局部知识时才继续细分。每份初版目标不超过约 20 条短规则，并应给出安全路径而不是笼统禁止。
+No rules per `builder/board_build/<family>` or `.github/` yet. Subdivide
+further only when a parent rule cannot cover a recurring local hazard.
+Each first version stays within about 20 short rules and offers safe
+paths rather than blanket prohibitions.
 
-### 2. 保留少量项目专用 skills
+### 2. Keep few project-specific skills
 
-继续保留 `platformio-development`，它是有副作用的实现任务流程。新增 skill 应复用其步骤，而不是复制其全文。
+Keep `platformio-development`; new skills reuse its steps rather than
+copying the text.
 
-| Skill | 触发条件 | 专属职责 | 不承担的职责 |
+| Skill | Trigger | Owns | Does not own |
+| --- | --- | --- | --- |
+| `platformio-pr-review` | reviewing a PR, assessing a diff, analyzing CI risk | review the full diff against the real base; trace the board -> package/profile -> builder/framework -> example/CI chain; report findings by path, impact, and evidence | no fork inputs; no commits, PRs, or cache changes |
+| `platformio-add-board` | adding or formalizing a board | collect board ID, framework, MCU/upload/bootloader, family, representative example, hardware evidence; check each layer; then invoke `platformio-development` for fork validation | does not invent packages, Zephyr patches, or upload strategies |
+
+Add `platformio-zephyr-integration` only after Zephyr
+package/cache/fixes changes form a stable, independent, repeated flow.
+Skill frontmatter describes only user goals and triggers; the body
+holds operational steps and outputs. Whether project skills
+auto-discover depends on the agent runtime, so the root rules keep
+explicit path references.
+
+### 3. Adopt the four-stage Development Notes lifecycle
+
+Use `.agents/notes/{proposed,implemented,rejected,archived}/` with
+`.agents/notes/README.md` as the authority. Initially reject
+DeepSeek's category subdirectories, bilingual pairing, hash sidecars,
+archive manifests, and a hard "every non-trivial change needs a note"
+gate.
+
+Typical note-worthy topics: the single source of truth for
+boards/profiles, Zephyr framework package reuse, cache/workspace
+write boundaries, patch/override exit strategy, upload compatibility,
+CI coverage strategy. Local bug fixes and mechanical formatting do
+not need notes.
+
+This mechanism is not task management: `proposed` may contain plans;
+`implemented` states only shipped facts; `rejected` keeps the key
+reasons; `archived` is frozen history. Agents search the relevant
+active notes before designing cross-layer changes instead of reading
+the whole directory every session.
+
+### 4. Automate the stable rules
+
+Stable rules are long-lived, machine-decidable invariants with
+evidence available from the repository source of truth. Automation
+turns "every reviewer and agent must remember this check" into a
+repeatable local command and a CI job; it cannot replace human
+judgment on architecture ownership, hardware correctness, or
+requirement trade-offs.
+
+Follow this path rather than writing a large lint up front:
+
+1. State one invariant precisely in a note or directory rule and name
+   its single source of truth.
+2. Collect one real sample that should pass and one counterexample
+   that should fail, confirming the rule does not misfire on currently
+   supported variants.
+3. Implement a fast, network-free, package-cache-free check in
+   `scripts/ci/verify_<topic>.py`; add unit tests or fixtures for
+   complex rules.
+4. Let developers run the command standalone first; once stable, add
+   the minimal GitHub Actions check.
+5. Reference the command from `AGENTS.md` or the owning skill; do not
+   re-surface already-stable mechanical checks as manual review
+   findings.
+
+The first batch of candidates must be validated against current
+repository data before implementation:
+
+| Candidate invariant | Source of truth | Expected check |
 | --- | --- | --- |
-| `platformio-pr-review` | 审查 PR、评估 diff、分析 CI 风险 | 按真实 base 审查完整 diff；追踪 board → package/profile → builder/framework → example/CI 的调用链；按路径、影响、证据输出问题 | 不要求 fork 输入；不创建提交、PR 或 cache 修改。 |
-| `platformio-add-board` | 新增或正式支持一块板 | 收集 board ID、framework、MCU/上传/bootloader、家族归属、代表 example 和硬件证据；检查每层是否需要改动；随后调用 `platformio-development` 完成 fork 验证 | 不自行发明 package、Zephyr patch 或上传策略。 |
+| board manifest parses and framework declared valid | `boards/*.json`, `platform.json` | JSON integrity; every framework name exists |
+| example board/framework combination valid | `examples/**/platformio.ini`, boards | example references an existing board; the chosen framework is declared by that board |
+| Zephyr mapping has no dangling references | `platform.py`, `platform.json`, `zephyr/` | board/package/Zephyr board/fix paths exist and names agree |
+| CI misses no supported example | `scripts/ci/` and tracked examples | every supported project is selected by at least one discoverer or has an explicit exclusion reason |
 
-后续只有在 Zephyr package/cache/fixes 的改动已形成稳定、独立且重复的流程后，才添加 `platformio-zephyr-integration`。Skill 的 frontmatter 只描述用户目标和触发条件；正文写可操作步骤和最终输出。项目内 skill 是否自动发现取决于 Codex/插件配置，因此根规则应保留明确路径引用。
+Rules not for the first automation batch: "implementation elegance",
+"which layer owns an attribute", "hardware behavior correct", "no
+board-name checks allowed". These need design notes, directory rules,
+PR review, and real build/hardware evidence.
 
-### 3. 采用四层 Development Notes 生命周期
+### 5. Phased rollout
 
-采用 `.agents/notes/{proposed,implemented,rejected,archived}/`，规则以 `.agents/notes/README.md` 为准。初期不采用 DeepSeek 的分类子目录、双语文件、hash sidecar、归档 manifest 或“每个非平凡改动必须写 note”的强制门槛。
-
-应写 note 的典型事项：board/profile 的唯一真源、Zephyr framework package 复用、cache/workspace 写入边界、patch/override 退出策略、上传兼容性、CI 覆盖策略。局部 bug 修复或机械格式调整不需要 note。
-
-该机制不是任务管理：`proposed` 可以包含 plan；`implemented` 只描述当前已交付事实；`rejected` 保留关键否决理由；`archived` 是冻结历史。Agent 在设计跨层修改前搜索相关 active notes，而不是在每次会话读取整个目录。
-
-### 4. 将稳定规则自动化
-
-稳定规则是长期有效、可由机器明确判定、并能从仓库真源取得证据的不变式。自动化的目标是把“每位 reviewer 和 agent 都必须记住的检查”转为可重复失败的本地命令和 CI job；它不能取代对架构归属、硬件正确性或需求取舍的人工判断。
-
-采用以下路径，而不是先写大而全的 lint：
-
-1. 在 note 或目录规则中准确写出一个不变式，并指出唯一真源。
-2. 收集一个应该通过的真实样本和一个应该失败的反例，确认规则不会误伤当前支持的变体。
-3. 在 `scripts/ci/verify_<topic>.py` 实现一个快速、无网络、无 package-cache 依赖的检查；为复杂规则添加对应的单元测试或 fixture。
-4. 先让开发者可单独运行该命令；稳定后加入最小的 GitHub Actions 检查或现有相关构建 workflow。
-5. 在 `AGENTS.md` 或 owning skill 中引用该命令，但不要把已经稳定通过的机械检查反复作为人工 review finding。
-
-第一批候选必须先通过现有仓库数据验证，再决定是否实现：
-
-| 候选不变式 | 真源 | 预期检查 |
-| --- | --- | --- |
-| board manifest 可解析且 framework 声明有效 | `boards/*.json`、`platform.json` | JSON 完整性、每个 framework 名称存在。 |
-| example 的 board/framework 组合有效 | `examples/**/platformio.ini`、boards | example 引用存在的 board，所选 framework 被该 board 声明支持。 |
-| Zephyr 映射没有悬空引用 | `platform.py`、`platform.json`、`zephyr/` | board/package/Zephyr board/fix 路径相互存在且名称一致。 |
-| CI 不遗漏受支持 example | `scripts/ci/` 与 tracked examples | 每个受支持项目被至少一个发现器选中，或有明确排除理由。 |
-
-不应在第一批自动化的规则包括“实现是否优雅”“某项属性应该属于 board 还是 builder”“硬件行为正确”“不允许任何 board-name 判断”。这些需要通过设计 note、子目录规则、PR review 和真实构建/硬件证据判断。
-
-### 5. 分阶段实施
-
-1. **审查本方案。** 确认首批目录、skills、note 触发条件和候选不变式；不新增实现性 gate。
-2. **建立导航。** 新增被确认的子目录 `AGENTS.md`，并更新根规则的显式导航；用一个真实任务检查规则是否过宽或遗漏。
-3. **建立 workflows。** 创建并验证 `platformio-pr-review` 与 `platformio-add-board`；每个 skill 用真实或历史任务做一次前向测试。
-4. **验证 notes 生命周期。** 用本方案和下一项跨层决策演练 `proposed → implemented/rejected`；在产生足够历史前不添加分类、双语或 archive 自动化。
-5. **交付首个 gate。** 只选择一个已验证的候选不变式，提供通过/失败样本后接入 CI；根据误报和维护成本决定是否继续。
+1. **Review this proposal.** Confirm the first batch of directories,
+   skills, note triggers, and candidate invariants; add no
+   implementation gates yet.
+2. **Build navigation.** Add the confirmed subdirectory `AGENTS.md`
+   files and update the root rules' explicit navigation; check with
+   one real task whether the rules are too broad or miss something.
+3. **Build the workflows.** Create and validate
+   `platformio-pr-review` and `platformio-add-board`; forward-test
+   each skill with a real or historical task.
+4. **Exercise the notes lifecycle.** Use this proposal and the next
+   cross-layer decision to rehearse proposed ->
+   implemented/rejected; add no categories, bilingual files, or
+   archive automation until enough history accumulates.
+5. **Deliver the first gate.** Pick exactly one verified candidate
+   invariant, provide pass/fail samples, and wire it into CI; decide
+   on continuing based on false-positive rate and maintenance cost.
 
 ## Alternatives considered
 
-### 直接复制 DeepSeek Harness 的完整机制
+### Copy DeepSeek Harness's full mechanism wholesale
 
-不采用。DeepSeek 的 package 层级、plugin seam、双语配对、严格文档预算、100% 覆盖率和模型快照服务于其大型 TypeScript agent 产品。PlatformIO 的主要风险是外部 toolchain、cache、board contract 和硬件，复制会增加维护负担而无法提高关键验证质量。
+Rejected. DeepSeek's package hierarchy, plugin seam, bilingual
+pairing, strict documentation budgets, 100% coverage, and model
+snapshots serve its large TypeScript agent product. PlatformIO's main
+risks are external toolchains, caches, board contracts, and hardware;
+copying would add maintenance burden without improving the key
+validation quality.
 
-### 只保留根 `AGENTS.md`
+### Keep only the root `AGENTS.md`
 
-不采用。根规则无法在不变得过长的情况下说明 Zephyr、board manifest、example 和 CI 的不同风险；未来 agent 也难以在相关目录获得局部约束。
+Rejected. Root rules cannot describe the different risks of Zephyr,
+board manifests, examples, and CI without becoming overlong; future
+agents also struggle to obtain local constraints in the relevant
+directories.
 
-### 对每个目录立即创建 `AGENTS.md`
+### Create an `AGENTS.md` for every directory immediately
 
-不采用。过早细分会制造重复和空泛规则。首批只覆盖具有清楚边界和高集成风险的目录，其余等真实维护需求出现后再添加。
+Rejected. Premature subdivision creates duplication and hollow rules.
+The first batch covers only directories with clear boundaries and
+high integration risk; the rest wait for real maintenance need.
 
-### 将所有检查都做成 CI lint
+### Turn every check into CI lint
 
-不采用。只有确定、稳定且能构造反例的规则才适合 gate；架构取舍、业务优先级和硬件行为仍需要 review、notes 和实机证据。
+Rejected. Only rules that are definite, stable, and constructible
+into counterexamples suit gates; architecture trade-offs, business
+priorities, and hardware behavior still need review, notes, and
+real-device evidence.
 
 ## Consequences
 
-本方案会使 agent 的工作方式从“根提示词包含所有要求”转为“根规则导航到局部规则和 task skill”。代价是需要维护少量入口文件和在设计前搜索 notes；收益是局部知识不再挤占全局上下文，fork/缓存等高风险流程不会误用于只读任务，长期决策也能被后续工作找到。
+This proposal shifts how agents work from "the root prompt contains
+every requirement" to "root rules navigate to local rules and task
+skills". The cost is maintaining a few entry files and searching notes
+before design; the benefit is that local knowledge no longer crowds
+out global context, high-risk flows such as fork/cache are not
+misapplied to read-only tasks, and long-term decisions remain
+discoverable by later work.
 
-首个自动化 gate 的实现需要先确认现有 manifest、example 和 Zephyr 映射的真实边界。未完成这一步前，任何检查只能是猜测，不能作为 CI 阻断条件。
+Implementing the first automated gate requires confirming the real
+boundaries of the current manifests, examples, and Zephyr mappings.
+Until that happens, any check is guesswork and must not gate CI.
 
 ## Validation
 
-本 proposal 通过以下审查后才能进入实施：
+Before this proposal proceeds to implementation:
 
-1. 确认首批子目录是否覆盖实际高风险边界，且没有把临时实现细节写成永久规则。
-2. 确认两项新增 skill 的触发条件与输出不重叠，并能在现有 Codex 使用方式中被明确引用。
-3. 从候选稳定规则中选择一个，先证明真源、正例和反例，再批准实现。
-4. 使用一次真实 board 或 Zephyr 改动验证：agent 能定位根规则、目标目录规则、相关 note 和正确 skill，而无需阅读无关文件。
+1. Confirm the first subdirectory batch covers the actual high-risk
+   boundaries and does not freeze temporary implementation details
+   into permanent rules.
+2. Confirm the two new skills' triggers and outputs do not overlap
+   and can be referenced explicitly from the current agent setups.
+3. Pick one candidate stable rule, prove its source of truth,
+   positive sample, and counterexample, then approve implementation.
+4. Use one real board or Zephyr change to verify an agent can locate
+   the root rule, the target directory rule, the related note, and
+   the correct skill without reading unrelated files.
 
 ## Related files
 
