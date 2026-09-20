@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # Glob pre-filter, NOT a regex: '+' is a literal plus and '.' a single-char
+      # wildcard in glob syntax, so '[0-9]+.[0-9]+.[0-9]+' would never match.
+      # The job below enforces the real gates: strict semver and equality with
+      # platform.json's "version". Do not "fix" this pattern into a regex.
+      - '[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the on-main check below needs real history
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify tag matches platform.json version
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: python scripts/ci/check_release_version.py
+
+      - name: Verify tag is on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "ERROR: tag $GITHUB_REF_NAME ($GITHUB_SHA) is not on main. Release only from main." >&2
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release for $TAG already exists; refreshing title/notes/target."
+            gh release edit "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          fi
