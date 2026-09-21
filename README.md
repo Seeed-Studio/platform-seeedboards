@@ -18,6 +18,19 @@ framework = arduino
 ...
 ```
 
+## Versioning
+
+This platform is consumed via a git URL, so an unpinned `platform = ...` line
+always tracks the latest commit. For reproducible production builds, pin to a
+release tag (tags carry no `v` prefix):
+
+```ini
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git#1.1.0
+```
+
+PlatformIO keeps the platform version that was latest when the project was
+created; run `pio pkg update` to move an existing project to a newer release.
+
 ## Configuration
 
 Please navigate to [documentation](http://docs.platformio.org/page/platforms/seeedxiao.html).
