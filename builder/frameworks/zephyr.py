@@ -500,85 +500,6 @@ def _patch_platformio_prebuilt_lib_linking(framework_dir):
         print("Patched PlatformIO: prebuilt-archive linking (-l form for abs .a)")
 
 
-def _patch_platformio_extra_modules(framework_dir):
-    """Discover XIAO-provisioned Zephyr modules from cache and overrides.
-
-    These modules are installed by this platform, rather than by a user's west
-    manifest. Register valid cached modules directly so a clean installation
-    and a CMake reconfigure do not depend solely on a transient SCons variable.
-    In particular, xiao_dfu_reset implements the nRF54LM20B application's
-    1200-bps USB CDC touch callback and must be present in every clean install.
-    """
-    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
-    if not os.path.isfile(build_py):
-        return
-
-    with open(build_py, "r", encoding="utf-8") as fp:
-        text = fp.read()
-
-    legacy_marker = "    # Auto-add the xiao_dfu_reset module"
-    cmake_marker = '    cmake_cmd.extend(["-D", "ZEPHYR_MODULES=" + ";".join(modules)])'
-    old_cached_module_tuple = (
-        '    for _xiao_module in ("sdk-edge-ai", "edge-impulse-sdk-zephyr"):'
-    )
-    cached_addition = (
-        "    # Auto-add XIAO-provisioned Zephyr modules. These are not in a\n"
-        "    # project's west manifest, so discover them from the framework cache.\n"
-        "    for _xiao_module in (\"xiao_dfu_reset\", \"sdk-edge-ai\",\n"
-        "                         \"edge-impulse-sdk-zephyr\"):\n"
-        "        _xiao_module_dir = os.path.join(\n"
-        "            FRAMEWORK_DIR, \"_pio\", \"modules\", _xiao_module)\n"
-        "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
-        "            _mod_unix = fs.to_unix_path(_xiao_module_dir)\n"
-        "            if not any(os.path.normcase(os.path.normpath(module)) ==\n"
-        "                       os.path.normcase(os.path.normpath(_xiao_module_dir))\n"
-        "                       for module in modules):\n"
-        "                modules.append(_mod_unix)\n\n"
-    )
-
-    override_addition = (
-        "    # Honor explicit Edge AI module overrides. The SCons environment\n"
-        "    # is not inherited by this standalone build helper, whereas these\n"
-        "    # variables are exported for CI and local developer builds.\n"
-        "    for _xiao_override in (\"XIAO_EDGE_AI_DIR\", \"XIAO_EDGE_IMPULSE_DIR\"):\n"
-        "        _xiao_module_dir = os.environ.get(_xiao_override, \"\")\n"
-        "        if os.path.isfile(os.path.join(_xiao_module_dir, \"zephyr\", \"module.yml\")):\n"
-        "            _mod_unix = fs.to_unix_path(_xiao_module_dir)\n"
-        "            if not any(os.path.normcase(os.path.normpath(module)) ==\n"
-        "                       os.path.normcase(os.path.normpath(_xiao_module_dir))\n"
-        "                       for module in modules):\n"
-        "                modules.append(_mod_unix)\n\n"
-    )
-
-    changed = False
-    # Upgrade framework caches patched by the older Edge AI integration. Those
-    # scripts discover only the Edge AI modules and therefore silently omit the
-    # DFU callback after a clean PlatformIO installation.
-    if old_cached_module_tuple in text:
-        text = text.replace(
-            old_cached_module_tuple,
-            '    for _xiao_module in ("xiao_dfu_reset", "sdk-edge-ai",\n'
-            '                         "edge-impulse-sdk-zephyr"):',
-            1,
-        )
-        changed = True
-
-    for addition in (cached_addition, override_addition):
-        if addition in text:
-            continue
-        # Existing local framework caches have the legacy marker. A pristine
-        # package, as used by CI, has only the CMake module-list statement.
-        marker = legacy_marker if legacy_marker in text else cmake_marker
-        if marker not in text:
-            continue
-        text = text.replace(marker, addition + marker, 1)
-        changed = True
-    if changed:
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
-        print("XIAO Edge AI: enabled Zephyr module discovery")
-
-
 def _is_commit_hash(value):
     return value and re.match(r"[0-9a-f]{7,}$", value) is not None
 
@@ -918,16 +839,64 @@ def _provision_edge_ai():
             print("XIAO Edge AI: edge-impulse-sdk-zephyr not available; "
                   "sample 26 (hello_ei) will fail to build.")
 
-    existing = env.get("PIO_NCS_MODULES", "")
-    ordered = existing.split(";") + modules if existing else list(modules)
-    seen, deduped = set(), []
-    for m in ordered:
-        if m and m not in seen:
-            seen.add(m)
-            deduped.append(m)
-    env["PIO_NCS_MODULES"] = ";".join(deduped)
     os.environ["XIAO_EDGE_AI_DIR"] = ea_dir
-    print(f"XIAO Edge AI: registered modules -> {env['PIO_NCS_MODULES']}")
+    print(f"XIAO Edge AI: modules ready -> {modules}")
+
+
+def _register_xiao_modules_via_env(framework_dir):
+    """Register XIAO-provisioned Zephyr modules via ZEPHYR_EXTRA_MODULES.
+
+    These modules are provisioned by this platform into the framework cache
+    (_pio/modules), not by a project's west manifest. Zephyr's own CMake picks
+    ZEPHYR_EXTRA_MODULES up from the environment (zephyr_get() checks the ENV
+    scope, cmake/modules/extensions.cmake), so registration goes through
+    Zephyr's official out-of-tree module mechanism instead of patching the
+    framework package's platformio-build.py.
+
+    Contract: the variable is transient by design. Zephyr's MERGE-mode
+    zephyr_get() never writes the ENV value into CMakeCache.txt, so every
+    cmake configure must be driven by PlatformIO -- 'pio run' and the
+    ninja/cmake children it spawns all inherit the variable. A reconfigure
+    started outside the pio process tree (fresh shell, IDE CMake
+    integration) silently drops these modules, unlike the retired
+    -DZEPHYR_MODULES= injection which persisted in CMakeCache.txt. After
+    editing CMake files, re-run 'pio run'; plain 'ninja -C .pio/build/<env>'
+    is safe as long as it does not trigger a cmake re-run.
+    """
+    candidates = [
+        join(framework_dir, "_pio", "modules", name)
+        for name in ("xiao_dfu_reset", "sdk-edge-ai", "edge-impulse-sdk-zephyr")
+    ]
+    # Developer overrides (XIAO_EDGE_AI_DIR / XIAO_EDGE_IMPULSE_DIR) are
+    # appended after the cached clones, not instead of them: both entries
+    # land in ZEPHYR_EXTRA_MODULES, and when they expose the same module
+    # name Zephyr's module processing (zephyr_module.py) keeps the last
+    # one -- the override wins by list order, not by exclusion.
+    candidates.extend(
+        os.environ.get(name, "")
+        for name in ("XIAO_EDGE_AI_DIR", "XIAO_EDGE_IMPULSE_DIR")
+    )
+
+    registered = [
+        value for value in os.environ.get("ZEPHYR_EXTRA_MODULES", "").split(";")
+        if value
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if not os.path.isfile(join(candidate, "zephyr", "module.yml")):
+            continue
+        path = os.path.normpath(candidate).replace("\\", "/")
+        if not any(
+            os.path.normcase(os.path.normpath(item)) ==
+            os.path.normcase(os.path.normpath(path))
+            for item in registered
+        ):
+            registered.append(path)
+
+    if registered:
+        os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(registered)
+        print(f"XIAO: ZEPHYR_EXTRA_MODULES -> {os.environ['ZEPHYR_EXTRA_MODULES']}")
 
 
 # Pre-install west dependencies with retry before platformio-build.py runs
@@ -942,10 +911,10 @@ _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_mcuboot_signing(framework_dir)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
-_patch_platformio_extra_modules(framework_dir)
 _provision_xiao_dfu_module(framework_dir)
 _patch_cdc_vidpid(framework_dir)
 _provision_edge_ai()
+_register_xiao_modules_via_env(framework_dir)
 
 if board_name == "seeed-xiao-stm32c5":
     # Copy every bundled Zephyr module under zephyr/modules/ into the framework
