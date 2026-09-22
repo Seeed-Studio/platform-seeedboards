@@ -208,14 +208,26 @@ def _get_dfu_upload_offset(board_config):
 
 
 def _ensure_pyocd_installed():
-    # Always use the forked pyOCD with nRF54LM20A support, regardless of MCU.
-    pyocd_spec = "pyocd @ git+https://github.com/StarSphere-1024/pyOCD.git@lm20_stable"
-    expected_url_substring = "github.com/StarSphere-1024/pyOCD"
+    # Official pyOCD: it has shipped the nRF54LM20A target since v0.44.0
+    # (pyocd/pyOCD#1889). `pyocd flash` on nRF54LM20A still faults: the
+    # builtin algorithm programs RRAM with the RRAMC write buffer
+    # unconfigured (pyocd/pyOCD#2016); the fix is pending in
+    # pyocd/pyOCD#2033 -- bump this pin once that ships in a release and
+    # pyocd flash becomes usable. Until then the LM20A upload path uses
+    # OpenOCD; pyocd serves list/rtt/erase.
+    pyocd_version = "0.45.1"
+    pyocd_spec = "pyocd==%s" % pyocd_version
 
     def _installed_pyocd_is_expected() -> bool:
         try:
             import subprocess
             python_exe = sys.executable  # Use the current Python executable
+            # Version check first: the retired StarSphere fork also exposes the
+            # nrf54lm20a target, so the target check alone cannot tell the two
+            # apart and would silently keep the fork installed.
+            version = subprocess.check_output([python_exe, "-m", "pyocd", "--version"]).decode("utf-8").strip()
+            if pyocd_version not in version:
+                return False
             output = subprocess.check_output([python_exe, "-m", "pyocd", "list", "--targets"]).decode("utf-8")
             return "nrf54lm20a" in output.lower()
         except (ImportError, subprocess.CalledProcessError, Exception):
@@ -225,7 +237,7 @@ def _ensure_pyocd_installed():
         return
 
     python_exe = env.subst("$PYTHONEXE")
-    print("[INFO] Installing pyOCD from fork...")
+    print("[INFO] Installing official pyOCD %s..." % pyocd_version)
     subprocess.check_call([python_exe, "-m", "pip", "install", "--upgrade", "pip"])
     subprocess.check_call([
         python_exe,
