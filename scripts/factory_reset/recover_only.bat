@@ -6,9 +6,9 @@ REM Recover-only wrapper
 REM ==============================================
 set "SCRIPT_DIR=%~dp0"
 set "VENV_DIR=%SCRIPT_DIR%.venv"
-REM Bump the marker to force a reinstall from requirements.txt; older venvs
-REM still hold stock pyOCD, which faults on nRF54LM20A (issue #69).
-set "DEP_MARKER=%VENV_DIR%\.deps_forked_pyocd_v1"
+REM Bump the marker whenever requirements.txt changes, so existing venvs
+REM reinstall instead of keeping the previously pinned pyOCD.
+set "DEP_MARKER=%VENV_DIR%\.deps_official_pyocd_v1"
 set "ARG_PROBE=%~1"
 set "EXTRA_ARGS="
 if not "%ARG_PROBE%"=="" set "EXTRA_ARGS=--probe %ARG_PROBE%"
@@ -34,7 +34,7 @@ if errorlevel 1 (
 
 REM ---------- Install dependencies (once) ----------
 if not exist "%DEP_MARKER%" (
-  echo [INFO] Installing dependencies into venv (forked pyocd + libusb)...
+  echo [INFO] Installing dependencies into venv (official pyocd + libusb)...
   pip install -r "%SCRIPT_DIR%requirements.txt" >nul
   if errorlevel 1 (
     echo [ERROR] Dependency installation failed.
