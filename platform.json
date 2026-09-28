@@ -95,9 +95,9 @@
     "tool-esptoolpy": {
       "type": "uploader",
       "optional": true,
-      "owner": "seeedstudio",
+      "owner": "pioarduino",
       "package-version": "5.1.2",
-      "version": "https://files.seeedstudio.com/arduino/platformio/esptoolpy-v5.1.2.zip"
+      "version": "https://github.com/pioarduino/esptool/releases/download/v5.1.2/esptool.zip"
     },
     "tool-esp_install": {
       "type": "tool",
