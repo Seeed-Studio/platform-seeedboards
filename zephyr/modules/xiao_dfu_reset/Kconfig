@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config XIAO_DFU_RESET
-	bool "XIAO nRF54LM20B 1200-bps bootloader auto-trigger"
+	bool "XIAO nRF54LM20 1200-bps bootloader auto-trigger"
 	default y if BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP
+	default y if BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP && BOARD_REVISION_2_0_0
 	select UART_LINE_CTRL
 	select REBOOT
 	select RETAINED_MEM
 	select RETENTION
 	select RETENTION_BOOT_MODE
 	help
-	  Monitors the XIAO nRF54LM20B USB CDC ACM port. A 1200-bps line-coding
-	  request records the boot-loader mode in retained GPREGRET memory and
-	  cold-reboots into the MCUboot firmware loader.
+	  Monitors the XIAO nRF54LM20 USB CDC ACM port (nRF54LM20B and
+	  nRF54LM20A V2). A 1200-bps line-coding request records the
+	  boot-loader mode in retained GPREGRET memory and cold-reboots into
+	  the MCUboot firmware loader.
