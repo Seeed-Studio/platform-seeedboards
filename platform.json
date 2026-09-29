@@ -95,9 +95,9 @@
     "tool-esptoolpy": {
       "type": "uploader",
       "optional": true,
-      "owner": "seeedstudio",
+      "owner": "pioarduino",
       "package-version": "5.1.2",
-      "version": "https://files.seeedstudio.com/arduino/platformio/esptoolpy-v5.1.2.zip"
+      "version": "https://github.com/pioarduino/esptool/releases/download/v5.1.2/esptool.zip"
     },
     "tool-esp_install": {
       "type": "tool",
@@ -134,27 +134,6 @@
       "optional": true,
       "owner": "platformio",
       "version": "~2.0.0"
-    },
-    "tool-cppcheck": {
-      "type": "tool",
-      "optional": true,
-      "owner": "seeedstudio",
-      "package-version": "2.11.0+230717",
-      "version": "https://files.seeedstudio.com/arduino/platformio/cppcheck-v2.11.0-230717.zip"
-    },
-    "tool-clangtidy": {
-      "type": "tool",
-      "optional": true,
-      "owner": "seeedstudio",
-      "package-version": "18.1.1",
-      "version": "https://files.seeedstudio.com/arduino/platformio/clangtidy-v18.1.1.zip"
-    },
-    "tool-pvs-studio": {
-      "type": "tool",
-      "optional": true,
-      "owner": "seeedstudio",
-      "package-version": "7.36.91321",
-      "version": "https://files.seeedstudio.com/arduino/platformio/pvs-studio-v7.36.91321.zip"
     },
     "tool-cmake": {
       "optional": true,

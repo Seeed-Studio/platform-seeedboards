@@ -21,12 +21,6 @@ def configure_esp_default_packages(self, variables, targets):
     _mark_required("framework-arduinoespressif32-libs")
     _mark_required("esp32-arduino-libs")
     _mark_required("tool-esptoolpy")
-    
-    # Enable check tools only when "check_tool" is enabled
-    # self.packages holds every "packages" entry from platform.json
-    for p in self.packages:
-        if p in ("tool-cppcheck", "tool-clangtidy", "tool-pvs-studio"):
-            self.packages[p]["optional"] = False if str(variables.get("check_tool")).strip("['']") in p else True
 
     # Make tool-xtensa-esp-elf-gdb and tool-riscv32-esp-elf-gdb required
     for gdb_package in ("tool-xtensa-esp-elf-gdb", "tool-riscv32-esp-elf-gdb"):
