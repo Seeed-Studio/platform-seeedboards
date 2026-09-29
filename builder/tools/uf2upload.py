@@ -22,6 +22,7 @@ import platform
 
 UF2_VOLUME_LABEL = "XIAOC5BOOT"
 UF2_DRIVE_TIMEOUT = 30  # seconds to wait for drive to appear
+SERIAL_BUSY_TIMEOUT = 60  # seconds to wait for a busy serial port to be released
 
 
 def set_volume_label(label):
@@ -139,6 +140,50 @@ def wait_for_uf2_drive(timeout=UF2_DRIVE_TIMEOUT):
 # Bootloader trigger
 # ---------------------------------------------------------------------------
 
+def _classify_open_error(exc):
+    """Map a serial open exception to "busy" or an error description."""
+    text = str(exc)
+    if ("PermissionError" in text or "Access is denied" in text or
+            "Errno 16" in text or "Device or resource busy" in text):
+        return "busy"
+    return text
+
+
+def open_close_port(port, baudrate):
+    """Open and close a serial port briefly, changing its line coding.
+
+    Returns None on success, "busy" when another program holds the
+    port open, or the open error text for other failures.
+    """
+    import serial
+    try:
+        s = serial.Serial(port, baudrate)
+    except Exception as exc:
+        return _classify_open_error(exc)
+    try:
+        s.close()
+    except Exception:
+        pass
+    return None
+
+
+def wait_for_port_release(port, timeout=SERIAL_BUSY_TIMEOUT):
+    """Wait for a busy serial port to be released or the UF2 drive to appear.
+
+    Returns "port" when the port became available, "drive" when the UF2
+    drive appeared (the board is entering the bootloader on its own),
+    or None on timeout.
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        if find_uf2_drive():
+            return "drive"
+        if open_close_port(port, 9600) is None:
+            return "port"
+        time.sleep(1)
+    return None
+
+
 def trigger_bootloader_1200baud(port):
     """Trigger bootloader via 1200 baud touch.
 
@@ -149,11 +194,20 @@ def trigger_bootloader_1200baud(port):
 
     Works only if the application firmware implements USB CDC with
     1200-baud detection.
+
+    Returns (True, None) on success or (False, reason), where reason is
+    "busy" when another program holds the port open.
     """
-    try:
-        import serial
-    except ImportError:
-        return False
+    import serial
+
+    # Open at a neutral baud first: usbser only issues SET_LINE_CODING
+    # when the rate actually changes, so this both guarantees the later
+    # 1200-bps request is really transmitted (a previous failed touch may
+    # have left the device sitting at 1200) and probes whether another
+    # program (serial monitor/terminal) holds the port open.
+    result = open_close_port(port, 9600)
+    if result is not None:
+        return False, result
 
     try:
         # Open at 1200 baud - this is the "magic" signal
@@ -165,9 +219,9 @@ def trigger_bootloader_1200baud(port):
         s.dtr = True
         time.sleep(0.05)
         s.close()
-        return True
-    except Exception:
-        return False
+        return True, None
+    except Exception as exc:
+        return False, _classify_open_error(exc)
 
 
 def trigger_bootloader_dtr_double_tap(port):
@@ -176,11 +230,10 @@ def trigger_bootloader_dtr_double_tap(port):
     For boards where the USB-serial chip's DTR is connected to the MCU's
     NRST pin (e.g. via a capacitor). Toggles DTR twice within the 500ms
     double-tap window of TinyUF2.
+
+    Returns (True, None) on success or (False, reason).
     """
-    try:
-        import serial
-    except ImportError:
-        return False
+    import serial
 
     try:
         s = serial.Serial(port, 115200)
@@ -196,20 +249,44 @@ def trigger_bootloader_dtr_double_tap(port):
         s.dtr = True
         time.sleep(0.1)
         s.close()
-        return True
-    except Exception:
-        return False
+        return True, None
+    except Exception as exc:
+        return False, _classify_open_error(exc)
 
 
 def trigger_bootloader(port):
-    """Try all bootloader trigger methods on a serial port."""
+    """Try all bootloader trigger methods on a serial port.
+
+    Returns (True, None) on success, (False, "busy") when the port stayed
+    busy (the caller should fail fast with an actionable message), or
+    (False, None) when no method succeeded for other reasons — the board
+    may still be rebooting into the bootloader, so the caller keeps
+    waiting for the drive.
+    """
     # Method 1: 1200 baud touch (standard UF2 mechanism)
-    if trigger_bootloader_1200baud(port):
-        return True
-    # Method 2: DTR double-tap (hardware reset connection)
-    if trigger_bootloader_dtr_double_tap(port):
-        return True
-    return False
+    ok, reason = trigger_bootloader_1200baud(port)
+    if ok:
+        return True, None
+    if reason == "busy":
+        print(f"\n  Port {port} is held by another program "
+              f"(serial monitor/terminal?).")
+        print(f"  Waiting up to {SERIAL_BUSY_TIMEOUT}s for it to be released "
+              f"(or for the UF2 drive to appear)...")
+        outcome = wait_for_port_release(port, SERIAL_BUSY_TIMEOUT)
+        if outcome == "drive":
+            return True, None
+        if outcome == "port":
+            ok, _ = trigger_bootloader_1200baud(port)
+            if ok:
+                return True, None
+        return False, "busy"
+
+    # A non-busy failure usually means the port vanished mid-touch, i.e.
+    # the board is already rebooting into the bootloader. Try the DTR
+    # fallback and let the caller's drive wait decide.
+    print(f"  1200-bps touch on {port} did not succeed ({reason}).")
+    ok, _ = trigger_bootloader_dtr_double_tap(port)
+    return ok, None
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +389,12 @@ def upload_uf2(uf2_path, serial_port=None, timeout=UF2_DRIVE_TIMEOUT):
         # Step 2: Try serial trigger
         if serial_port:
             print(f"  Triggering bootloader via {serial_port}...")
-            trigger_bootloader(serial_port)
+            _, reason = trigger_bootloader(serial_port)
+            if reason == "busy":
+                print(f"Error: {serial_port} is still held by another program.")
+                print("  Close the serial monitor/terminal using it and retry,")
+                print("  or double-tap RESET to enter bootloader mode.")
+                return False
         else:
             print("  Attempting serial bootloader trigger...")
             for candidate in _detect_serial_ports():
@@ -382,6 +464,12 @@ def _detect_serial_ports():
 
 
 def main():
+    # Progress messages (busy-port notices, drive-wait dots) must appear
+    # while the platform pipes our output: stdout is block-buffered when
+    # not attached to a TTY, and without this the busy notice would only
+    # surface when the process exits.
+    sys.stdout.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(
         description="Upload UF2 firmware to TinyUF2 bootloader"
     )

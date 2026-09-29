@@ -1,5 +1,4 @@
 import sys
-import time
 from os.path import join
 
 from SCons.Script import ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild, Builder, Default, DefaultEnvironment
@@ -117,15 +116,17 @@ if upload_protocol == "uf2":
 
     def before_uf2_upload(target, source, env):  # pylint: disable=unused-argument
         env.AutodetectUploadPort()
-        if board.get("upload.use_1200bps_touch", False):
-            env.TouchSerialPort("$UPLOAD_PORT", 1200)
-            time.sleep(0.5)
+        # The 1200-bps bootloader touch happens inside the uf2upload.py
+        # subprocess, which detects and reports a port held open by a
+        # serial monitor. Touching here too would use PlatformIO's
+        # TouchSerialPort, which silently swallows open errors, turning
+        # a busy port into a misleading "UF2 drive not found" timeout.
 
     env.AddPlatformTarget(
         "upload",
         target_uf2,
         [
-            env.VerboseAction(before_uf2_upload, "Triggering bootloader via 1200-bps touch"),
+            env.VerboseAction(before_uf2_upload, "Looking for upload port..."),
             env.VerboseAction("$UPLOADCMD", "Uploading via UF2"),
         ],
         "Upload",
