@@ -195,8 +195,13 @@ def trigger_bootloader_1200baud(port):
     Works only if the application firmware implements USB CDC with
     1200-baud detection.
 
-    Returns (True, None) on success or (False, reason), where reason is
-    "busy" when another program holds the port open.
+    Returns (True, None) on success, (False, "busy") when another program
+    holds the port open (detected at the 9600-bps prime below — by the
+    time the 1200-bps request runs, the port is known to be free), or
+    (False, None) when the board reset during the touch: the application
+    reacts to the 1200-bps line coding within milliseconds, so any error
+    from that point on usually means the device detached underneath us
+    because the trigger worked. The caller's drive wait decides.
     """
     import serial
 
@@ -210,18 +215,18 @@ def trigger_bootloader_1200baud(port):
         return False, result
 
     try:
-        # Open at 1200 baud - this is the "magic" signal
+        # Open at 1200 baud - this is the "magic" signal. The line coding
+        # request is sent when the port opens; no DTR dance, as the app
+        # resets within milliseconds and anything after that races a
+        # detaching device.
         s = serial.Serial(port, 1200)
         time.sleep(0.1)
-        # Toggle DTR to ensure the signal is sent
-        s.dtr = False
-        time.sleep(0.05)
-        s.dtr = True
-        time.sleep(0.05)
         s.close()
         return True, None
-    except Exception as exc:
-        return False, _classify_open_error(exc)
+    except Exception:
+        # Device detached mid-touch (or right after): the trigger almost
+        # certainly landed. Fall through to the drive wait.
+        return False, None
 
 
 def trigger_bootloader_dtr_double_tap(port):
@@ -267,6 +272,9 @@ def trigger_bootloader(port):
     ok, reason = trigger_bootloader_1200baud(port)
     if ok:
         return True, None
+    if reason is None:
+        # The board reset during the touch — nothing left to trigger.
+        return False, None
     if reason == "busy":
         print(f"\n  Port {port} is held by another program "
               f"(serial monitor/terminal?).")
@@ -276,9 +284,12 @@ def trigger_bootloader(port):
         if outcome == "drive":
             return True, None
         if outcome == "port":
-            ok, _ = trigger_bootloader_1200baud(port)
+            ok, retry_reason = trigger_bootloader_1200baud(port)
             if ok:
                 return True, None
+            if retry_reason is None:
+                # The touch landed; the board reset underneath it.
+                return False, None
         return False, "busy"
 
     # A non-busy failure usually means the port vanished mid-touch, i.e.

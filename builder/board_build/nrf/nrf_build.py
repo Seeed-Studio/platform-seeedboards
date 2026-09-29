@@ -182,9 +182,12 @@ def _touch_app_port(app_port, timeout=60):
 
     result = _open_close_port(app_port, 1200)
     if result is not None:
-        sys.stderr.write("Error: could not touch %s at 1200 bps: %s\n"
-                         % (app_port, result))
-        return False
+        # The 9600-bps prime just succeeded, so an error here usually means
+        # the application reset in response to the 1200-bps request and the
+        # USB device detached underneath the touch (the trigger worked).
+        # Let the loader-port wait decide what really happened.
+        print("Touch on %s ended early (%s); waiting for the DFU loader..."
+              % (app_port, result))
     return True
 
 
