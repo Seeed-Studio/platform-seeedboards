@@ -117,6 +117,77 @@ def _wait_for_loader_port(timeout=60):
     return None
 
 
+def _open_close_port(port, baudrate):
+    """Open and close a COM port briefly, changing its line coding.
+
+    Returns None on success, "busy" when another program holds the
+    port open, or the open error text for other failures.
+    """
+    import serial
+    try:
+        ser = serial.Serial(port=port, baudrate=baudrate)
+    except serial.SerialException as exc:
+        text = str(exc)
+        if ("PermissionError" in text or "Access is denied" in text or
+                "Errno 16" in text or "Device or resource busy" in text):
+            return "busy"
+        return text
+    try:
+        ser.setDTR(False)
+    finally:
+        ser.close()
+    return None
+
+
+def _touch_app_port(app_port, timeout=60):
+    """Perform the 1200-bps DFU touch, reporting a busy port instead of
+    failing silently.
+
+    PlatformIO's env.TouchSerialPort wraps its open/close in a bare
+    ``except: pass``, so a port held open by a serial monitor makes the
+    touch a silent no-op and the upload then times out pointing at the
+    board. A 9600-bps open/close runs first here: it doubles as an
+    occupancy probe (while the port is busy, wait for the user to close
+    it or to enter DFU via Button 0), and it guarantees the line coding
+    moves off 1200 before the touch, because usbser only issues
+    SET_LINE_CODING when the baud rate actually changes and a previous
+    failed touch leaves the device sitting at 1200.
+
+    Returns True when the 1200-bps touch was performed (or the DFU
+    loader is already up), False after printing an error.
+    """
+    import time
+    for remaining in range(timeout, -1, -1):
+        result = _open_close_port(app_port, 9600)
+        if result is None:
+            break
+        if result != "busy":
+            sys.stderr.write("Error: could not open %s: %s\n"
+                             % (app_port, result))
+            return False
+        if remaining == timeout:
+            print("Port %s is busy (serial monitor/terminal?). Waiting up "
+                  "to %ds for it to be released or for Button 0 DFU "
+                  "entry..." % (app_port, timeout))
+        if _find_loader_port():
+            print("Board entered DFU mode while waiting for %s." % app_port)
+            return True
+        if remaining == 0:
+            sys.stderr.write(
+                "Error: %s is held by another program. Close the serial "
+                "monitor/terminal using it and retry, or hold Button 0 "
+                "(P0.09) and press reset to enter DFU mode.\n" % app_port)
+            return False
+        time.sleep(1)
+
+    result = _open_close_port(app_port, 1200)
+    if result is not None:
+        sys.stderr.write("Error: could not touch %s at 1200 bps: %s\n"
+                         % (app_port, result))
+        return False
+    return True
+
+
 def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
     """Resolve the DFU (loader) upload port for the nRF54LM20B.
 
@@ -156,7 +227,8 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
     if app_port:
         env.Replace(UPLOAD_PORT=app_port)
         print("Touching %s at 1200 baud → DFU..." % app_port)
-        env.TouchSerialPort("$UPLOAD_PORT", 1200)
+        if not _touch_app_port(app_port):
+            env.Exit(1)
         loader_port = _wait_for_loader_port(60)
         if not loader_port:
             sys.stderr.write(
