@@ -14,6 +14,7 @@
 
 import sys
 import subprocess
+import errno
 import json
 import os
 import shutil
@@ -117,6 +118,22 @@ def _wait_for_loader_port(timeout=60):
     return None
 
 
+def _port_busy(exc):
+    """True when a serial open failed because another program holds the
+    port.
+
+    Windows serial open failures carry no errno, so match the WinError 5
+    text there (the exception class name survives a localized message).
+    POSIX chains the original OSError, where only EBUSY means busy:
+    EACCES is a permissions problem (e.g. user not in the dialout group,
+    or a macOS privacy denial) and must fail fast instead of being
+    waited on as if a monitor held the port.
+    """
+    if system() == "Windows":
+        return "PermissionError" in str(exc) or "Access is denied" in str(exc)
+    return getattr(exc.__cause__ or exc.__context__, "errno", None) == errno.EBUSY
+
+
 def _open_close_port(port, baudrate):
     """Open and close a COM port briefly, changing its line coding.
 
@@ -127,11 +144,9 @@ def _open_close_port(port, baudrate):
     try:
         ser = serial.Serial(port=port, baudrate=baudrate)
     except serial.SerialException as exc:
-        text = str(exc)
-        if ("PermissionError" in text or "Access is denied" in text or
-                "Errno 16" in text or "Device or resource busy" in text):
+        if _port_busy(exc):
             return "busy"
-        return text
+        return str(exc)
     try:
         ser.setDTR(False)
     finally:
