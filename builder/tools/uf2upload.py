@@ -12,6 +12,7 @@ Supports: Linux, Windows, macOS
 import os
 import sys
 import time
+import errno
 import argparse
 import subprocess
 import platform
@@ -141,19 +142,35 @@ def wait_for_uf2_drive(timeout=UF2_DRIVE_TIMEOUT):
 # ---------------------------------------------------------------------------
 
 def _classify_open_error(exc):
-    """Map a serial open exception to "busy" or an error description."""
-    text = str(exc)
-    if ("PermissionError" in text or "Access is denied" in text or
-            "Errno 16" in text or "Device or resource busy" in text):
+    """Map a serial open exception to "busy", "denied", or an error text.
+
+    Windows open failures carry no errno, so match the WinError 5 text
+    there (the exception class name survives a localized message). POSIX
+    chains the original OSError, where only EBUSY means busy: EACCES is
+    a permissions problem (user not in the dialout group, or a macOS
+    privacy denial) and must fail fast instead of being waited on as if
+    a monitor held the port.
+    """
+    if platform.system() == "Windows":
+        text = str(exc)
+        if "PermissionError" in text or "Access is denied" in text:
+            return "busy"
+        return text
+    cause = exc.__cause__ or exc.__context__
+    err = getattr(cause, "errno", None)
+    if err == errno.EBUSY:
         return "busy"
-    return text
+    if err == errno.EACCES:
+        return "denied"
+    return str(exc)
 
 
 def open_close_port(port, baudrate):
     """Open and close a serial port briefly, changing its line coding.
 
     Returns None on success, "busy" when another program holds the
-    port open, or the open error text for other failures.
+    port open, "denied" when the user lacks permission to open it
+    (POSIX), or the open error text for other failures.
     """
     import serial
     try:
@@ -197,8 +214,9 @@ def trigger_bootloader_1200baud(port):
 
     Returns (True, None) on success, (False, "busy") when another program
     holds the port open (detected at the 9600-bps prime below — by the
-    time the 1200-bps request runs, the port is known to be free), or
-    (False, None) when the board reset during the touch: the application
+    time the 1200-bps request runs, the port is known to be free),
+    (False, "denied") when the user lacks permission to open the port,
+    or (False, None) when the board reset during the touch: the application
     reacts to the 1200-bps line coding within milliseconds, so any error
     from that point on usually means the device detached underneath us
     because the trigger worked. The caller's drive wait decides.
@@ -263,7 +281,9 @@ def trigger_bootloader(port):
     """Try all bootloader trigger methods on a serial port.
 
     Returns (True, None) on success, (False, "busy") when the port stayed
-    busy (the caller should fail fast with an actionable message), or
+    busy (the caller should fail fast with an actionable message),
+    (False, "denied") when the user lacks permission to open the port
+    at all (the caller should fail fast — waiting cannot help), or
     (False, None) when no method succeeded for other reasons — the board
     may still be rebooting into the bootloader, so the caller keeps
     waiting for the drive.
@@ -275,6 +295,12 @@ def trigger_bootloader(port):
     if reason is None:
         # The board reset during the touch — nothing left to trigger.
         return False, None
+    if reason == "denied":
+        print(f"Error: no permission to open {port}.")
+        print("  On Linux, add yourself to the 'dialout' group and log out/in;")
+        print("  on macOS, allow USB-serial devices in System Settings >")
+        print("  Privacy & Security. Then retry the upload.")
+        return False, "denied"
     if reason == "busy":
         print(f"\n  Port {port} is held by another program "
               f"(serial monitor/terminal?).")
@@ -405,6 +431,10 @@ def upload_uf2(uf2_path, serial_port=None, timeout=UF2_DRIVE_TIMEOUT):
                 print(f"Error: {serial_port} is still held by another program.")
                 print("  Close the serial monitor/terminal using it and retry,")
                 print("  or double-tap RESET to enter bootloader mode.")
+                return False
+            if reason == "denied":
+                # Reason and remedy were printed by trigger_bootloader;
+                # waiting cannot fix a permissions problem.
                 return False
         else:
             print("  Attempting serial bootloader trigger...")
