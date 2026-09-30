@@ -40,7 +40,7 @@ jobs:
   build-zephyr-examples:
     name: PlatformIO Build (examples / zephyr)
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Checkout

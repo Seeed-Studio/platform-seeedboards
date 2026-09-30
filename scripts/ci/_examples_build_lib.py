@@ -198,9 +198,11 @@ def collect_firmware(
     """Copy one flashable firmware file for the built env into out_root.
 
     Preference: ``firmware.uf2`` (UF2-bootloader boards, e.g. XIAO STM32C5)
-    when present, otherwise ``firmware.hex`` (e.g. nRF54 boards, which the nRF
-    builder does not convert to UF2). This rule yields exactly "C5 -> uf2,
-    others -> hex" without any board-type detection.
+    when present, otherwise ``firmware.hex`` (e.g. nRF54 boards without a
+    bootloader), otherwise ``zephyr/zephyr.signed.bin`` (MCUboot-booted boards
+    such as the XIAO nRF54LM20B and nRF54LM20A V2.0, whose flashable USB-DFU
+    image is the imgtool-signed slot0 image produced by the nRF builder).
+    No board-type detection involved.
 
     Returns the destination path on success, or None if no firmware was found.
     Never raises: collection is best-effort and must not fail the build (the
@@ -226,7 +228,20 @@ def collect_firmware(
     for bdir in candidates:
         uf2 = bdir / "firmware.uf2"
         hex_ = bdir / "firmware.hex"
-        src = uf2 if uf2.is_file() else (hex_ if hex_.is_file() else None)
+        # MCUboot-booted boards produce no plain firmware.hex; their flashable
+        # output is the imgtool-signed slot0 image declared by the nRF builder
+        # (builder/board_build/nrf/nrf_build.py: $BUILD_DIR/zephyr/
+        # zephyr.signed.bin).
+        signed = bdir / "zephyr" / "zephyr.signed.bin"
+        src = (
+            uf2
+            if uf2.is_file()
+            else hex_
+            if hex_.is_file()
+            else signed
+            if signed.is_file()
+            else None
+        )
         if src is None:
             continue
         board_dir = out_root / (env_name or bdir.name)
