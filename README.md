@@ -117,3 +117,23 @@ bash factory_reset_lm20a.sh
 When more than one CMSIS-DAP probe is connected, pass its unique ID as the
 first argument to the script.
 
+## Zephyr board definitions
+
+Zephyr board definitions are organized as per-family board roots,
+`zephyr/<family>/boards/seeed/<board>/`:
+
+| Family root | Boards | Usable as a Zephyr board root |
+| --- | --- | --- |
+| `zephyr/nrf` | `xiao_nrf54l15`, `xiao_nrf54lm20a`, `xiao_nrf54lm20b` | Yes — SoCs are present in NCS and upstream Zephyr |
+| `zephyr/stm32` | `xiao_stm32c5` | No — PlatformIO builds only; STM32C5 SoC/driver support is carried by this platform's fixes (`zephyr/fixes.yml`), not by upstream SDKs |
+
+### Using the boards with nRF Connect SDK (NCS)
+
+In VS Code with the nRF Connect extension, add `zephyr/nrf` — not the
+repository root and not `zephyr/` — as an additional **Board Root**
+(`nRF Connect: Board Roots` in VS Code settings), then restart VS Code. A
+board whose SoC is missing from the SDK breaks the extension's SoC cache for
+every board under the same root, which is why non-Nordic boards are kept out
+of `zephyr/nrf`.
+
+
