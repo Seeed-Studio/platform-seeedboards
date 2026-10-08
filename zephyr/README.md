@@ -10,7 +10,9 @@ the registered fixes to the framework package of the board being built.
 
 ```
 zephyr/
-├── boards/           # board definitions (zephyr/boards/arm/<board>/); outside this mechanism
+├── <family>/         # per-family board root: zephyr/<family>/boards/seeed/<board>/
+│   └── boards/seeed/ #   (e.g. nrf/, stm32/); discovered by the builder via
+│                     #   glob(zephyr/*/boards/*), no builder change per family
 ├── patches/          # patches (unified diff)
 │   └── <board>/      #   one level per board
 │       └── 0001-*.patch
@@ -21,8 +23,17 @@ zephyr/
 └── README.md         # this file
 ```
 
+Each `zephyr/<family>` is a standalone Zephyr board root. `zephyr/nrf` is the
+root the wiki tells nRF Connect users to add under **Board Roots**, so it may
+only contain boards whose SoC and drivers exist unpatched in the target SDK —
+a board referencing a SoC missing from the SDK (e.g. `xiao_stm32c5`'s
+`stm32c5a3xx` in NCS) breaks the extension's SoC cache for every board.
+Boards that depend on `fixes.yml` fixes belong in their own family root
+(`zephyr/stm32`); they reach the framework package only through the builder's
+copy step, never through a board-root scan.
+
 `<board>` = the Zephyr board name (the directory name under
-`zephyr/boards/arm/<same name>/`, equal to the `board.yml` `board.name`),
+`zephyr/<family>/boards/seeed/<same name>/`, equal to the `board.yml` `board.name`),
 derived by `platform.get_zephyr_board_name()` from the board manifest's `build.zephyr.variant`: the first component
 of `board[@revision]/soc/...` (before any `/` and `@`); a board revision
 (e.g. `xiao_nrf54lm20a@2.0.0/...`) collapses to its shared board directory
