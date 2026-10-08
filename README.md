@@ -31,6 +31,20 @@ platform = https://github.com/Seeed-Studio/platform-seeedboards.git#1.1.0
 PlatformIO keeps the platform version that was latest when the project was
 created; run `pio pkg update` to move an existing project to a newer release.
 
+### Branch and release model
+
+Development happens on `dev` (all PRs target it), and `platform.json`'s
+top-level `version` there always names the release being built toward. A
+release is a `dev` -> `main` PR followed by an `X.Y.Z` tag pushed on `main`;
+tags are only ever cut from `main`, and CI rejects one that disagrees with
+`version`. Right after a release ships, the next change on `dev` must bump
+`version` past the new tag (CI enforces this too). To try unreleased
+changes, install straight from the branch:
+
+```ini
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git#dev
+```
+
 ## Configuration
 
 Please navigate to [documentation](http://docs.platformio.org/page/platforms/seeedxiao.html).
