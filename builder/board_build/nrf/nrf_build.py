@@ -14,7 +14,6 @@
 
 import sys
 import subprocess
-import errno
 import json
 import os
 import shutil
@@ -56,223 +55,11 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
         env.Replace(UPLOAD_PORT=basename(env.subst("$UPLOAD_PORT")))
 
 
-# USB CDC identities for the three-image (firmware-loader) layout boards.
-# DFU is performed by the loader image (usb_mcumgr, slot1), NOT by mcuboot, so
-# when the board is in DFU mode the *loader's* CDC is what enumerates.
-# Declared per board in the manifest's upload.cdc so uploading to one board
-# never grabs another board's CDC port:
-#   APP_CDC    : the running user app (Seeed VID 0x2886, CDC_ACM_SERIAL_PID
-#                per board, set in the framework board Kconfig).
-#   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID baked into the
-#                factory USB_DFU.hex). A list so a legacy loader VID:PID can
-#                be added in one line if needed.
-
-
-def _missing_cdc_field(field):
-    sys.stderr.write(
-        "Error: upload protocol 'nrfutil-mcumgr' requires '%s' in "
-        "boards/%s.json (see upload.cdc in seeed-xiao-nrf54lm20b.json).\n"
-        % (field, board.id))
-    env.Exit(1)
-
-
-def _app_cdc_vidpid():
-    """App CDC VID:PID for the board being uploaded to."""
-    vidpid = board.get("upload.cdc.app_vidpid", "")
-    if not vidpid:
-        _missing_cdc_field("upload.cdc.app_vidpid")
-    return vidpid.upper()
-
-
-def _loader_cdc_vidpids():
-    """DFU loader CDC VID:PID candidates for the board being uploaded to."""
-    vidpids = board.get("upload.cdc.loader_vidpids", [])
-    if not vidpids:
-        _missing_cdc_field("upload.cdc.loader_vidpids")
-    return [v.upper() for v in vidpids]
-
-
-def _find_port_by_vidpid(vidpid, ports=None):
-    ports = ports if ports is not None else list_serial_ports()
-    for p in ports:
-        if vidpid in (p.get("hwid") or "").upper():
-            return p.get("port")
-    return None
-
-
-def _find_loader_port(ports=None):
-    for vidpid in _loader_cdc_vidpids():
-        port = _find_port_by_vidpid(vidpid, ports)
-        if port:
-            return port
-    return None
-
-
-def _wait_for_loader_port(timeout=60):
-    import time
-    for _ in range(timeout):
-        port = _find_loader_port()
-        if port:
-            return port
-        time.sleep(1)
-    return None
-
-
-def _port_busy(exc):
-    """True when a serial open failed because another program holds the
-    port.
-
-    Windows serial open failures carry no errno, so match the WinError 5
-    text there (the exception class name survives a localized message).
-    POSIX chains the original OSError, where only EBUSY means busy:
-    EACCES is a permissions problem (e.g. user not in the dialout group,
-    or a macOS privacy denial) and must fail fast instead of being
-    waited on as if a monitor held the port.
-    """
-    if system() == "Windows":
-        return "PermissionError" in str(exc) or "Access is denied" in str(exc)
-    return getattr(exc.__cause__ or exc.__context__, "errno", None) == errno.EBUSY
-
-
-def _open_close_port(port, baudrate):
-    """Open and close a COM port briefly, changing its line coding.
-
-    Returns None on success, "busy" when another program holds the
-    port open, or the open error text for other failures.
-    """
-    import serial
-    try:
-        ser = serial.Serial(port=port, baudrate=baudrate)
-    except serial.SerialException as exc:
-        if _port_busy(exc):
-            return "busy"
-        return str(exc)
-    try:
-        ser.setDTR(False)
-    finally:
-        ser.close()
-    return None
-
-
-def _touch_app_port(app_port, timeout=60):
-    """Perform the 1200-bps DFU touch, reporting a busy port instead of
-    failing silently.
-
-    PlatformIO's env.TouchSerialPort wraps its open/close in a bare
-    ``except: pass``, so a port held open by a serial monitor makes the
-    touch a silent no-op and the upload then times out pointing at the
-    board. A 9600-bps open/close runs first here: it doubles as an
-    occupancy probe (while the port is busy, wait for the user to close
-    it or to enter DFU via Button 0), and it guarantees the line coding
-    moves off 1200 before the touch, because usbser only issues
-    SET_LINE_CODING when the baud rate actually changes and a previous
-    failed touch leaves the device sitting at 1200.
-
-    Returns True when the 1200-bps touch was performed (or the DFU
-    loader is already up), False after printing an error.
-    """
-    import time
-    for remaining in range(timeout, -1, -1):
-        result = _open_close_port(app_port, 9600)
-        if result is None:
-            break
-        if result != "busy":
-            sys.stderr.write("Error: could not open %s: %s\n"
-                             % (app_port, result))
-            return False
-        if remaining == timeout:
-            print("Port %s is busy (serial monitor/terminal?). Waiting up "
-                  "to %ds for it to be released or for Button 0 DFU "
-                  "entry..." % (app_port, timeout))
-        if _find_loader_port():
-            print("Board entered DFU mode while waiting for %s." % app_port)
-            return True
-        if remaining == 0:
-            sys.stderr.write(
-                "Error: %s is held by another program. Close the serial "
-                "monitor/terminal using it and retry, or hold Button 0 "
-                "(P0.09) and press reset to enter DFU mode.\n" % app_port)
-            return False
-        time.sleep(1)
-
-    result = _open_close_port(app_port, 1200)
-    if result is not None:
-        # The 9600-bps prime just succeeded, so an error here usually means
-        # the application reset in response to the 1200-bps request and the
-        # USB device detached underneath the touch (the trigger worked).
-        # Let the loader-port wait decide what really happened.
-        print("Touch on %s ended early (%s); waiting for the DFU loader..."
-              % (app_port, result))
-    return True
-
-
-def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
-    """Resolve the DFU (loader) upload port for the nRF54LM20B.
-
-    Handles every board state so a crashed/empty app never bricks the device:
-      1) an explicit upload_port (--upload-port / `upload_port =`) is honored;
-         its role is detected by VID:PID;
-      2) the loader CDC is already present (board already in DFU via Button 0
-         + reset, or via the empty-slot NO_APPLICATION auto-loader) -> use it
-         directly and skip the 1200-bps touch (the anti-brick fast path);
-      3) the app CDC is present (healthy app) -> touch 1200 to reboot into the
-         loader, then poll for the loader CDC (matching its VID:PID only, not
-         WaitForNewSerialPort's "any new port", so other USB devices cannot be
-         grabbed by mistake);
-      4) nothing recognized -> prompt the user to enter DFU manually and poll
-         for the loader CDC.
-    """
-    explicit = env.subst("$UPLOAD_PORT")
-
-    # (1) Explicit port: detect its role by VID:PID.
-    if explicit:
-        if explicit == _find_loader_port():
-            print("Configured port %s is the DFU loader; using it directly."
-                  % explicit)
-            return
-        # Otherwise treat it as the app port -> fall through to the touch path.
-    else:
-        # (2) Loader CDC already present -> board already in DFU mode.
-        loader_port = _find_loader_port()
-        if loader_port:
-            env.Replace(UPLOAD_PORT=loader_port)
-            print("Board already in DFU mode; using loader port %s."
-                  % loader_port)
-            return
-
-    # (3) App CDC present -> touch 1200 -> poll for the loader CDC.
-    app_port = explicit or _find_port_by_vidpid(_app_cdc_vidpid())
-    if app_port:
-        env.Replace(UPLOAD_PORT=app_port)
-        print("Touching %s at 1200 baud → DFU..." % app_port)
-        if not _touch_app_port(app_port):
-            env.Exit(1)
-        loader_port = _wait_for_loader_port(60)
-        if not loader_port:
-            sys.stderr.write(
-                "Error: the board did not enter DFU mode after the 1200-bps "
-                "touch. Hold Button 0 (P0.09) and press reset, then retry.\n")
-            env.Exit(1)
-        env.Replace(UPLOAD_PORT=loader_port)
-        print("Loader port: %s" % env.subst("$UPLOAD_PORT"))
-        return
-
-    # (4) Nothing recognized -> prompt manual DFU and poll for the loader CDC.
-    sys.stdout.write(
-        "No app CDC (VID:PID=%s) found. To recover, hold Button 0 (P0.09) "
-        "and press reset to enter DFU mode. Waiting for the DFU loader CDC "
-        "(VID:PID=%s)...\n" % (_app_cdc_vidpid(), "/".join(_loader_cdc_vidpids())))
-    sys.stdout.flush()
-    port = _wait_for_loader_port(60)
-    if not port:
-        sys.stderr.write(
-            "Error: could not find the DFU port. Put the board in DFU mode "
-            "(hold Button 0 / P0.09 + reset) and retry, or set the port "
-            "explicitly: `upload_port = COMxx` in platformio.ini or "
-            "`pio run -t upload --upload-port COMxx`.\n")
-        env.Exit(1)
-    env.Replace(UPLOAD_PORT=port)
-    print("DFU port detected: %s" % env.subst("$UPLOAD_PORT"))
+# USB CDC identities for the nrfutil-mcumgr upload path (app/loader VID:PID)
+# are declared per board in the manifest's upload.cdc; the port resolution,
+# 1200-bps touch and loader-CDC wait live in mcumgrupload.py in this
+# directory, which runs as a child console process so Ctrl+C can interrupt
+# every wait (see the nrfutil-mcumgr branch below).
 
 
 env = DefaultEnvironment()
@@ -756,31 +543,46 @@ elif upload_protocol == "nrfutil-mcumgr":
     # The board must have MCUboot with serial recovery enabled and the
     # device must be in serial recovery mode (via WAIT_FOR_DFU window,
     # GPIO button press, or no-application fallback).
+    # Port resolution, the 1200-bps touch and the loader-CDC wait run in
+    # mcumgrupload.py (this directory), a child console process, so Ctrl+C
+    # aborts every wait instantly: SCons executes actions in a worker
+    # thread where CPython never raises KeyboardInterrupt on Windows (the
+    # SIGINT flag is only handled on the main thread, which stays parked
+    # in an uninterruptible join for the whole task), so in-process wait
+    # loops cannot be interrupted at all. A child process receives the
+    # console Ctrl+C event itself and dies immediately, taking nrfutil
+    # with it -- the same mechanism that keeps the STM32 UF2 uploader
+    # (uf2upload.py) interruptible.
     # Do not install an upload-only tool during a normal build.  Besides
     # avoiding unnecessary downloads in CI, this keeps compilation isolated
     # from the host's tool-installation state.
+    cdc = board.get("upload.cdc", {})
+    app_vidpid = cdc.get("app_vidpid", "")
+    loader_vidpids = cdc.get("loader_vidpids", [])
+    if not app_vidpid or not loader_vidpids:
+        sys.stderr.write(
+            "Error: upload protocol 'nrfutil-mcumgr' requires "
+            "'upload.cdc.app_vidpid' and 'upload.cdc.loader_vidpids' in "
+            "boards/%s.json (see seeed-xiao-nrf54lm20b.json).\n" % board.id)
+        env.Exit(1)
+
     nrfutil_executable = "nrfutil"
     if "upload" in COMMAND_LINE_TARGETS:
         nrfutil_executable = _ensure_nrfutil_installed()
 
     env.Replace(
-        UPLOADER=nrfutil_executable,
-        UPLOADERFLAGS=[
-            "mcu-manager",
-            "serial",
-            "image-upload",
-            "--serial-port", '"$UPLOAD_PORT"',
-            "--timeout", "120",
-            "--firmware",
-        ],
-        UPLOADCMD='$UPLOADER $UPLOADERFLAGS "$SOURCE"',
-        RESETCMD='$UPLOADER mcu-manager serial reset --serial-port "$UPLOAD_PORT" --timeout 60'
+        UPLOADCMD=" ".join([
+            '"$PYTHONEXE"',
+            '"%s"' % join(platform.get_dir(), "builder", "board_build", "nrf",
+                          "mcumgrupload.py"),
+            "--nrfutil", '"%s"' % nrfutil_executable,
+            "--app-vidpid", app_vidpid,
+            "--loader-vidpid", " ".join('"%s"' % v for v in loader_vidpids),
+            "--port", '"${UPLOAD_PORT}"',
+            "--firmware", '"$SOURCE"',
+        ]),
     )
-    upload_actions = [
-        env.VerboseAction(DfuUpload1200, "Preparing DFU port..."),
-        env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE"),
-        env.VerboseAction("$RESETCMD", "Resetting device...")
-    ]
+    upload_actions = [env.VerboseAction("$UPLOADCMD", "Uploading $SOURCE")]
 
 elif upload_protocol == "sam-ba":
     bossac = join(platform.get_package_dir("tool-bossac") or "", "bossac")
