@@ -20,16 +20,24 @@ framework = arduino
 
 ## Versioning
 
-This platform is consumed via a git URL, so an unpinned `platform = ...` line
-always tracks the latest commit. For reproducible production builds, pin to a
-release tag (tags carry no `v` prefix):
+Pick the ref that matches how you use the platform. The spec is the lock:
+PlatformIO re-resolves it only on `pio pkg update`, never during a build.
+
+* **Pinned tag (production):** append `#X.Y.Z` for a reproducible build.
+  Tags carry no `v` prefix and map 1:1 to GitHub Releases.
+* **Bare URL (stable, moving):** tracks `main`, the stable branch -- fixes
+  from the last shipped release as they land, but no unreleased features.
+* **`#dev` (preview):** tracks the integration branch; unreleased boards
+  and fixes show up here first.
 
 ```ini
-platform = https://github.com/Seeed-Studio/platform-seeedboards.git#1.1.0
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git#1.1.0  ; pinned
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git        ; stable, moving
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git#dev    ; preview
 ```
 
-PlatformIO keeps the platform version that was latest when the project was
-created; run `pio pkg update` to move an existing project to a newer release.
+A pinned tag stays put until you change the spec yourself; the moving refs
+advance only when you run `pio pkg update`.
 
 ### Branch and release model
 
@@ -38,12 +46,7 @@ top-level `version` there always names the release being built toward. A
 release is a `dev` -> `main` PR followed by an `X.Y.Z` tag pushed on `main`;
 tags are only ever cut from `main`, and CI rejects one that disagrees with
 `version`. Right after a release ships, the next change on `dev` must bump
-`version` past the new tag (CI enforces this too). To try unreleased
-changes, install straight from the branch:
-
-```ini
-platform = https://github.com/Seeed-Studio/platform-seeedboards.git#dev
-```
+`version` past the new tag (CI enforces this too).
 
 ## Configuration
 

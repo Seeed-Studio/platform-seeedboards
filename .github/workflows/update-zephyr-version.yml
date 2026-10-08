@@ -33,6 +33,9 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # dev is the integration branch (all PRs target it); a bump PR
+          # opened on main would bypass it and make the branches diverge.
+          base: dev
           commit-message: 'chore: bump framework-zephyr to ${{ steps.bump.outputs.new_version }}'
           title: 'chore: bump framework-zephyr to ${{ steps.bump.outputs.new_version }}'
           body: |
