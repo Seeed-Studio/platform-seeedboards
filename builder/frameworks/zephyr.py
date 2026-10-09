@@ -21,6 +21,7 @@ https://github.com/zephyrproject-rtos/zephyr
 
 from os.path import join
 import subprocess
+import glob
 import os
 import json
 import shutil
@@ -63,7 +64,18 @@ hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 # Python's pathlib.Path.rglob() (used by Zephyr's list_boards.py) does not
 # follow symlink directories by default, which makes symlinked boards
 # invisible to CMake on macOS/Linux.
-platform_boards_dir = join(platform_dir, "zephyr", "boards", "arm")
+# Board definitions live in per-family board roots: zephyr/<family>/boards/seeed/<board>.
+# Each family root is a standalone Zephyr board root; adding a family requires no
+# builder change (the glob below picks it up). zephyr/nrf is the root the wiki tells
+# users to add to nRF Connect Board Roots, so it may only contain boards whose SoC and
+# drivers exist unpatched in the target SDK — a board referencing a SoC missing from
+# the SDK (e.g. xiao_stm32c5's stm32c5a3xx in NCS) breaks the extension's SoC cache
+# for every board. Boards that depend on fixes.yml fixes belong in their own family
+# root (zephyr/stm32) and reach the framework only through this copy step.
+# glob() also returns files; a non-directory here would make os.listdir()
+# below raise and kill every build, so keep directories only.
+platform_board_source_roots = [p for p in sorted(glob.glob(
+    join(platform_dir, "zephyr", "*", "boards", "*"))) if os.path.isdir(p)]
 framework_boards_dir = join(framework_dir, "boards", "arm")
 framework_vendor_boards_dir = join(framework_dir, "boards", "seeed")
 
@@ -98,30 +110,31 @@ def _board_copy_mode():
     return "refresh"
 
 
-if os.path.isdir(platform_boards_dir):
+if platform_board_source_roots:
     os.makedirs(framework_vendor_boards_dir, exist_ok=True)
     import shutil
     board_copy_mode = _board_copy_mode()
-    for board_name_dir in os.listdir(platform_boards_dir):
-        src = join(platform_boards_dir, board_name_dir)
-        dst = join(framework_vendor_boards_dir, board_name_dir)
-        stale_arm_dst = join(framework_boards_dir, board_name_dir)
-        if not os.path.isdir(src):
-            continue
-        if os.path.isdir(stale_arm_dst):
-            shutil.rmtree(stale_arm_dst)
-        if board_copy_mode == "missing-only" and os.path.exists(dst):
-            continue
-        # Refresh copied board definitions on every build so local DTS/Kconfig
-        # changes always override any stale board copies inside the framework.
-        if os.path.islink(dst) and not os.path.exists(dst):
-            os.remove(dst)
-        elif os.path.isdir(dst):
-            shutil.rmtree(dst)
-        elif os.path.exists(dst):
-            os.remove(dst)
-        shutil.copytree(src, dst)
-        print(f"Copied board: {board_name_dir} -> {dst}")
+    for platform_boards_dir in platform_board_source_roots:
+        for board_name_dir in os.listdir(platform_boards_dir):
+            src = join(platform_boards_dir, board_name_dir)
+            dst = join(framework_vendor_boards_dir, board_name_dir)
+            stale_arm_dst = join(framework_boards_dir, board_name_dir)
+            if not os.path.isdir(src):
+                continue
+            if os.path.isdir(stale_arm_dst):
+                shutil.rmtree(stale_arm_dst)
+            if board_copy_mode == "missing-only" and os.path.exists(dst):
+                continue
+            # Refresh copied board definitions on every build so local DTS/Kconfig
+            # changes always override any stale board copies inside the framework.
+            if os.path.islink(dst) and not os.path.exists(dst):
+                os.remove(dst)
+            elif os.path.isdir(dst):
+                shutil.rmtree(dst)
+            elif os.path.exists(dst):
+                os.remove(dst)
+            shutil.copytree(src, dst)
+            print(f"Copied board: {board_name_dir} -> {dst}")
 
 import re
 import time
@@ -769,7 +782,7 @@ def _provision_xiao_dfu_module(framework_dir):
     """
     source_module = join(platform_dir, "zephyr", "modules", "xiao_dfu_reset")
     target_module = join(framework_dir, "_pio", "modules", "xiao_dfu_reset")
-    source_board = join(platform_dir, "zephyr", "boards", "arm",
+    source_board = join(platform_dir, "zephyr", "nrf", "boards", "seeed",
                         "xiao_nrf54lm20b", "nrf54lm20b_cpuapp_common.dtsi")
     target_board = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
                         "nrf54lm20b_cpuapp_common.dtsi")

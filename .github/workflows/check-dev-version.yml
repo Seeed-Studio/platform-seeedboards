@@ -1,0 +1,43 @@
+name: Check dev version
+
+# dev's version discipline, the flip side of release-on-merge.yml's
+# publishing gates:
+#
+#   * dev is the integration branch -- all PRs target it, and its
+#     platform.json "version" must always name the NEXT release (strict
+#     X.Y.Z, greater than every existing tag).
+#   * main is the stable branch -- a dev -> main merge is the only way a
+#     version ships: release-on-merge.yml verifies the version and cuts the
+#     tag on the merge (enforced there).
+#   * Right after a release, this check intentionally fails the first dev
+#     push until "version" is bumped past the new tag. Do that bump as its
+#     own small commit (or fold it into the next feature PR's wave) so the
+#     blockage never outlives one push.
+#
+# Tags matter here, so the checkout fetches full history; actions/checkout
+# only materializes tags when fetch-depth is 0.
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  check:
+    name: dev platform.json version is the next release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the version check needs the real tag list
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify version
+        run: python scripts/ci/check_dev_version.py

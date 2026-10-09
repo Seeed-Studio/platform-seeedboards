@@ -20,16 +20,34 @@ framework = arduino
 
 ## Versioning
 
-This platform is consumed via a git URL, so an unpinned `platform = ...` line
-always tracks the latest commit. For reproducible production builds, pin to a
-release tag (tags carry no `v` prefix):
+Pick the ref that matches how you use the platform. The spec is the lock:
+PlatformIO re-resolves it only on `pio pkg update`, never during a build.
+
+* **Pinned tag (production):** append `#X.Y.Z` for a reproducible build.
+  Tags carry no `v` prefix and map 1:1 to GitHub Releases.
+* **Bare URL (stable, moving):** tracks `main`, the stable branch -- fixes
+  from the last shipped release as they land, but no unreleased features.
+* **`#dev` (preview):** tracks the integration branch; unreleased boards
+  and fixes show up here first.
 
 ```ini
-platform = https://github.com/Seeed-Studio/platform-seeedboards.git#1.1.0
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git#1.1.0  ; pinned
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git        ; stable, moving
+platform = https://github.com/Seeed-Studio/platform-seeedboards.git#dev    ; preview
 ```
 
-PlatformIO keeps the platform version that was latest when the project was
-created; run `pio pkg update` to move an existing project to a newer release.
+A pinned tag stays put until you change the spec yourself; the moving refs
+advance only when you run `pio pkg update`.
+
+### Branch and release model
+
+Development happens on `dev` (all PRs target it), and `platform.json`'s
+top-level `version` there always names the release being built toward. A
+release is simply a `dev` -> `main` PR: CI checks on the PR that `version`
+names a release that has no tag yet, and merging it cuts the `X.Y.Z` tag on
+the merge commit and publishes the GitHub Release automatically. Right after
+a release ships, the next change on `dev` must bump `version` past the new
+tag (CI on dev pushes enforces this too).
 
 ## Configuration
 
@@ -116,4 +134,24 @@ bash factory_reset_lm20a.sh
 
 When more than one CMSIS-DAP probe is connected, pass its unique ID as the
 first argument to the script.
+
+## Zephyr board definitions
+
+Zephyr board definitions are organized as per-family board roots,
+`zephyr/<family>/boards/seeed/<board>/`:
+
+| Family root | Boards | Usable as a Zephyr board root |
+| --- | --- | --- |
+| `zephyr/nrf` | `xiao_nrf54l15`, `xiao_nrf54lm20a`, `xiao_nrf54lm20b` | Yes — SoCs are present in NCS and upstream Zephyr |
+| `zephyr/stm32` | `xiao_stm32c5` | No — PlatformIO builds only; STM32C5 SoC/driver support is carried by this platform's fixes (`zephyr/fixes.yml`), not by upstream SDKs |
+
+### Using the boards with nRF Connect SDK (NCS)
+
+In VS Code with the nRF Connect extension, add `zephyr/nrf` — not the
+repository root and not `zephyr/` — as an additional **Board Root**
+(`nRF Connect: Board Roots` in VS Code settings), then restart VS Code. A
+board whose SoC is missing from the SDK breaks the extension's SoC cache for
+every board under the same root, which is why non-Nordic boards are kept out
+of `zephyr/nrf`.
+
 

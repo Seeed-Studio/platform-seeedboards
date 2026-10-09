@@ -3,9 +3,9 @@ setlocal EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
 set "VENV_DIR=%SCRIPT_DIR%.venv"
-REM Bump the marker to force a reinstall from requirements.txt; older venvs
-REM still hold stock pyOCD, which faults on nRF54LM20A (issue #69).
-set "DEP_MARKER=%VENV_DIR%\.deps_forked_pyocd_v1"
+REM Bump the marker whenever requirements.txt changes, so existing venvs
+REM reinstall instead of keeping the previously pinned pyOCD.
+set "DEP_MARKER=%VENV_DIR%\.deps_official_pyocd_v1"
 
 if not exist "%VENV_DIR%" (
     echo Creating Python virtual environment...

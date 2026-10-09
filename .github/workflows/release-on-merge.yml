@@ -1,0 +1,81 @@
+name: Release on merge to main
+
+# The publishing half of the version discipline (check-dev-version.yml holds
+# the dev half):
+#
+#   * A dev -> main PR *is* the release request. The check job below puts a
+#     red X on the PR before merge when platform.json's "version" does not
+#     name a new, forward version. The X is advisory (no branch protection),
+#     but it is visible before the merge button, not after.
+#   * Merging -- any push to main -- runs the release job: it re-checks,
+#     cuts tag <version> on the merge commit, and publishes the GitHub
+#     Release. A push whose version is already tagged (docs-only follow-ups
+#     pushed to main) is skipped quietly.
+#   * The tag is cut by CI from main, so "tag == version" and "tag on main"
+#     hold by construction -- the two gates the old release.yml enforced at
+#     tag-push time.
+#
+# GITHUB_TOKEN-pushed tags trigger no further workflows (GitHub's recursion
+# guard), which is fine: this job creates the Release itself.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: version names a new release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the version check needs the real tag list
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify version
+        run: python scripts/ci/check_merge_version.py
+
+  release:
+    name: Cut tag and publish release
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        run: >
+          echo "VER=$(python -c "import json; print(json.load(open('platform.json'))['version'])")"
+          >> "$GITHUB_ENV"
+
+      - name: Skip pushes that are not releases
+        run: |
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$VER")" ]; then
+            echo "tag $VER already exists; this push to main is not a release"
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Tag and publish
+        if: env.SKIP != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git tag "$VER" "$GITHUB_SHA"
+          git push origin "$VER"
+          gh release create "$VER" --target "$GITHUB_SHA" --title "$VER" --generate-notes
