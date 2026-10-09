@@ -10,6 +10,14 @@ This repository is the source of the Seeed Studio PlatformIO platform. The Git r
 - Read-only investigation, design discussion, documentation-only work, and code review do not require the fork-validation inputs from that skill unless they also change PlatformIO behavior.
 - Read the relevant note in [`.agents/notes/`](.agents/notes/README.md) before changing board/profile ownership, Zephyr architecture, package-cache behavior, or compatibility fixes.
 
+## Branch and release model
+
+- All in-progress work happens on feature branches (`fix/*`, `feat/*`, `refactor/*`, `docs/*`, `chore/*`). Never commit directly to `dev` or `main`, and never point a feature PR at `main`.
+- Every PR targets `dev` and merges only after CI is green and the change is verified.
+- Shipping a version is exactly one action: a `dev` -> `main` PR. Merging it *is* the release — `release-on-merge.yml` checks `platform.json`'s `version` on the PR, cuts the `X.Y.Z` tag on the merge commit, and publishes the Release. Never create tags by hand.
+- `version` on `dev` always names the *next* release (strict `X.Y.Z`, greater than every existing tag). Right after a release ships, the next change merged into `dev` must bump `version` past the new tag as its own small commit; `check-dev-version.yml` fails every dev push until then.
+- A failed release job published nothing (the tag was never cut) — re-run it instead of hand-pushing tags. See [`.agents/notes/implemented/2026-10-09-branch-and-release-model.md`](.agents/notes/implemented/2026-10-09-branch-and-release-model.md).
+
 ## Ownership and compatibility
 
 | Concern | Owning location |
