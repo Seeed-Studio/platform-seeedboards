@@ -1,12 +1,14 @@
 name: Check dev version
 
-# dev's version discipline, the flip side of release.yml's tag gates:
+# dev's version discipline, the flip side of release-on-merge.yml's
+# publishing gates:
 #
 #   * dev is the integration branch -- all PRs target it, and its
 #     platform.json "version" must always name the NEXT release (strict
 #     X.Y.Z, greater than every existing tag).
-#   * main is the stable branch -- a dev -> main PR plus an X.Y.Z tag pushed
-#     on main is the only way a version ships (enforced there).
+#   * main is the stable branch -- a dev -> main merge is the only way a
+#     version ships: release-on-merge.yml verifies the version and cuts the
+#     tag on the merge (enforced there).
 #   * Right after a release, this check intentionally fails the first dev
 #     push until "version" is bumped past the new tag. Do that bump as its
 #     own small commit (or fold it into the next feature PR's wave) so the

@@ -43,10 +43,11 @@ advance only when you run `pio pkg update`.
 
 Development happens on `dev` (all PRs target it), and `platform.json`'s
 top-level `version` there always names the release being built toward. A
-release is a `dev` -> `main` PR followed by an `X.Y.Z` tag pushed on `main`;
-tags are only ever cut from `main`, and CI rejects one that disagrees with
-`version`. Right after a release ships, the next change on `dev` must bump
-`version` past the new tag (CI enforces this too).
+release is simply a `dev` -> `main` PR: CI checks on the PR that `version`
+names a release that has no tag yet, and merging it cuts the `X.Y.Z` tag on
+the merge commit and publishes the GitHub Release automatically. Right after
+a release ships, the next change on `dev` must bump `version` past the new
+tag (CI on dev pushes enforces this too).
 
 ## Configuration
 

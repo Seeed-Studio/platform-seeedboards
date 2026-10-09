@@ -2,20 +2,21 @@
 """Verify dev's platform.json "version" is the *next* release, not a stale one.
 
 Runs in .github/workflows/check-dev-version.yml on every push to dev. The
-branch model it enforces (the release side lives in release.yml):
+branch model it enforces (the publishing side lives in
+release-on-merge.yml):
 
   * dev is the integration branch: all PRs target it, and its top-level
     "version" always names the release being built toward (e.g. 1.1.0).
-  * main is the stable branch: a dev -> main PR publishes that version, and
-    the X.Y.Z tag is pushed on main (release.yml checks tag == version and
-    tag-on-main there).
+  * main is the stable branch: a dev -> main merge is the only way a
+    version ships (release-on-merge.yml checks the version on the PR and
+    cuts the X.Y.Z tag on the merge commit).
   * After a release ships, the very next dev push fails here until "version"
     is bumped past the new tag -- that stall is intentional; bump dev to the
     next version (1.2.0, or 1.1.1 after a hotfix series) before merging more.
   * A hotfix released straight from main (say 1.0.1 while dev carries 1.1.0)
     needs no action: 1.1.0 > 1.0.1 still holds.
 
-Like check_release_version.py, this is read-only and runnable locally:
+Like check_merge_version.py, this is read-only and runnable locally:
 set PLATFORM_JSON to point at a scratch copy to rehearse the failure paths.
 
 Set GIT_TAG_LIST to a newline-separated stand-in tag list to rehearse
@@ -63,7 +64,7 @@ def main(argv: list[str]) -> int:
         print(
             f'ERROR: dev platform.json "version" {version!r} is not strict semver (X.Y.Z).\n'
             "dev carries the *next* release version; pre-release suffixes are not "
-            "part of this flow (release.yml only ever sees plain X.Y.Z tags).",
+            "part of this flow (release-on-merge.yml only ever cuts plain X.Y.Z tags).",
             file=sys.stderr,
         )
         return 1
