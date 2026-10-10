@@ -180,10 +180,14 @@ class SeeedstudioPlatform(PlatformBase):
         # esptool runs from the $PYTHONEXE (penv) python with the
         # tool-esptoolpy dir on PYTHONPATH. That tool copy is expanded by
         # idf_tools.py and brings no bundled Python deps, so install the
-        # optional runtime modules it imports: rich_click (CLI formatting)
-        # and intelhex (image merge / bootloader.bin generation).
+        # optional runtime modules it imports: rich_click (CLI formatting),
+        # intelhex (image merge / bootloader.bin generation) and esp_pylib
+        # (esptool >= 5.4 runtime library; the Windows esptool.exe bundles
+        # it, while the Linux esptool.py entry point imports it from the
+        # environment, which is why CI failed after the 5.5.0 bump).
         for dep, module in (("rich_click<2", "rich_click"),
-                            ("intelhex", "intelhex")):
+                            ("intelhex", "intelhex"),
+                            ("esp_pylib", "esp_pylib")):
             try:
                 import_module(module)
             except ImportError:
