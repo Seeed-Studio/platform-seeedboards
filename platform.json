@@ -16,7 +16,7 @@
     "type": "git",
     "url": "https://github.com/Seeed-Studio/platform-seeedboards.git"
   },
-  "version": "1.1.0",
+  "version": "1.2.0",
   "frameworks": {
     "arduino": {
       "script": "builder/frameworks/arduino.py"
