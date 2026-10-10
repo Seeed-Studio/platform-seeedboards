@@ -113,7 +113,7 @@ pioarduino IDF-6 line where one exists:
 Fork-based builds via `cumin777/platform-seeedboards#feature/esp32-s31-espidf`
 (cached platform package `~/.platformio/platforms/SeeedStudio`):
 
-- `examples/espidf-blink -e seeed-xiao-esp32-s31`: SUCCESS — firmware.bin
+- `examples/seeed-xiao-esp32-s31/espidf-blink -e seeed-xiao-esp32-s31`: SUCCESS — firmware.bin
   (elf2image `--chip esp32s31`, esptool 5.5.0), RAM 18236/557056,
   flash 198192/33554432.
 - `examples/arduino-blink -e seeed-xiao-esp32-c6` and
