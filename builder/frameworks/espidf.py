@@ -1439,9 +1439,15 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
                 if attempt:
                     print("ldgen succeeded after retry %d" % (attempt + 1))
                 return 0
-            output_corrupted = (
-                "returned no output" in output
-                or "incomplete or corrupted" in output
+            output_corrupted = any(
+                sig in output
+                for sig in (
+                    "returned no output",
+                    "incomplete or corrupted",
+                    # raw on-demand pyparsing failure inside ldgen rendering
+                    "Unable to parse section info",
+                    "ParseException",
+                )
             )
             if output_corrupted and attempt < 2:
                 print(
