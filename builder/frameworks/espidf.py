@@ -2430,6 +2430,13 @@ if env.subst("$SRC_FILTER"):
 extra_components = []
 if PROJECT_SRC_DIR != str(Path(PROJECT_DIR) / "main"):
     extra_components.append(str(Path(PROJECT_SRC_DIR).resolve()))
+# Board-manifest BSP components (e.g. esp/boards/xiao_esp32_s31), resolved
+# against the platform root so they travel with the platform package and
+# keep working for projects copied out of examples.
+for _bsp_dir in board.get("build.esp-idf.extra_component_dirs", "").splitlines():
+    _bsp_dir = _bsp_dir.strip()
+    if _bsp_dir:
+        extra_components.append(str((Path(platform.get_dir()) / _bsp_dir).resolve()))
 if "arduino" in env.subst("$PIOFRAMEWORK"):
     extra_components.append(ARDUINO_FRAMEWORK_DIR)
     # Add path to internal Arduino libraries so that the LDF will be able to find them
