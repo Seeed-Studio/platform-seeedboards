@@ -1,6 +1,9 @@
 {
   "build": {
     "core": "esp32",
+    "esp-idf": {
+      "extra_component_dirs": "esp/boards/xiao_esp32_s31"
+    },
     "extra_flags": [
       "-DBOARD_HAS_PSRAM"
     ],
