@@ -2,6 +2,8 @@ import os
 
 from platformio.public import to_unix_path
 
+from platform_cfg.esp_chips import RISCV_MCUS, RISCV_TOOLCHAIN_MCUS, XTENSA_MCUS
+
 
 # Attribution:
 # ESP32-related package/debug tool configuration in this file is based in part
@@ -30,15 +32,15 @@ def configure_esp_default_packages(self, variables, targets):
             # launch a GDB server in pipe mode while v11 works fine
             # self.packages[gdb_package]["version"] = "~11.2.0"
 
-    # Only "esp32", "esp32s2", "esp32s3" use the toolchain-xtensa-esp-elf
-    # toolchain; other MCUs do not, so drop toolchain-xtensa-esp-elf entirely
-    if mcu in ("esp32", "esp32s2", "esp32s3"):
+    # Only Xtensa chips use the toolchain-xtensa-esp-elf toolchain;
+    # other MCUs do not, so drop toolchain-xtensa-esp-elf entirely
+    if mcu in XTENSA_MCUS:
         _mark_required("toolchain-xtensa-esp-elf")
     else:
         self.packages.pop("toolchain-xtensa-esp-elf", None)
 
-    if mcu in ("esp32s2", "esp32s3", "esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31"):
-        if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31"):
+    if mcu in RISCV_TOOLCHAIN_MCUS:
+        if mcu in RISCV_MCUS:
             self.packages.pop("toolchain-esp32ulp", None)
         # RISC-V based toolchain for ESP32C3, ESP32C6 ESP32S2, ESP32S3 ULP
         _mark_required("toolchain-riscv32-esp")

@@ -28,6 +28,8 @@ from SCons.Script import (
 from platformio.proc import get_pythonexe_path
 from platformio.util import get_serial_ports
 
+from platform_cfg.esp_chips import RISCV_MCUS
+
 # env = DefaultEnvironment()
 Import("env")
 
@@ -83,7 +85,7 @@ def _get_tool_dir(platform, package_name):
 def _get_toolchain_bin_dir(platform, mcu):
     package_name = (
         "toolchain-riscv32-esp"
-        if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31")
+        if mcu in RISCV_MCUS
         else "toolchain-xtensa-esp-elf"
     )
     tool_dir = _get_tool_dir(platform, package_name)
@@ -347,7 +349,7 @@ board = env.BoardConfig()
 mcu = board.get("build.mcu", "esp32")
 toolchain_arch = "xtensa-%s" % mcu
 filesystem = board.get("build.filesystem", "littlefs")
-if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31"):
+if mcu in RISCV_MCUS:
     toolchain_arch = "riscv32-esp"
 
 if "INTEGRATION_EXTRA_DATA" not in env:
@@ -359,7 +361,7 @@ TOOLCHAIN_BIN_DIR = _get_toolchain_bin_dir(platform, mcu)
 GDB_PACKAGE_DIR = _get_tool_dir(
     platform,
     "tool-riscv32-esp-elf-gdb"
-    if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31")
+    if mcu in RISCV_MCUS
     else "tool-xtensa-esp-elf-gdb",
 )
 

@@ -49,6 +49,8 @@ from platformio.proc import exec_command
 from platformio.builder.tools.piolib import ProjectAsLibBuilder
 from platformio.package.version import get_original_version, pepver_to_semver
 
+from platform_cfg.esp_chips import BOOTLOADER_OFFSET_0X2000_MCUS, XTENSA_MCUS
+
 
 env = DefaultEnvironment()
 env.SConscript("../board_build/esp/_embed_files.py", exports="env")
@@ -99,7 +101,7 @@ FRAMEWORK_DIR_PATH = Path(_framework_pkg_dir).resolve()
 FRAMEWORK_DIR = str(FRAMEWORK_DIR_PATH)
 TOOLCHAIN_DIR = platform.get_package_dir(
     "toolchain-xtensa-esp-elf"
-    if mcu in ("esp32", "esp32s2", "esp32s3")
+    if mcu in XTENSA_MCUS
     else "toolchain-riscv32-esp"
 )
 PLATFORMIO_DIR = env.subst("$PROJECT_CORE_DIR")
@@ -2653,7 +2655,7 @@ env.Prepend(
         (
             board.get(
                 "upload.bootloader_offset",
-                "0x1000" if mcu in ["esp32", "esp32s2"] else ("0x2000" if mcu in ["esp32c5", "esp32p4", "esp32s31"] else "0x0"),
+                "0x1000" if mcu in ["esp32", "esp32s2"] else ("0x2000" if mcu in BOOTLOADER_OFFSET_0X2000_MCUS else "0x0"),
             ),
             str(Path("$BUILD_DIR") / "bootloader.bin"),
         ),
