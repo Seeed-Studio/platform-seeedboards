@@ -16,7 +16,7 @@
     "type": "git",
     "url": "https://github.com/Seeed-Studio/platform-seeedboards.git"
   },
-  "version": "1.1.0",
+  "version": "1.2.0",
   "frameworks": {
     "arduino": {
       "script": "builder/frameworks/arduino.py"
@@ -96,8 +96,8 @@
       "type": "uploader",
       "optional": true,
       "owner": "pioarduino",
-      "package-version": "5.1.2",
-      "version": "https://github.com/pioarduino/esptool/releases/download/v5.1.2/esptool.zip"
+      "package-version": "5.5.0",
+      "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/esptoolpy-v5.5.0.zip"
     },
     "tool-esp_install": {
       "type": "tool",

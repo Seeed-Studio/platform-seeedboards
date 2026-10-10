@@ -27,6 +27,7 @@ import os
 import platform as sys_platform
 import re
 import requests
+import shlex
 import shutil
 import subprocess
 import sys
@@ -47,6 +48,8 @@ from platformio.compat import IS_WINDOWS
 from platformio.proc import exec_command
 from platformio.builder.tools.piolib import ProjectAsLibBuilder
 from platformio.package.version import get_original_version, pepver_to_semver
+
+from platform_cfg.esp_chips import BOOTLOADER_OFFSET_0X2000_MCUS, XTENSA_MCUS
 
 
 env = DefaultEnvironment()
@@ -90,6 +93,12 @@ flag_custom_component_add = False
 flag_custom_component_remove = False
 
 IDF_ENV_VERSION = "1.0.0"
+
+# Total attempts for one ldgen invocation, including the first. Antivirus
+# output-stripping correlates with process-spawn density, which peaks
+# during a full first build, so the budget is deliberately generous;
+# a clean machine never enters the retry path.
+LDGEN_RETRY_ATTEMPTS = 5
 _framework_pkg_dir = platform.get_package_dir("framework-espidf")
 if not _framework_pkg_dir or not os.path.isdir(_framework_pkg_dir):
     sys.stderr.write(f"Error: Missing framework directory '{_framework_pkg_dir}'\n")
@@ -98,7 +107,7 @@ FRAMEWORK_DIR_PATH = Path(_framework_pkg_dir).resolve()
 FRAMEWORK_DIR = str(FRAMEWORK_DIR_PATH)
 TOOLCHAIN_DIR = platform.get_package_dir(
     "toolchain-xtensa-esp-elf"
-    if mcu in ("esp32", "esp32s2", "esp32s3")
+    if mcu in XTENSA_MCUS
     else "toolchain-riscv32-esp"
 )
 PLATFORMIO_DIR = env.subst("$PROJECT_CORE_DIR")
@@ -1016,8 +1025,10 @@ def load_target_configurations(cmake_codemodel, cmake_api_reply_dir):
 
 
 def build_library(
-    default_env, lib_config, project_src_dir, prepend_dir=None, debug_allowed=True
+    default_env, lib_config, project_src_dir, prepend_dir=None, debug_allowed=True,
+    extra_obj_files=None
 ):
+    extra_obj_files = extra_obj_files or []
     lib_name = lib_config["nameOnDisk"]
     lib_path = lib_config["paths"]["build"]
     if prepend_dir:
@@ -1026,7 +1037,8 @@ def build_library(
         lib_config, default_env, project_src_dir, prepend_dir, debug_allowed
     )
     return default_env.Library(
-        target=str(Path("$BUILD_DIR") / lib_path / lib_name), source=lib_objects
+        target=str(Path("$BUILD_DIR") / lib_path / lib_name),
+        source=lib_objects + extra_obj_files,
     )
 
 
@@ -1154,8 +1166,25 @@ def get_app_flags(app_config, default_config):
         for cg in config["compileGroups"]:
             flags[cg["language"]] = []
             for ccfragment in cg["compileCommandFragments"]:
-                fragment = ccfragment.get("fragment", "").strip("\" ")
+                raw_fragment = ccfragment.get("fragment", "")
+                fragment = raw_fragment.strip("\" ")
                 if not fragment or fragment.startswith("-D"):
+                    continue
+                # Handle GCC response files (@file) introduced in IDF 5.5.3+
+                # Read the file contents and extract flags so they are
+                # included in the global build environment
+                if fragment.startswith("@"):
+                    tokens = shlex.split(raw_fragment.strip())
+                    for t in tokens:
+                        if t.startswith("@"):
+                            resp_path = t[1:]
+                            if os.path.isfile(resp_path):
+                                with open(resp_path, encoding="utf-8") as f:
+                                    for rf in shlex.split(f.read()):
+                                        if not rf.startswith("-D"):
+                                            flags[cg["language"]].append(rf)
+                        elif not t.startswith("-D"):
+                            flags[cg["language"]].append(t)
                     continue
                 flags[cg["language"]].extend(
                     click.parser.split_arg_string(fragment.strip())
@@ -1350,6 +1379,17 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
         str(Path(BUILD_DIR) / "ldgen_libraries"), ignore_targets
     )
 
+    # Resolve the objdump path now instead of letting SCons substitute
+    # "$CC" inside the joined path: env["CC"] may already be an absolute
+    # path, and joining it under TOOLCHAIN_DIR/bin would produce an
+    # invalid doubled path (same class of bug as preprocess_linker_file).
+    _cc_value = env.subst("$CC")
+    objdump_path = (
+        _cc_value
+        if os.path.isabs(_cc_value)
+        else str(Path(TOOLCHAIN_DIR) / "bin" / _cc_value)
+    ).replace("-gcc", "-objdump")
+
     args = {
         "script": str(Path(FRAMEWORK_DIR) / "tools" / "ldgen" / "ldgen.py"),
         "config": SDKCONFIG_PATH,
@@ -1359,7 +1399,7 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
         "kconfig": str(Path(FRAMEWORK_DIR) / "Kconfig"),
         "env_file": str(Path("$BUILD_DIR") / "config.env"),
         "libraries_list": libraries_list,
-        "objdump": str(Path(TOOLCHAIN_DIR) / "bin" / env.subst("$CC").replace("-gcc", "-objdump")),
+        "objdump": objdump_path,
     }
 
     cmd = (
@@ -1388,10 +1428,50 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
             str(Path(BUILD_DIR) / "esp-idf" / "esp_system" / "ld" / linker_script_name),
         )
 
+    def _ldgen_action(target, source, env):
+        # On some Windows machines antivirus/endpoint-security software
+        # intermittently strips the output of short-lived toolchain
+        # processes while a build spawns many of them, making ldgen's
+        # objdump calls return empty or truncated output (espressif
+        # #18665/#18727; ldgen reports it as "ran successfully but
+        # returned no output" / "incomplete or corrupted"). Retry a
+        # bounded number of times before surfacing the failure.
+        cmd_str = env.subst(cmd, target=target, source=source)
+        for attempt in range(LDGEN_RETRY_ATTEMPTS):
+            result = subprocess.run(
+                cmd_str, shell=True, capture_output=True,
+                text=True, errors="replace"
+            )
+            output = (result.stdout or "") + (result.stderr or "")
+            if result.returncode == 0:
+                if attempt:
+                    print("ldgen succeeded after retry %d" % (attempt + 1))
+                return 0
+            output_corrupted = any(
+                sig in output
+                for sig in (
+                    "returned no output",
+                    "incomplete or corrupted",
+                    # raw on-demand pyparsing failure inside ldgen rendering
+                    "Unable to parse section info",
+                    "ParseException",
+                )
+            )
+            if output_corrupted and attempt < LDGEN_RETRY_ATTEMPTS - 1:
+                print(
+                    "ldgen: toolchain output was stripped (antivirus/"
+                    "endpoint-security interference), retrying (%d/%d)..."
+                    % (attempt + 1, LDGEN_RETRY_ATTEMPTS)
+                )
+                continue
+            sys.stderr.write(output)
+            return 1
+        return 1
+
     return env.Command(
         str(Path("$BUILD_DIR") / "sections.ld"),
         initial_ld_script,
-        env.VerboseAction(cmd, "Generating project linker script $TARGET"),
+        env.Action(_ldgen_action, "Generating project linker script $TARGET"),
     )
 
 
@@ -1429,7 +1509,14 @@ def prepare_build_envs(config, default_env, debug_allowed=True):
         build_env = default_env.Clone()
         build_env.SetOption("implicit_cache", 1)
         for cc in compile_commands:
-            build_flags = cc.get("fragment", "").strip("\" ")
+            raw_fragment = cc.get("fragment", "")
+            # Handle GCC response files (@file) introduced in IDF 5.5.3+
+            # Their flags are already in the global environment via
+            # get_app_flags; skip them here to avoid shlex parsing issues
+            # and duplicate flags (duplicate -specs= breaks GCC)
+            if raw_fragment.strip().startswith("@"):
+                continue
+            build_flags = raw_fragment.strip("\" ")
             if not build_flags.startswith("-D"):
                 if build_flags.startswith("-include") and ".." in build_flags:
                     source_index = cg.get("sourceIndexes")[0]
@@ -1674,7 +1761,10 @@ def build_bootloader(sdk_config):
     # Bootloader preprocessing configuration
     bootloader_config_dir = str(Path(BUILD_DIR) / "bootloader" / "config")
     bootloader_extra_includes = [
-        str(Path(FRAMEWORK_DIR) / "components" / "bootloader" / "subproject" / "main" / "ld" / idf_variant)
+        # Per-target scripts include shared fragments from the parent ld
+        # directory (e.g. bootloader.sections.common.ld)
+        str(Path(FRAMEWORK_DIR) / "components" / "bootloader" / "subproject" / "main" / "ld"),
+        str(Path(FRAMEWORK_DIR) / "components" / "bootloader" / "subproject" / "main" / "ld" / idf_variant),
     ]
 
     i = 0
@@ -1787,6 +1877,31 @@ def build_components(
         components_map[k]["lib"] = build_library(
             env, v["config"], project_src_dir, prepend_dir, debug_allowed
         )
+
+
+def build_tfpsacrypto(
+    default_env,
+    framework_components_map,
+    tfpsacrypto_config,
+    project_src_dir
+):
+    # IDF 6.1 merges the mbedtls port glue objects into the tf-psa-crypto
+    # archive at an interim CMake step. Rebuilding the archive from the
+    # codemodel sources alone drops them (undefined mbedtls_calloc /
+    # mbedtls_threading_*_mutex at link time), so inline the dependency
+    # libs' objects into the archive (pioarduino approach).
+    lib_deps = find_lib_deps(framework_components_map, tfpsacrypto_config, {})
+
+    extra_obj_files = []
+    for lib_dep in lib_deps:
+        extra_obj_files.extend(lib_dep[0].sources)
+
+    return build_library(
+        default_env,
+        tfpsacrypto_config,
+        project_src_dir,
+        extra_obj_files=extra_obj_files,
+    )
 
 
 def get_project_elf(target_configs):
@@ -2087,6 +2202,17 @@ def install_python_deps():
         "esp-idf-kconfig": "~=2.5.0"
     }
 
+    if int(framework_version.split(".")[0]) >= 6:
+        # IDF 6.x drives the component manager through interface_version 5
+        # (2.4.x only implements 0-4) and pairs with the kconfig 3.x line.
+        # Version set mirrors the pioarduino IDF-6 platform.
+        deps.update({
+            "cryptography": "~=46.0.0",
+            "idf-component-manager": "~=3.1.0",
+            "esp-idf-kconfig": "~=3.13.0",
+        })
+        deps.pop("urllib3", None)
+
     if sys_platform.system() == "Darwin" and "arm" in sys_platform.machine().lower():
         deps["chardet"] = ">=3.0.2,<4"
 
@@ -2201,13 +2327,20 @@ def ensure_python_venv_available():
     venv_data_file = str(Path(venv_dir) / "pio-idf-venv.json")
     if not os.path.isfile(venv_data_file) or _is_venv_outdated(venv_data_file):
         _create_venv(venv_dir)
-        install_python_deps()
         with open(venv_data_file, "w", encoding="utf8") as fp:
             venv_info = {
                 "version": IDF_ENV_VERSION,
                 "python_version": _get_idf_venv_python_version()
             }
             json.dump(venv_info, fp, indent=2)
+
+    # Re-check the Python dependencies on every build instead of only at
+    # venv creation time: the pinned versions differ per IDF line (e.g.
+    # IDF 6.x needs idf-component-manager with interface_version 5), and a
+    # venv left over from an older pin must self-heal. install_python_deps
+    # compares installed packages against the pins and installs only the
+    # mismatches, so this is a fast no-op when everything matches.
+    install_python_deps()
 
 
 def get_python_exe():
@@ -2371,10 +2504,30 @@ default_config_name = find_default_component(target_configs)
 framework_components_map = get_components_map(
     target_configs,
     ["STATIC_LIBRARY", "OBJECT_LIBRARY"],
-    [project_target_name, default_config_name],
+    [project_target_name, default_config_name, "tfpsacrypto"],
 )
 
+project_config = target_configs.get(project_target_name, {})
+default_config = target_configs.get(default_config_name, {})
+project_defines = get_app_defines(project_config)
+project_flags = get_app_flags(project_config, default_config)
+link_args = extract_link_args(elf_config)
+
+# Merge compile flags (including response file contents like -mlongcalls
+# and -specs=picolibc.specs) into the global env BEFORE building
+# components so all compilations use the correct flags
+env.MergeFlags(project_flags)
+
 build_components(env, framework_components_map, PROJECT_DIR)
+
+# A special case for the `tfpsacrypto` lib that has implicit dependencies
+# merged at an interim CMake step; see build_tfpsacrypto
+tfpsacrypto_config = target_configs.get("tfpsacrypto", {})
+if tfpsacrypto_config:
+    tfpsacrypto_lib = build_tfpsacrypto(
+        env, framework_components_map, tfpsacrypto_config, PROJECT_SRC_DIR
+    )
+    env.Depends(project_ld_script, tfpsacrypto_lib)
 
 if not elf_config:
     sys.stderr.write("Error: Couldn't load the main firmware target of the project\n")
@@ -2383,11 +2536,6 @@ if not elf_config:
 for component_config in framework_components_map.values():
     env.Depends(project_ld_script, component_config["lib"])
 
-project_config = target_configs.get(project_target_name, {})
-default_config = target_configs.get(default_config_name, {})
-project_defines = get_app_defines(project_config)
-project_flags = get_app_flags(project_config, default_config)
-link_args = extract_link_args(elf_config)
 app_includes = get_app_includes(elf_config)
 
 #
@@ -2508,12 +2656,12 @@ env.Prepend(
     CPPDEFINES=project_defines,
     ESPIDF_PYTHONEXE=get_python_exe(),
     LINKFLAGS=extra_flags,
-    LIBS=libs,
+    LIBS=libs + ([tfpsacrypto_lib] if tfpsacrypto_config else []),
     FLASH_EXTRA_IMAGES=[
         (
             board.get(
                 "upload.bootloader_offset",
-                "0x1000" if mcu in ["esp32", "esp32s2"] else ("0x2000" if mcu in ["esp32c5", "esp32p4"] else "0x0"),
+                "0x1000" if mcu in ["esp32", "esp32s2"] else ("0x2000" if mcu in BOOTLOADER_OFFSET_0X2000_MCUS else "0x0"),
             ),
             str(Path("$BUILD_DIR") / "bootloader.bin"),
         ),

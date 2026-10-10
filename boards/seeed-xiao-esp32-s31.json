@@ -1,0 +1,42 @@
+{
+  "build": {
+    "core": "esp32",
+    "extra_flags": [
+      "-DBOARD_HAS_PSRAM"
+    ],
+    "f_cpu": "320000000L",
+    "f_flash": "80000000L",
+    "flash_mode": "qio",
+    "hwids": [
+      [
+        "0x2886",
+        "0x0096"
+      ],
+      [
+        "0x303A",
+        "0x1001"
+      ]
+    ],
+    "mcu": "esp32s31"
+  },
+  "connectivity": [
+    "wifi",
+    "bluetooth",
+    "zigbee",
+    "thread"
+  ],
+  "frameworks": [
+    "espidf"
+  ],
+  "name": "Seeed Studio XIAO ESP32-S31 Sense",
+  "upload": {
+    "bootloader_offset": "0x2000",
+    "flash_size": "32MB",
+    "maximum_ram_size": 557056,
+    "maximum_size": 33554432,
+    "require_upload_port": true,
+    "speed": 460800
+  },
+  "url": "https://wiki.seeedstudio.com/",
+  "vendor": "Seeed Studio"
+}

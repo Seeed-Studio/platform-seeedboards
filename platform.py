@@ -18,7 +18,9 @@
 # https://github.com/pioarduino/platform-espressif32
 # Modified by Seeed Studio.
 
+import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -262,6 +264,36 @@ class SeeedstudioPlatform(PlatformBase):
 
         if not (core_tool_dir / "package.json").exists():
             return False
+
+        # idf_tools-expanded metadata may carry the upstream package name
+        # (e.g. "riscv32-esp-elf" for toolchain-riscv32-esp). Make it match
+        # the platform's package key, otherwise the file:// install below
+        # lands under the wrong directory name and the pinned local-path
+        # spec stops resolving.
+        core_meta = core_tool_dir / "package.json"
+        try:
+            meta = json.loads(core_meta.read_text(encoding="utf-8"))
+            if meta.get("name") != tool_name:
+                meta["name"] = tool_name
+                core_meta.write_text(
+                    json.dumps(meta, indent=2), encoding="utf-8"
+                )
+        except (OSError, ValueError):
+            pass
+
+        # Direct-URL tool zips on the IDF 6 package line are idf_tools
+        # stubs: they ship only package.json + tools.json and rely on
+        # idf_tools.py to fetch the real tool into the core tools dir
+        # (pioarduino contract: _install_with_idf_tools removes the stub
+        # and installs the expanded directory as the package). Replace a
+        # metadata-only stub the same way so platform.get_package_dir()
+        # returns a usable tool (e.g. a toolchain with bin/ for the
+        # ESP-IDF build, which reads TOOLCHAIN_DIR/bin directly).
+        if pkg_dir.is_dir() and all(
+            p.name in ("package.json", "tools.json", ".piopm")
+            for p in pkg_dir.iterdir()
+        ):
+            shutil.rmtree(pkg_dir, ignore_errors=True)
 
         changed = False
         try:

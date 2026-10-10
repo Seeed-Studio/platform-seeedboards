@@ -1,0 +1,14 @@
+# Seeed Studio XIAO ESP32-S31 Sense board defaults.
+#
+# Hardware facts (V03 schematic + ESP32-S31NRV32 datasheet):
+#   - 32 MB quad SPI flash (GD25LE255E), 80 MHz
+#   - 32 MB octal PSRAM embedded in the chip package (NRV32 ordering code)
+#
+# PSRAM mode defaults to octal and 200 MHz on this target, so enabling
+# CONFIG_SPIRAM alone selects the correct mode.
+
+CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="32MB"
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_SPIRAM=y
