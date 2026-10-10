@@ -93,6 +93,12 @@ flag_custom_component_add = False
 flag_custom_component_remove = False
 
 IDF_ENV_VERSION = "1.0.0"
+
+# Total attempts for one ldgen invocation, including the first. Antivirus
+# output-stripping correlates with process-spawn density, which peaks
+# during a full first build, so the budget is deliberately generous;
+# a clean machine never enters the retry path.
+LDGEN_RETRY_ATTEMPTS = 5
 _framework_pkg_dir = platform.get_package_dir("framework-espidf")
 if not _framework_pkg_dir or not os.path.isdir(_framework_pkg_dir):
     sys.stderr.write(f"Error: Missing framework directory '{_framework_pkg_dir}'\n")
@@ -1431,7 +1437,7 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
         # returned no output" / "incomplete or corrupted"). Retry a
         # bounded number of times before surfacing the failure.
         cmd_str = env.subst(cmd, target=target, source=source)
-        for attempt in range(5):
+        for attempt in range(LDGEN_RETRY_ATTEMPTS):
             result = subprocess.run(
                 cmd_str, shell=True, capture_output=True,
                 text=True, errors="replace"
@@ -1451,11 +1457,11 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
                     "ParseException",
                 )
             )
-            if output_corrupted and attempt < 2:
+            if output_corrupted and attempt < LDGEN_RETRY_ATTEMPTS - 1:
                 print(
                     "ldgen: toolchain output was stripped (antivirus/"
-                    "endpoint-security interference), retrying (%d/5)..."
-                    % (attempt + 1)
+                    "endpoint-security interference), retrying (%d/%d)..."
+                    % (attempt + 1, LDGEN_RETRY_ATTEMPTS)
                 )
                 continue
             sys.stderr.write(output)
