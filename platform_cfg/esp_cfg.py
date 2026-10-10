@@ -37,8 +37,8 @@ def configure_esp_default_packages(self, variables, targets):
     else:
         self.packages.pop("toolchain-xtensa-esp-elf", None)
 
-    if mcu in ("esp32s2", "esp32s3", "esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
-        if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
+    if mcu in ("esp32s2", "esp32s3", "esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31"):
+        if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31"):
             self.packages.pop("toolchain-esp32ulp", None)
         # RISC-V based toolchain for ESP32C3, ESP32C6 ESP32S2, ESP32S3 ULP
         _mark_required("toolchain-riscv32-esp")
@@ -54,6 +54,19 @@ def configure_esp_default_packages(self, variables, targets):
         _mark_required("framework-arduino-c2-skeleton-lib")
     if mcu == "esp32c61":
         _mark_required("framework-arduino-c61-skeleton-lib")
+
+    # ESP32-S31 is only supported by the ESP-IDF v6.1 line, while the default
+    # framework-espidf pin targets the IDF 5.5 line that the prebuilt Arduino
+    # libs are compiled against. Swap in the pioarduino IDF v6.1 build for
+    # S31 + espidf projects only; PlatformIO keeps both installed versions
+    # side by side, so other boards keep resolving the 5.5 package.
+    # Arduino support is not declared for S31 yet (it lands with
+    # arduino-esp32 4.0.0), so this path is espidf-only today.
+    if mcu == "esp32s31" and "espidf" in variables.get("pioframework", []):
+        self.packages["framework-espidf"]["version"] = (
+            "https://github.com/pioarduino/esp-idf/releases/download/"
+            "v6.1.0.260922/esp-idf-v6.1.0.tar.xz"
+        )
 
 
 

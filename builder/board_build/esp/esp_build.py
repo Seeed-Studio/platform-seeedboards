@@ -83,7 +83,7 @@ def _get_tool_dir(platform, package_name):
 def _get_toolchain_bin_dir(platform, mcu):
     package_name = (
         "toolchain-riscv32-esp"
-        if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4")
+        if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31")
         else "toolchain-xtensa-esp-elf"
     )
     tool_dir = _get_tool_dir(platform, package_name)
@@ -347,7 +347,7 @@ board = env.BoardConfig()
 mcu = board.get("build.mcu", "esp32")
 toolchain_arch = "xtensa-%s" % mcu
 filesystem = board.get("build.filesystem", "littlefs")
-if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
+if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31"):
     toolchain_arch = "riscv32-esp"
 
 if "INTEGRATION_EXTRA_DATA" not in env:
@@ -359,7 +359,7 @@ TOOLCHAIN_BIN_DIR = _get_toolchain_bin_dir(platform, mcu)
 GDB_PACKAGE_DIR = _get_tool_dir(
     platform,
     "tool-riscv32-esp-elf-gdb"
-    if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4")
+    if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4", "esp32s31")
     else "tool-xtensa-esp-elf-gdb",
 )
 
