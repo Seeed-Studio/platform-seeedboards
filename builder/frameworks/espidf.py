@@ -1431,7 +1431,7 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
         # returned no output" / "incomplete or corrupted"). Retry a
         # bounded number of times before surfacing the failure.
         cmd_str = env.subst(cmd, target=target, source=source)
-        for attempt in range(3):
+        for attempt in range(5):
             result = subprocess.run(
                 cmd_str, shell=True, capture_output=True,
                 text=True, errors="replace"
@@ -1454,7 +1454,7 @@ def generate_project_ld_script(sdk_config, ignore_targets=None):
             if output_corrupted and attempt < 2:
                 print(
                     "ldgen: toolchain output was stripped (antivirus/"
-                    "endpoint-security interference), retrying (%d/3)..."
+                    "endpoint-security interference), retrying (%d/5)..."
                     % (attempt + 1)
                 )
                 continue
