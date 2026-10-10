@@ -67,6 +67,14 @@ def configure_esp_default_packages(self, variables, targets):
             "https://github.com/pioarduino/esp-idf/releases/download/"
             "v6.1.0.260922/esp-idf-v6.1.0.tar.xz"
         )
+        # IDF 6.1 pairs with the gcc 15.2 esp toolchain (the 14.2 pin's
+        # newlib headers conflict with IDF 6.1's esp_libc platform shims).
+        # Same per-MCU swap pattern and source as the framework package.
+        self.packages["toolchain-riscv32-esp"]["version"] = (
+            "https://github.com/pioarduino/registry/releases/download/0.0.1/"
+            "riscv32-esp-elf-15.2.0_20251204.zip"
+        )
+        self.packages["toolchain-riscv32-esp"]["package-version"] = "15.2.0+20251204"
 
 
 
