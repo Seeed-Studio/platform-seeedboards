@@ -9,7 +9,7 @@ board manifest (build.family) and dispatches here.
   board manifest (or an explicit profile), not in id branching here.
 - self.packages is shared across families in one process: never delete or
   pop another family's packages (regression test:
-  tests/test_cross_family_isolation.py). Optional
+  tests/unit/test_cross_family_isolation.py). Optional
   packages that this family does not need are simply left optional.
 - Conditional per-board tool gating (upload-protocol-driven uploader
   selection) is fine; unconditional cross-family removal is not.

@@ -15,7 +15,7 @@ pytest.importorskip("platformio")
 
 from platformio.platform.board import PlatformBoardConfig  # noqa: E402
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 
 def load_esp_cfg():

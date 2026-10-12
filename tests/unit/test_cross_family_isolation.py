@@ -19,7 +19,7 @@ from platformio.platform.factory import PlatformFactory  # noqa: E402
 
 def test_siliconlab_then_rpi_esp_nrf_in_one_process():
     """Four families configured through ONE platform instance must not raise."""
-    repo = pathlib.Path(__file__).resolve().parents[1]
+    repo = pathlib.Path(__file__).resolve().parents[2]
     platform = PlatformFactory.new(str(repo))
     for board_id, framework in (
         ("seeed-xiao-mg24", "arduino"),
