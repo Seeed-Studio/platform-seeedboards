@@ -2056,13 +2056,22 @@ def _get_uv_exe():
 
 def install_python_deps():
     UV_EXE = _get_uv_exe()
+    # Same uv-optional stance as _create_venv: fall back to the venv's own
+    # pip when uv is not installed in the PlatformIO penv.
+    if not os.path.isfile(UV_EXE):
+        UV_EXE = None
 
     def _get_installed_uv_packages(python_exe_path):
         result = {}
         try:
-            uv_output = subprocess.check_output([
-                UV_EXE, "pip", "list", "--python", python_exe_path, "--format=json"
-            ])
+            if UV_EXE:
+                uv_output = subprocess.check_output([
+                    UV_EXE, "pip", "list", "--python", python_exe_path, "--format=json"
+                ])
+            else:
+                uv_output = subprocess.check_output([
+                    python_exe_path, "-m", "pip", "list", "--format=json"
+                ])
             packages = json.loads(uv_output)
         except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as e:
             print(f"Warning! Couldn't extract the list of installed Python packages: {e}")
@@ -2103,23 +2112,39 @@ def install_python_deps():
 
     if packages_to_install:
         packages_str = " ".join(['"%s%s"' % (p, deps[p]) for p in packages_to_install])
-        
-        # Use uv to install packages in the specific Python environment
-        env.Execute(
-            env.VerboseAction(
-                f'"{UV_EXE}" pip install --python "{python_exe_path}" {packages_str}',
-                "Installing ESP-IDF's Python dependencies with uv",
+
+        if UV_EXE:
+            # Use uv to install packages in the specific Python environment
+            env.Execute(
+                env.VerboseAction(
+                    f'"{UV_EXE}" pip install --python "{python_exe_path}" {packages_str}',
+                    "Installing ESP-IDF's Python dependencies with uv",
+                )
             )
-        )
+        else:
+            env.Execute(
+                env.VerboseAction(
+                    f'"{python_exe_path}" -m pip install {packages_str}',
+                    "Installing ESP-IDF's Python dependencies with pip",
+                )
+            )
 
     if IS_WINDOWS and "windows-curses" not in installed_packages:
         # Install windows-curses in the IDF Python environment
-        env.Execute(
-            env.VerboseAction(
-                f'"{UV_EXE}" pip install --python "{python_exe_path}" windows-curses',
-                "Installing windows-curses package with uv",
+        if UV_EXE:
+            env.Execute(
+                env.VerboseAction(
+                    f'"{UV_EXE}" pip install --python "{python_exe_path}" windows-curses',
+                    "Installing windows-curses package with uv",
+                )
             )
-        )
+        else:
+            env.Execute(
+                env.VerboseAction(
+                    f'"{python_exe_path}" -m pip install windows-curses',
+                    "Installing windows-curses package with pip",
+                )
+            )
 
 
 def get_idf_venv_dir():
@@ -2171,6 +2196,12 @@ def ensure_python_venv_available():
 
     def _create_venv(venv_dir):
         uv_path = _get_uv_exe()
+        # Fall back to python -m venv when uv is not installed in the
+        # PlatformIO penv (same fallback penv_setup.py uses). Without this,
+        # environments without uv fail with a confusing "sh: uv: not found"
+        # and "Missing the Python executable!" error.
+        if not os.path.isfile(uv_path):
+            uv_path = None
 
         if os.path.isdir(venv_dir):
             try:
@@ -2183,13 +2214,22 @@ def ensure_python_venv_available():
                 )
                 env.Exit(1)
 
-        # Use uv to create a standalone IDF virtual env
-        env.Execute(
-            env.VerboseAction(
-                '"%s" venv --clear --quiet --python "%s" "%s"' % (uv_path, env.subst("$PYTHONEXE"), venv_dir),
-                "Creating a new virtual environment for IDF Python dependencies using uv",
+        # Use uv to create a standalone IDF venv (or python -m venv when
+        # uv is unavailable)
+        if uv_path:
+            env.Execute(
+                env.VerboseAction(
+                    '"%s" venv --clear --quiet --python "%s" "%s"' % (uv_path, env.subst("$PYTHONEXE"), venv_dir),
+                    "Creating a new virtual environment for IDF Python dependencies using uv",
+                )
             )
-        )
+        else:
+            env.Execute(
+                env.VerboseAction(
+                    '"%s" -m venv --clear "%s"' % (env.subst("$PYTHONEXE"), venv_dir),
+                    "Creating a new virtual environment for IDF Python dependencies (uv not found, using python -m venv)",
+                )
+            )
 
         # Verify that the venv was created successfully by checking for Python executable
         python_path = get_executable_path(venv_dir, "python")

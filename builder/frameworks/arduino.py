@@ -30,7 +30,7 @@ env = DefaultEnvironment()
 board = env.BoardConfig()
 
 # Board -> family Arduino script dispatch, keyed by the board manifest's
-# build.family (single source of truth -- see .agents/notes/proposed/
+# build.family (single source of truth -- see .agents/notes/implemented/
 # 2026-09-15-board-family-routing-single-source.md). Families without an
 # Arduino port are absent on purpose: PlatformIO core rejects framework/
 # board mismatches before reaching here, so a missing entry is a loud
@@ -49,7 +49,7 @@ family = board.get("build.family", None)
 if not family:
     raise RuntimeError(
         "Board '%s' declares no build.family in its manifest; add one of "
-        "%s (see .agents/notes/proposed/"
+        "%s (see .agents/notes/implemented/"
         "2026-09-15-board-family-routing-single-source.md)."
         % (board.id, ", ".join(sorted(FAMILY_ARDUINO_SCRIPTS)))
     )

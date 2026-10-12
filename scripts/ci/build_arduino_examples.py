@@ -6,7 +6,7 @@ import sys
 
 from _examples_build_lib import (
     build_projects,
-    filter_projects_by_prefix,
+    filter_by_framework,
     find_platformio_projects,
     make_argparser,
     repo_root,
@@ -22,8 +22,11 @@ def main(argv: list[str]) -> int:
         print(f"Examples dir not found: {examples_dir}", file=sys.stderr)
         return 2
 
+    # Select by the declared framework, not the directory name prefix --
+    # board-grouped layouts (examples/seeed-xiao-*/arduino-*) would be
+    # missed by prefix filtering; same rationale as the zephyr wrapper.
     projects = find_platformio_projects(examples_dir)
-    projects = filter_projects_by_prefix(projects, allowed_prefixes=("arduino-",))
+    projects = filter_by_framework(projects, framework="arduino")
     if not projects:
         print(f"No Arduino projects found under: {examples_dir}", file=sys.stderr)
         return 2

@@ -21,7 +21,7 @@ board = env.BoardConfig()
 
 # Board -> family build-script dispatch. The family comes from the board
 # manifest (build.family, the single source of truth -- see
-# .agents/notes/proposed/2026-09-15-board-family-routing-single-source.md).
+# .agents/notes/implemented/2026-09-15-board-family-routing-single-source.md).
 # Adding a family means adding builder/board_build/<family>/ and one table
 # entry here; adding a board means only a manifest with build.family.
 FAMILY_BUILD_SCRIPTS = {
@@ -38,7 +38,7 @@ family = board.get("build.family", None)
 if not family:
     raise RuntimeError(
         "Board '%s' declares no build.family in its manifest; add one of "
-        "%s (see .agents/notes/proposed/"
+        "%s (see .agents/notes/implemented/"
         "2026-09-15-board-family-routing-single-source.md)."
         % (board.id, ", ".join(sorted(FAMILY_BUILD_SCRIPTS)))
     )
