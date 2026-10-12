@@ -143,7 +143,7 @@ class SeeedstudioPlatform(PlatformBase):
         """Resolve the MCU family for a board id or board-config object.
 
         build.family in the board manifest is the single source of truth for
-        board -> family routing (see .agents/notes/proposed/
+        board -> family routing (see .agents/notes/implemented/
         2026-09-15-board-family-routing-single-source.md). Platform manifests
         missing the key fail loudly with the manifest path; manifests loaded
         from outside this platform's boards/ directory (user-custom boards)
@@ -172,7 +172,7 @@ class SeeedstudioPlatform(PlatformBase):
         raise KeyError(
             "Board '%s' is missing 'build.family' in %s. Add it to the "
             "manifest -- one of esp, nrf, renesas, rpi, samd, siliconlab, "
-            "stm32 (see .agents/notes/proposed/"
+            "stm32 (see .agents/notes/implemented/"
             "2026-09-15-board-family-routing-single-source.md)."
             % (board.id, board.manifest_path)
         )
