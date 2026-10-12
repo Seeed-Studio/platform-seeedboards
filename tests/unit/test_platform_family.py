@@ -12,16 +12,7 @@ pytest.importorskip("platformio")
 
 from platformio.platform.factory import PlatformFactory  # noqa: E402
 
-import pathlib  # noqa: E402
-
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-
-# Board ids derived from boards/*.json (dev's gate is
-# scripts/ci/verify_board_manifests.py; mentor's verify_boards.SUPPORTED_BOARD_IDS
-# arrives with the batch-F harness port).
-SUPPORTED_BOARD_IDS = frozenset(
-    p.stem for p in (_REPO_ROOT / "boards").glob("*.json")
-)
+from verify_boards import SUPPORTED_BOARD_IDS  # noqa: E402  (conftest sys.path)
 
 FAMILY_BY_PROBE_BOARD = {
     "seeed-xiao-esp32-c3": "esp",
@@ -42,7 +33,7 @@ def platform_instance():
     # families -- mirroring the one-process-per-pio-run reality.
     import pathlib
 
-    repo = pathlib.Path(__file__).resolve().parents[1]
+    repo = pathlib.Path(__file__).resolve().parents[2]
     return PlatformFactory.new(str(repo))
 
 
@@ -184,7 +175,7 @@ class TestConfigureDebugSession:
         from platformio.platform.board import PlatformBoardConfig
         import pathlib
 
-        repo = pathlib.Path(__file__).resolve().parents[1]
+        repo = pathlib.Path(__file__).resolve().parents[2]
         config = PlatformBoardConfig(
             str(repo / "boards" / "seeed-xiao-samd.json")
         )

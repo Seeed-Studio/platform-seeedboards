@@ -5,25 +5,16 @@ trees in tmp_path.
 """
 
 import json
-import sys
-from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "ci"))
-
-from verify_zephyr_routing import (  # noqa: E402
+from verify_zephyr_routing import (  # noqa: E402  (conftest sys.path)
     load_platform_packages,
     load_zephyr_boards,
     verify_zephyr_routing,
 )
 
 PACKAGES = {"framework-zephyr-test", "framework-zephyr-other"}
-
-
-@pytest.fixture()
-def repo_root():
-    return Path(__file__).resolve().parents[1]
 
 
 def make_zephyr_board(board_id, package="framework-zephyr-test", board_name="xiao_test"):
