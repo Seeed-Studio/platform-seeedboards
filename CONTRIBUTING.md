@@ -41,6 +41,12 @@ has a strict layering; most fixes land in exactly one layer.
   State hardware validation as *not performed* unless you ran it.
 - CI must be green: the offline gates (`ci-verify`) plus the example
   build workflows for the frameworks you touched.
+- If `Check dev version` fails on the merge, a release shipped since the
+  last bump: `dev`'s `platform.json` `version` still names an existing
+  tag. Add a small dedicated commit bumping it past the newest tag
+  (next minor, e.g. 1.2.0) -- the guard keeps failing every dev push
+  until then, by design. See
+  [`AGENTS.md`](AGENTS.md) (Branch and release model).
 
 ## Reporting issues
 
