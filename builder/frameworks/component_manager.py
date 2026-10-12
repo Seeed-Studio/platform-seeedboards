@@ -11,10 +11,23 @@ dependencies efficiently.
 import os
 import shutil
 import re
-import yaml
+import subprocess
+import sys
 from pathlib import Path
 from typing import Set, Optional, Dict, Any, List, Tuple, Pattern
-from yaml import SafeLoader
+
+# Plain PlatformIO installs do not ship PyYAML; install it on demand like
+# builder/frameworks/zephyr.py and zephyr_fixes.py do.
+try:
+    import yaml
+    from yaml import SafeLoader
+except ImportError:
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "pyyaml"],
+        check=True,
+    )
+    import yaml
+    from yaml import SafeLoader
 
 
 class ComponentManagerConfig:
