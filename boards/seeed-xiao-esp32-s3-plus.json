@@ -1,5 +1,6 @@
 {
   "build": {
+    "family": "esp",
     "arduino": {
       "partitions": "default_8MB.csv",
       "memory_type": "qio_opi"

@@ -18,30 +18,38 @@ from SCons.Script import DefaultEnvironment
 
 env = DefaultEnvironment()
 board = env.BoardConfig()
-if "esp32" in board.id:
-    print("board id is seeed-xiao-esp32,will call board_build/esp/esp_build.py")
-    env.SConscript("board_build/esp/esp_build.py", exports="env")
 
-if board.id == "seeed-xiao-ra4m1":
-    print("board id is seeed-xiao-ra4m1,will call board_build/renesas/renesas_build.py")
-    env.SConscript("board_build/renesas/renesas_build.py", exports="env")
+# Board -> family build-script dispatch. The family comes from the board
+# manifest (build.family, the single source of truth -- see
+# .agents/notes/proposed/2026-09-15-board-family-routing-single-source.md).
+# Adding a family means adding builder/board_build/<family>/ and one table
+# entry here; adding a board means only a manifest with build.family.
+FAMILY_BUILD_SCRIPTS = {
+    "esp": "board_build/esp/esp_build.py",
+    "nrf": "board_build/nrf/nrf_build.py",
+    "renesas": "board_build/renesas/renesas_build.py",
+    "rpi": "board_build/rpi/rpi_build.py",
+    "samd": "board_build/samd/samd_build.py",
+    "siliconlab": "board_build/siliconlab/siliconlab_build.py",
+    "stm32": "board_build/stm32/stm32_build.py",
+}
 
-if board.id == "seeed-xiao-rp2040" or board.id == "seeed-xiao-rp2350":
-    print("board id is seeed-xiao-rpi,will call board_build/rpi/rpi_build.py")
-    env.SConscript("board_build/rpi/rpi_build.py", exports="env")
+family = board.get("build.family", None)
+if not family:
+    raise RuntimeError(
+        "Board '%s' declares no build.family in its manifest; add one of "
+        "%s (see .agents/notes/proposed/"
+        "2026-09-15-board-family-routing-single-source.md)."
+        % (board.id, ", ".join(sorted(FAMILY_BUILD_SCRIPTS)))
+    )
 
-if "nrf" in board.id:
-    print("board id is nrf,will call board_build/nrf/nrf_build.py")
-    env.SConscript("board_build/nrf/nrf_build.py", exports="env")
+build_script = FAMILY_BUILD_SCRIPTS.get(family)
+if build_script is None:
+    raise RuntimeError(
+        "Board '%s' declares unknown build.family %r; expected one of %s."
+        % (board.id, family, ", ".join(sorted(FAMILY_BUILD_SCRIPTS)))
+    )
 
-if "samd" in board.id:
-    print("board id is samd,will call board_build/samd/samd_build.py")
-    env.SConscript("board_build/samd/samd_build.py", exports="env")
-
-if "mg24" in board.id:
-    print("board id is mg24,will call board_build/siliconlab/siliconlab_build.py")
-    env.SConscript("board_build/siliconlab/siliconlab_build.py", exports="env")
-
-if "stm32" in board.id:
-    print("board id is stm32,will call board_build/stm32/stm32_build.py")
-    env.SConscript("board_build/stm32/stm32_build.py", exports="env")
+print("XIAO platform: board %s -> %s build via %s"
+      % (board.id, family, build_script))
+env.SConscript(build_script, exports="env")
