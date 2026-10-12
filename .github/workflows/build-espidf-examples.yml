@@ -13,6 +13,7 @@ on:
       - 'scripts/ci/_examples_build_lib.py'
       - 'scripts/ci/build_espidf_examples.py'
       - 'examples/espidf-*/**'
+      - 'examples/seeed-xiao-*/**'
   pull_request:
     paths:
       - '.github/workflows/build-espidf-examples.yml'
@@ -24,6 +25,7 @@ on:
       - 'scripts/ci/_examples_build_lib.py'
       - 'scripts/ci/build_espidf_examples.py'
       - 'examples/espidf-*/**'
+      - 'examples/seeed-xiao-*/**'
   workflow_dispatch:
 
 jobs:
@@ -59,7 +61,7 @@ jobs:
             ~/.platformio/.cache
             ~/.platformio/packages
             ~/.platformio/platforms
-          key: ${{ runner.os }}-platformio-espidf-${{ hashFiles('examples/espidf-*/platformio.ini', 'platform.json', 'platform.py', 'builder/**', 'boards/**', 'platform_cfg/**', 'scripts/ci/build_espidf_examples.py', 'scripts/ci/_examples_build_lib.py') }}
+          key: ${{ runner.os }}-platformio-espidf-${{ hashFiles('examples/espidf-*/platformio.ini', 'examples/seeed-xiao-*/**/platformio.ini', 'platform.json', 'platform.py', 'builder/**', 'boards/**', 'platform_cfg/**', 'scripts/ci/build_espidf_examples.py', 'scripts/ci/_examples_build_lib.py') }}
 
       - name: Install PlatformIO
         run: python -m pip install --upgrade pip platformio rich-click intelhex

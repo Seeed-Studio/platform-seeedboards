@@ -10,6 +10,12 @@ Examples are the user-visible regression contracts, not just CI fodder.
 - Project selection in CI is by declared `framework =` line, not
   directory naming; board-grouped layouts (examples/<board>/<sample>)
   are supported -- keep them discoverable.
+- New boards add samples only under `examples/seeed-xiao-<board>/`
+  (board-grouped); the historical flat `zephyr-*` / `arduino-*` samples
+  stay where they are because wikis reference their paths. Extend a flat
+  sample to more boards only via board-neutral mechanisms (devicetree
+  aliases, overlays, Kconfig) -- never per-board `#ifdef` in sample code;
+  board-specific variants live in the board's own directory.
 - platformio.ini references the repository platform URL; CI rewrites it
   to the local checkout. Never commit local paths or test-only overrides.
 - Edge AI samples follow the env-var dependency pattern
