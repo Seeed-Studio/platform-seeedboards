@@ -14,10 +14,8 @@
 
 import sys
 import subprocess
-import json
 import os
 import shutil
-import site
 import tarfile
 import tempfile
 from platform import machine, system
@@ -65,8 +63,7 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
-variant = board.get("build.variant", "")
-zephyr_package_name = board.get("build.zephyr.package", "")
+zephyr_package_name = platform.get_zephyr_package_name(board.id)
 
 
 def _get_dfu_upload_offset(board_config):
@@ -130,6 +127,9 @@ def _ensure_pyocd_installed():
 _NRFUTIL_VERSION = "8.2.0"
 _NRFUTIL_MCUMGR_VERSION = "0.9.0"
 _NRFUTIL_DOWNLOAD_URL = "https://developer.nordicsemi.com/.pc-tools/nrfutil/%s-%s-%s.tar.gz"
+
+# nrfjprog family flag shared by all nRF52-series flashing commands
+_NRFJPROG_FAMILY_FLAG = "-f nrf52"
 
 
 def _nrfutil_target():
@@ -441,18 +441,22 @@ if "DFUBOOTHEX" in env:
         None,
         [
             env.VerboseAction(
-                "nrfjprog --program $DFUBOOTHEX -f nrf52 --chiperase",
+                "nrfjprog --program $DFUBOOTHEX %s --chiperase"
+                % _NRFJPROG_FAMILY_FLAG,
                 "Uploading $DFUBOOTHEX",
             ),
             env.VerboseAction(
-                "nrfjprog --erasepage $BOOT_SETTING_ADDR -f nrf52",
+                "nrfjprog --erasepage $BOOT_SETTING_ADDR %s"
+                % _NRFJPROG_FAMILY_FLAG,
                 "Erasing bootloader config",
             ),
             env.VerboseAction(
-                "nrfjprog --memwr $BOOT_SETTING_ADDR --val 0x00000001 -f nrf52",
+                "nrfjprog --memwr $BOOT_SETTING_ADDR --val 0x00000001 %s"
+                % _NRFJPROG_FAMILY_FLAG,
                 "Disable CRC check",
             ),
-            env.VerboseAction("nrfjprog --reset -f nrf52", "Reset nRF52"),
+            env.VerboseAction(
+                "nrfjprog --reset %s" % _NRFJPROG_FAMILY_FLAG, "Reset nRF52"),
         ],
         "Burn Bootloader",
     )
@@ -776,7 +780,8 @@ elif upload_protocol in debug_tools:
             "-c", "shutdown"
         ])
     else:
-       print("Warning! Uploading via OpenOCD is not yet supported for this MCU.")
+        sys.stderr.write(
+            "Warning! Uploading via OpenOCD is not yet supported for this MCU.\n")
 
     openocd_args = [
         f.replace("$PACKAGE_DIR",

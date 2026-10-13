@@ -1,6 +1,15 @@
 import os
 import sys
+
 IS_WINDOWS = sys.platform.startswith("win")
+
+# DAPLink debug adapter USB VID/PID for OpenOCD's cmsis_dap_vid_pid command
+DAPLINK_VID = "0x0D28"
+DAPLINK_PID = "0x0204"
+# Fallback J-Link adapter speed (kHz) when no debug speed is configured
+DEFAULT_JLINK_SPEED_KHZ = "5000"
+
+
 def configure_renesas_default_packages(self, variables, targets):
     def _configure_uploader_packages(package_name, interface_name):
         use_conditions = [
@@ -65,8 +74,7 @@ def _add_renesas_default_debug_tools(self, board):
                 },
                 "onboard": link in debug.get("onboard_tools", []),
             }
-        elif link == "cmsis-dap" and board.id in ("uno_r4_wifi", "uno_r4_minima","seeed-xiao-ra4m1"):
-            hwids = board.get("build.hwids", [["0x2341", "0x1002"]])
+        elif link == "cmsis-dap" and board.id in ("seeed-xiao-ra4m1",):
 
             # Now OpenOCD does not have the ra4m1.cfg configuration file
             # so we provide it in this repository.
@@ -89,7 +97,7 @@ def _add_renesas_default_debug_tools(self, board):
                 "-f",
                 "%s/builder/board_build/renesas/ra4m1.cfg" % parent_dir,
                 "-c",
-                "cmsis_dap_vid_pid %s %s" % ("0x0D28", "0x0204")
+                "cmsis_dap_vid_pid %s %s" % (DAPLINK_VID, DAPLINK_PID)
             ]
 
             debug["tools"][link] = {
@@ -114,7 +122,7 @@ def _add_renesas_default_debug_tools(self, board):
                     # since OpenOCD doesn't provide us with any target information (no flash driver etc.)
                     "set mem inaccessible-by-default off",
                     # fix to use hardware breakpoints of ARM CPU, not flash breakpoints. Doesn't break otherwise.
-                    "mem 0 0x40000 ro",
+                    "mem 0 0x40000 ro",  # 256 KB flash region
                     "target extended-remote $DEBUG_PORT",
                     "$LOAD_CMDS",
                     "pio_reset_halt_target",
@@ -139,7 +147,7 @@ def _add_renesas_default_debug_tools(self, board):
 
 
 def configure_renesas_debug_session(self, debug_config):
-    adapter_speed = debug_config.speed or "5000"
+    adapter_speed = debug_config.speed or DEFAULT_JLINK_SPEED_KHZ
     server_options = debug_config.server or {}
     server_arguments = server_options.get("arguments", [])
     if "jlink" in server_options.get("executable", "").lower():

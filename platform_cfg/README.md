@@ -2,24 +2,20 @@
 
 Per-architecture package and debug-tool configuration.
 
-`platform.py` resolves a board's architecture family from its board id,
-then dynamically imports the matching `<arch>_cfg.py` from this directory
-and calls the three hook functions below **by naming convention**
-(`import_module` + `getattr`). Each hook receives the `SeeedstudioPlatform`
-instance as `self`, so every file here behaves like an extension of the
-platform class.
+`platform.py` reads a board's architecture family from the `build.family`
+key of its board manifest (single source of truth -- no board-id
+substrings), then dynamically imports the matching `<arch>_cfg.py` from
+this directory and calls the three hook functions below **by naming
+convention** (`import_module` + `getattr`). Each hook receives the
+`SeeedstudioPlatform` instance as `self`, so every file here behaves like
+an extension of the platform class.
 
-## Architecture detection (in `platform.py`)
+## Family resolution (in `platform.py`)
 
-| Architecture   | Selected when                                    |
-| -------------- | ------------------------------------------------ |
-| `esp`          | `"esp32"` appears in the board id                |
-| `nrf`          | `"nrf"` appears in the board id                  |
-| `samd`         | `"samd"` appears in the board id                 |
-| `siliconlab`   | `"mg24"` appears in the board id                 |
-| `stm32`        | `"stm32"` appears in the board id                |
-| `renesas`      | board id is `seeed-xiao-ra4m1`                   |
-| `rpi`          | board id is `seeed-xiao-rp2040` / `rp2350`       |
+The manifest value is used verbatim: `build.family: "silabs"` loads
+`silabs_cfg.py`. Valid families (kept in sync with
+`scripts/ci/verify_boards.py` `VALID_FAMILIES`): `esp`, `nrf`, `rpi`,
+`samd`, `silabs`, `stm32`, `renesas`.
 
 ## The three hooks (every `<arch>_cfg.py` defines all of them)
 
@@ -48,8 +44,8 @@ Keep this layer thin and put data where it belongs:
 - Names are load-bearing: `platform.py` resolves both the module and the
   functions by string. Renaming a file or hook here breaks dispatch at
   runtime.
-- A new architecture family needs (1) a detection rule in `platform.py`
-  at both dispatch sites, and (2) a new `<arch>_cfg.py` with all three
-  hooks.
+- A new architecture family needs (1) `build.family` set on the board
+  manifest(s) and listed in `VALID_FAMILIES`, and (2) a new `<arch>_cfg.py`
+  with all three hooks.
 - A missing hook currently fails softly (dispatch prints an error and
   continues). Do not rely on that — define all three.

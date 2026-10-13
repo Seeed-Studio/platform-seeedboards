@@ -11,11 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Attribution:
-# This ESP32 ULP helper is based in part on pioarduino project work:
-# https://github.com/pioarduino/platform-espressif32
-# Modified by Seeed Studio.
 
 import os
 import sys
@@ -116,6 +111,7 @@ def generate_ulp_config(target_config):
             "-DIDF_PATH=" + fs.to_unix_path(FRAMEWORK_DIR),
             "-DSDKCONFIG_HEADER=" + str(Path(BUILD_DIR) / "config" / "sdkconfig.h"),
             "-DPYTHON=" + env.subst("$PYTHONEXE"),
+            "-DADD_PICOLIBC_SPECS=" + ("ON" if sdk_config.get("LIBC_PICOLIBC", False) else "OFF"),
             "-DSDKCONFIG_CMAKE=" + str(Path(BUILD_DIR) / "config" / "sdkconfig.cmake"),
             "-DCMAKE_MODULE_PATH=" + fs.to_unix_path(str(Path(FRAMEWORK_DIR) / "components" / "ulp" / "cmake")),
             "-GNinja",
