@@ -10,10 +10,11 @@
 - Adding a family = board_build/<family>/ tree + one table entry in
   main.py (and arduino.py if Arduino-capable) + a platform_cfg module.
   Adding a board = manifest only (see boards/AGENTS.md).
-- Zephyr fixes are registered in zephyr/fixes.yml, not code: drop the
-  source under zephyr/{patches,overrides}/<board>/ and add the entry
-  (see zephyr/AGENTS.md); do not add fix logic to
-  builder/frameworks/zephyr.py.
+- Zephyr fixes live in the owning board's directory, not code and not a
+  registry: drop the source at its framework-relative path under
+  zephyr/<family>/boards/seeed/<board>/fixes/ (.patch suffix = unified
+  diff) and add the fixes.baseline sha line (see zephyr/AGENTS.md); do
+  not add fix logic to builder/frameworks/zephyr.py.
 - The PIOPLATFORM masquerade in zephyr.py intentionally keeps its
   exception-window semantics (restore skipped if the framework build
   script raises) -- do not "fix" it silently.

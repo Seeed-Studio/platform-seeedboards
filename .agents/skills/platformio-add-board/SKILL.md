@@ -32,10 +32,10 @@ existing family touches no Python:
    deliberate).
 3. Zephyr boards: add `zephyr/<family>/boards/seeed/<board_name>/`
    (upstream-style board.yml, dts/dtsi, Kconfig, board.cmake,
-   defconfig). Fixes for upstream gaps are registered in
-   `zephyr/fixes.yml` with sources under
-   `zephyr/{patches,overrides}/<board_name>/` (see `zephyr/AGENTS.md`)
-   -- never into builder code.
+   defconfig). Fixes for upstream gaps live in the board's own
+   `fixes/` directory inside it (framework-relative path, `.patch`
+   suffix = unified diff, plus a `fixes.baseline` sha line -- see
+   `zephyr/AGENTS.md`) -- never into builder code.
 4. Add at least one example env (extend an existing example's
    platformio.ini) so CI builds the board.
 5. Run the gates: `python scripts/ci/verify_boards.py`,

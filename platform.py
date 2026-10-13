@@ -90,8 +90,9 @@ class SeeedstudioPlatform(PlatformBase):
         deliberately reuses the nrf54lm20 Zephyr 4.4 tarball (identical
         content; PlatformIO would URL-dedupe a same-versioned package into
         the nrf54lm20 dir anyway) -- its specifics arrive per-board via
-        zephyr/fixes.yml. (Build-time selection stays strict and fails loud
-        on a missing key -- see _configure_zephyr_package_for_board.)
+        the board directory's fixes/ convention. (Build-time selection
+        stays strict and fails loud on a missing key -- see
+        _configure_zephyr_package_for_board.)
         """
         default = self.frameworks.get("zephyr", {}).get(
             "package", "framework-zephyr-nrf54lm20"

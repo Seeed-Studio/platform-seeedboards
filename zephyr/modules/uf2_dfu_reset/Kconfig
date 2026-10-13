@@ -12,6 +12,6 @@ config UF2_DFU_RESET
 
 	  The STM32C5 USB DRD FS peripheral is driven by the standard
 	  udc_stm32.c driver; its STM32C5 HAL2 support (upstream Zephyr PR
-	  #105957, post-4.4.0) is carried as an override registered in
-	  zephyr/fixes.yml (udc-stm32-hal2). This module only registers the
+	  #105957, post-4.4.0) is carried as a full-file override under the
+	  board's fixes/ directory. This module only registers the
 	  line-coding callback and does not implement its own USB stack.

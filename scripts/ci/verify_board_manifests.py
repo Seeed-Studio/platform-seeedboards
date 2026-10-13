@@ -13,10 +13,8 @@ silent misconfiguration or an obscure build/upload error downstream:
            each VID:PID uppercase hex
   R5  R1 boards -> derived Zephyr board.name (first component of
         build.zephyr.variant, before '/' and '@') is non-empty
-  R6  (optional, needs PyYAML) every key under zephyr/fixes.yml `boards:`
-        must equal some manifest's derived board.name
 
-Stdlib only; R6 degrades gracefully when PyYAML is absent.
+Stdlib only.
 """
 
 from __future__ import annotations
@@ -30,7 +28,6 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BOARDS_DIR = REPO_ROOT / "boards"
-FIXES_YAML = REPO_ROOT / "zephyr" / "fixes.yml"
 
 _VIDPID_RE = re.compile(r"^[0-9A-F]{4}:[0-9A-F]{4}$")
 _VALID_BSP = ("adafruit", "mbed")
@@ -133,30 +130,6 @@ def _check_manifest(path: Path) -> tuple[list[str], str | None]:
     return (errors, derived)
 
 
-def _check_fixes_keys(derived_names: set[str]) -> list[str]:
-    """R6: every fixes.yml board key must reference a known board name."""
-    errors: list[str] = []
-    if not FIXES_YAML.exists():
-        return errors  # no fixes file -> nothing to cross-check
-    try:
-        import yaml  # type: ignore
-    except ImportError:
-        print(f"note: {FIXES_YAML.relative_to(REPO_ROOT)} exists but PyYAML is "
-              f"not installed; R6 cross-check skipped.", file=sys.stderr)
-        return errors
-    with FIXES_YAML.open(encoding="utf-8") as fh:
-        doc = yaml.safe_load(fh) or {}
-    boards = doc.get("boards", {}) if isinstance(doc, dict) else {}
-    if not isinstance(boards, dict):
-        return [f"ERROR zephyr/fixes.yml: top-level 'boards' is not a mapping"]
-    for key in boards:
-        if key not in derived_names:
-            errors.append(
-                f"ERROR zephyr/fixes.yml [orphan]: boards key '{key}' matches no "
-                f"board manifest's derived name ({sorted(derived_names) or 'none'})")
-    return errors
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else "")
     parser.add_argument("--boards-dir", type=Path, default=DEFAULT_BOARDS_DIR,
@@ -169,16 +142,11 @@ def main() -> int:
         return 2
 
     all_errors: list[str] = []
-    derived_names: set[str] = set()
     checked = 0
     for path in sorted(boards_dir.glob("*.json")):
         checked += 1
-        errs, derived = _check_manifest(path)
+        errs, _ = _check_manifest(path)
         all_errors.extend(errs)
-        if derived:
-            derived_names.add(derived)
-
-    all_errors.extend(_check_fixes_keys(derived_names))
 
     if all_errors:
         for line in all_errors:

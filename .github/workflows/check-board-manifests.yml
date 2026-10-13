@@ -9,7 +9,6 @@ on:
       - 'platform.py'
       - 'platform_cfg/**'
       - 'builder/**'
-      - 'zephyr/fixes.yml'
       - 'scripts/ci/verify_board_manifests.py'
   pull_request:
     paths:
@@ -18,7 +17,6 @@ on:
       - 'platform.py'
       - 'platform_cfg/**'
       - 'builder/**'
-      - 'zephyr/fixes.yml'
       - 'scripts/ci/verify_board_manifests.py'
   workflow_dispatch:
 
@@ -41,10 +39,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Optional dependency: enables the R6 fixes.yml cross-check. The
-      # checker degrades gracefully when PyYAML is absent.
-      - name: Install PyYAML
-        run: python -m pip install pyyaml
 
       - name: Verify board manifests
         run: python scripts/ci/verify_board_manifests.py

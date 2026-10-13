@@ -11,7 +11,8 @@
  *
  * USB is driven by Zephyr's standard UDC + CDC ACM stack (udc_stm32.c).
  * The STM32C5 HAL2 backport of udc_stm32.c (upstream PR #105957) is
- * registered as an override in zephyr/fixes.yml (udc-stm32-hal2). This
+ * carried as a full-file override under the board's fixes/ directory
+ * (zephyr/stm32/boards/seeed/xiao_stm32c5/fixes/). This
  * module only registers the line-coding (DTE-rate) callback that detects
  * the 1200-baud touch and arms the reset; it does not touch the USB
  * hardware.
