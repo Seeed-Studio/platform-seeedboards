@@ -22,6 +22,10 @@ on:
       - 'scripts/ci/verify_board_manifests.py'
   workflow_dispatch:
 
+# Static checks on checkout; read-only token is all they need.
+permissions:
+  contents: read
+
 jobs:
   check-board-manifests:
     name: Static board manifest check
