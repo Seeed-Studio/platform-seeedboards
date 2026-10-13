@@ -61,7 +61,10 @@ def apply_all(platform_dir, framework_dir, zephyr_board, version=None):
     no_baseline = []
 
     for src in _iter_fix_files(fixes_dir):
-        rel = os.path.relpath(src, fixes_dir)
+        # os.path.relpath yields "\" separators on Windows; fixes.baseline
+        # keys and framework-package paths are "/"-separated -- normalize
+        # or every target looks unmatched on Windows (baseline gating dead).
+        rel = os.path.relpath(src, fixes_dir).replace(os.sep, "/")
         target = rel[: -len(PATCH_SUFFIX)] if rel.endswith(PATCH_SUFFIX) else rel
         expected = baseline.get(target)
 
