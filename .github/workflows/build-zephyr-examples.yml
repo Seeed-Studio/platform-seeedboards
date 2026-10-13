@@ -32,6 +32,11 @@ on:
       - 'examples/xiao_nrf54lm20a_ble/**'
   workflow_dispatch:
 
+# Checkout + build + artifact upload only; the GITHUB_TOKEN never needs
+# write access here (upload-artifact uses the runtime token, not scopes).
+permissions:
+  contents: read
+
 jobs:
   build-zephyr-examples:
     name: PlatformIO Build (examples / zephyr)

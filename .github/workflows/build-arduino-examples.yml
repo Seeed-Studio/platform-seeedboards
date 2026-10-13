@@ -28,6 +28,11 @@ on:
       - 'examples/seeed-xiao-*/**'
   workflow_dispatch:
 
+# Checkout + build + artifact upload only; the GITHUB_TOKEN never needs
+# write access here (upload-artifact uses the runtime token, not scopes).
+permissions:
+  contents: read
+
 jobs:
   build-arduino-examples:
     name: PlatformIO Build (examples / arduino)

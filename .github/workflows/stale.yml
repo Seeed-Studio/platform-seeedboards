@@ -5,6 +5,13 @@ on:
   schedule:
     - cron: '0 4 * * *'
 
+# stale.sh closes/comments issues and PRs via GH_TOKEN; checkouts are
+# read-only.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   stale:
     runs-on: ubuntu-latest

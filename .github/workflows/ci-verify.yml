@@ -26,6 +26,10 @@ on:
       - 'tests/**'
   workflow_dispatch:
 
+# Offline gates: checkout + pip deps + local checks. Read-only token.
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Offline gates (pytest / verify / boards smoke)

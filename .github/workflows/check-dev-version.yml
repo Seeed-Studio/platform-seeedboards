@@ -22,6 +22,10 @@ on:
     branches:
       - dev
 
+# Reads platform.json + the tag list; never writes.
+permissions:
+  contents: read
+
 jobs:
   check:
     name: dev platform.json version is the next release
