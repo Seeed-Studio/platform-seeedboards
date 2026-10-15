@@ -86,7 +86,12 @@ def _apply_patch_hunk(file_path, old_lines, new_lines):
     # every rebuild re-insert the block (observed 4x duplication in a
     # production package cache). Checking new first is correct for
     # replacement hunks too: new-lines present means the change is in.
-    if _find_block(lines, new_lines) >= 0:
+    # Exception: deletion hunks produce an empty (or context-only) new block,
+    # and _find_block returns 0 for an empty block -- checking new first would
+    # report every deletion as already applied before it ever ran. So an
+    # empty new block must apply through the old match below, and counts as
+    # already applied when the old block is gone (deletion idempotence).
+    if new_lines and _find_block(lines, new_lines) >= 0:
         return "already-applied"
 
     old_index = _find_block(lines, old_lines)
@@ -94,6 +99,9 @@ def _apply_patch_hunk(file_path, old_lines, new_lines):
         lines[old_index:old_index + len(old_lines)] = new_lines
         _write_text_lines(file_path, lines, newline, trailing_newline)
         return "applied"
+
+    if not new_lines:
+        return "already-applied"  # deletion already landed (old block absent)
 
     raise RuntimeError("patch hunk did not match %s" % file_path)
 
