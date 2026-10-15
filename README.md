@@ -63,7 +63,7 @@ tag (CI on dev pushes enforces this too).
 | Renesas | `seeed-xiao-ra4m1` | Arduino |
 | Silicon Labs | `seeed-xiao-mg24`, `seeed-xiao-mg24-sense` | Arduino |
 
-Zephyr boards route to per-generation framework packages automatically (Zephyr 4.2 for nRF54L15, 4.4 for nRF54LM20/STM32C5); upstream gaps are covered by per-board fixes registered in [`zephyr/fixes.yml`](zephyr/fixes.yml) that expire on their own as upstream catches up.
+Zephyr boards route to per-generation framework packages automatically (Zephyr 4.2 for nRF54L15, 4.4 for nRF54LM20/STM32C5); upstream gaps are covered by per-board fixes under each board's `fixes/` directory (see [`zephyr/README.md`](zephyr/README.md)), with baseline sha gating that flags them for re-evaluation as upstream catches up.
 
 The `examples/` tree doubles as the regression suite (CI builds every environment) -- from `zephyr-blink` to a full Nordic Edge AI sample set.
 
@@ -75,7 +75,7 @@ Zephyr board definitions are organized as per-family board roots,
 | Family root | Boards | Usable as a Zephyr board root |
 | --- | --- | --- |
 | `zephyr/nrf` | `xiao_nrf54l15`, `xiao_nrf54lm20a`, `xiao_nrf54lm20b` | Yes — SoCs are present in NCS and upstream Zephyr |
-| `zephyr/stm32` | `xiao_stm32c5` | No — PlatformIO builds only; STM32C5 SoC/driver support is carried by this platform's fixes (`zephyr/fixes.yml`), not by upstream SDKs |
+| `zephyr/stm32` | `xiao_stm32c5` | No — PlatformIO builds only; STM32C5 SoC/driver support is carried by this platform's board-dir fixes (`zephyr/stm32/boards/seeed/xiao_stm32c5/fixes/`), not by upstream SDKs |
 
 ### Using the boards with nRF Connect SDK (NCS)
 

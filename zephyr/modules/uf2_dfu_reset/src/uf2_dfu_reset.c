@@ -5,8 +5,8 @@
  * TinyUF2 1200-bps bootloader auto-trigger for XIAO STM32C5.
  *
  * USB is driven by Zephyr's standard UDC + CDC ACM stack (the udc_stm32.c
- * driver's STM32C5 HAL2 backport, upstream PR #105957, is registered as
- * an override in zephyr/fixes.yml (udc-stm32-hal2)). This module brings
+ * driver's STM32C5 HAL2 backport, upstream PR #105957, is carried as a
+ * full-file override under the board's fixes/ directory). This module brings
  * up the USB device and CDC ACM class automatically at boot (SYS_INIT,
  * no application code needed) and registers a USBD message callback.
  * When the host opens the CDC ACM port at 1200 baud, the SET_LINE_CODING

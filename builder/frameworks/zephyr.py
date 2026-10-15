@@ -76,7 +76,7 @@ platform_dir = platform.get_dir()
 # users to add to nRF Connect Board Roots, so it may only contain boards whose SoC and
 # drivers exist unpatched in the target SDK — a board referencing a SoC missing from
 # the SDK (e.g. xiao_stm32c5's stm32c5a3xx in NCS) breaks the extension's SoC cache
-# for every board. Boards that depend on fixes.yml fixes belong in their own family
+# for every board. Boards that depend on framework fixes belong in their own family
 # root (zephyr/stm32) and reach the framework only through this copy step.
 # glob() also returns files; a non-directory here would make os.listdir()
 # below raise and kill every build, so keep directories only.
@@ -977,9 +977,10 @@ if zephyr_board == "xiao_stm32c5":
             extra_modules.append(target_module_dir)
         os.environ["ZEPHYR_EXTRA_MODULES"] = ";".join(extra_modules)
 
-# Apply per-board Zephyr fixes (patches + overrides) registered in
-# zephyr/fixes.yml. Dispatched by zephyr_fixes.py — boards absent from the
-# manifest get no fixes, so there is no coupling across boards/packages.
+# Apply per-board Zephyr fixes from the board directory convention
+# (zephyr/<family>/boards/seeed/<board>/fixes/). Walked by zephyr_fixes.py —
+# boards without a fixes/ directory get no fixes, so there is no coupling
+# across boards/packages.
 sys.path.insert(0, join(platform_dir, "builder", "frameworks"))
 from zephyr_fixes import apply_all
 

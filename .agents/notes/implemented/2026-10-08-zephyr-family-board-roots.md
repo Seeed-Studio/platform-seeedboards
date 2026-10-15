@@ -69,3 +69,9 @@ Board definitions live in per-family board roots:
 - `builder/frameworks/zephyr.py` (board copy loop, 20B dtsi refresh path)
 - `zephyr/README.md` (directory layout and rules)
 - `zephyr/fixes.yml` (board-keyed fix registry, unchanged by this decision)
+
+> **Update 2026-10-13**: `zephyr/fixes.yml` no longer exists; framework
+> fixes now live in each board's `fixes/` directory (see
+> [`2026-09-15-zephyr-fixes-board-dir.md`](2026-09-15-zephyr-fixes-board-dir.md)).
+> The family-root rule above is unchanged -- fix-carrying boards still
+> belong outside `zephyr/nrf`.

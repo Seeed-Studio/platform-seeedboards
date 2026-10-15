@@ -78,8 +78,23 @@ def _write_text_lines(file_path, lines, newline, trailing_newline):
         f.write(text)
 
 
-def _apply_patch_hunk(file_path, old_lines, new_lines):
+def _apply_patch_hunk(file_path, old_lines, new_lines, has_additions=True):
     lines, newline, trailing_newline = _read_text_lines(file_path)
+
+    # "Already applied" detection depends on the hunk shape:
+    # - hunks WITH '+' lines (insertion/replacement): the new block is the
+    #   applied-state marker. Check it FIRST -- for pure-context insertions
+    #   the old block keeps matching after the hunk lands, so checking old
+    #   first re-inserted the block on every rebuild (observed 4x
+    #   duplication in a production package cache).
+    # - hunks WITHOUT '+' lines (deletions): the new block is context-only
+    #   (or empty), which exists in the unpatched file by construction --
+    #   new-block presence proves nothing. The applied-state marker is the
+    #   OLD block being gone. _find_block returns 0 for an empty block, so
+    #   new-first would skip deletions outright (including deletions at a
+    #   hunk edge where the context-only new block trivially matches).
+    if has_additions and new_lines and _find_block(lines, new_lines) >= 0:
+        return "already-applied"
 
     old_index = _find_block(lines, old_lines)
     if old_index >= 0:
@@ -87,8 +102,8 @@ def _apply_patch_hunk(file_path, old_lines, new_lines):
         _write_text_lines(file_path, lines, newline, trailing_newline)
         return "applied"
 
-    if _find_block(lines, new_lines) >= 0:
-        return "already-applied"
+    if not has_additions or not new_lines:
+        return "already-applied"  # deletion already landed (old block absent)
 
     raise RuntimeError("patch hunk did not match %s" % file_path)
 
@@ -100,17 +115,20 @@ def _apply_unified_patch(patch_path, target_root):
     target_relpath = None
     old_lines = []
     new_lines = []
+    hunk_has_additions = False
     stats = {"applied": 0, "already-applied": 0}
 
     def flush_hunk():
+        nonlocal hunk_has_additions
         if target_relpath is None or (not old_lines and not new_lines):
             return
 
         file_path = join(target_root, target_relpath)
-        result = _apply_patch_hunk(file_path, old_lines, new_lines)
+        result = _apply_patch_hunk(file_path, old_lines, new_lines, hunk_has_additions)
         stats[result] += 1
         old_lines.clear()
         new_lines.clear()
+        hunk_has_additions = False
 
     for line in patch_lines:
         if line.startswith("+++ "):
@@ -135,6 +153,7 @@ def _apply_unified_patch(patch_path, target_root):
             old_lines.append(line[1:])
         elif line.startswith("+"):
             new_lines.append(line[1:])
+            hunk_has_additions = True
         elif line.startswith("\\ No newline at end of file"):
             continue
         elif line.startswith(("diff --git ", "index ", "--- ")):

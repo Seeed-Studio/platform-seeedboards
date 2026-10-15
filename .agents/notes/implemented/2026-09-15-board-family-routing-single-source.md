@@ -134,3 +134,9 @@ Recorded evidence (all through the local-checkout platform override, one
 - [`builder/frameworks/zephyr.py`](../../../builder/frameworks/zephyr.py)
 - [`verify_boards.py`](../../../scripts/ci/verify_boards.py)
 - [`AI workflow adaptation`](../proposed/2026-08-17-ai-workflow-adaptation.md)
+
+> **Update 2026-10-13**: the `zephyr/fixes.yml` registry and
+> `zephyr/{patches,overrides}/` were later replaced by the per-board
+> `fixes/` directory convention -- see
+> [`2026-09-15-zephyr-fixes-board-dir.md`](2026-09-15-zephyr-fixes-board-dir.md).
+> The gate's orphan checks now cover the board `fixes/` layout instead.

@@ -1,4 +1,12 @@
 /*
+ * XIAO STM32C5 Zephyr framework fix -- full-file override.
+ * Target (inside the framework-zephyr package): drivers/flash/flash_stm32_xspi.h
+ * Validated against: Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428)
+ * Reason: header counterpart of the flash_stm32_xspi.c override (STM32C5
+ * XSPI flash support); must travel with it.
+ * Exit condition: delete together with flash_stm32_xspi.c.
+ */
+/*
  * Copyright (c) 2024 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0

@@ -1,3 +1,10 @@
+# XIAO STM32C5 Zephyr framework fix -- unified diff patch.
+# Target (inside the framework-zephyr package): drivers/adc/adc_stm32.c
+# Validated against: Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428)
+# Reason: the STM32 ADC driver uses the STM32_ADC_DECIMAL_NB_TO_CHANNEL-
+# converted channel value as the PCSEL bitmask; it must be BIT(channel_id),
+# otherwise multi-channel ADC configurations break.
+# Exit condition: delete once upstream adc_stm32.c carries the fix.
 diff --git a/drivers/adc/adc_stm32.c b/drivers/adc/adc_stm32.c
 --- a/drivers/adc/adc_stm32.c
 +++ b/drivers/adc/adc_stm32.c
