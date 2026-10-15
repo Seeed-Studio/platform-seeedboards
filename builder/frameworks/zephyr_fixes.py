@@ -46,6 +46,14 @@ BASELINE_NAME = "fixes.baseline"
 PATCH_SUFFIX = ".patch"
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
+# Local droppings an OS or editor writes next to sources (macOS .DS_Store,
+# vim's xxx.c~, patch's .rej/.orig). os.walk reads the disk, not the git
+# index, so untracked junk would otherwise be copied into the framework
+# package as an "override" at its relative path. Committed artifacts are
+# still rejected by the offline gate (no fixes.baseline entry); this skip
+# only covers developer-local builds.
+_ARTIFACT_SUFFIXES = ("~", ".orig", ".rej", ".bak")
+
 
 def apply_all(platform_dir, framework_dir, zephyr_board, version=None):
     """Apply every fix under zephyr/<family>/boards/seeed/<zephyr_board>/fixes/.
@@ -101,6 +109,9 @@ def _iter_fix_files(fixes_dir):
         dirs.sort()
         for fname in sorted(files):
             if fname == BASELINE_NAME:
+                continue
+            if fname.startswith(".") or fname.endswith(_ARTIFACT_SUFFIXES):
+                print("Skipping non-fix artifact: %s" % join(root, fname))
                 continue
             yield join(root, fname)
 

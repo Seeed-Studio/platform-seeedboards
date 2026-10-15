@@ -100,6 +100,25 @@ class TestNoFixesBoard:
         assert out == ""
 
 
+class TestArtifactSkip:
+    def test_local_artifacts_are_skipped_not_applied(self, tmp_path, capsys):
+        # .DS_Store / editor backups sit on disk but not in git; os.walk
+        # must not turn them into overrides at their relative path.
+        platform, fw, fixes_dir = make_tree(tmp_path)
+        (fixes_dir / ".DS_Store").write_text("junk\n", encoding="utf-8")
+        (fixes_dir / "drivers" / "adc.c~").write_text("junk\n", encoding="utf-8")
+        (fixes_dir / "drivers" / "adc.c.orig").write_text("junk\n", encoding="utf-8")
+        zephyr_fixes.apply_all(str(platform), str(fw), "xiao_sim", "4.4.0")
+        out = capsys.readouterr().out
+        assert out.count("Skipping non-fix artifact") == 3
+        assert not (fw / ".DS_Store").exists()
+        assert not (fw / "drivers" / "adc.c~").exists()
+        # The two real fixes still applied, no baseline complaints about
+        # the skipped files.
+        assert "Applied 2 Zephyr fix(es)" in out
+        assert "WARNING" not in out
+
+
 class TestBaselineGating:
     def test_override_drift_warns(self, tmp_path, capsys):
         platform, fw, _ = make_tree(tmp_path)
