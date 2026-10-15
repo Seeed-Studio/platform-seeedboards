@@ -23,11 +23,13 @@ Exit code 0 = all checks pass, 1 = any violation.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
 BASELINE_NAME = "fixes.baseline"
 PATCH_SUFFIX = ".patch"
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def repo_root() -> Path:
@@ -93,13 +95,31 @@ def verify_fixes_layout(zephyr_root: Path, known_names: set) -> list:
                 if not line or line.startswith("#"):
                     continue
                 parts = line.split(None, 1)
-                if len(parts) == 2:
-                    baseline[parts[0]] = parts[1].strip()
-                else:
+                if len(parts) != 2:
                     errors.append(
                         "%s: unparseable baseline line %r"
                         % (baseline_path.name, line)
                     )
+                    continue
+                target, sha = parts[0], parts[1].strip()
+                if not _SHA256_RE.fullmatch(sha):
+                    # Trailing text (inline comment) or a truncated sha would
+                    # pass this gate yet never match a real hexdigest at
+                    # build time -- dead runtime gating plus a false
+                    # "framework upgraded" warning on every build.
+                    errors.append(
+                        "%s: invalid sha256 for %r -- expected exactly 64 "
+                        "lowercase hex digits with no trailing text (got %r)"
+                        % (baseline_path.name, target, sha)
+                    )
+                    continue
+                if target in baseline:
+                    errors.append(
+                        "%s: duplicate baseline entry for %r"
+                        % (baseline_path.name, target)
+                    )
+                    continue
+                baseline[target] = sha
         else:
             errors.append(
                 "fixes/ for board %r has no %s" % (board_dir.name, BASELINE_NAME)

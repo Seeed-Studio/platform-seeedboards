@@ -31,6 +31,7 @@ Interface (call site in builder/frameworks/zephyr.py is unchanged):
 import glob
 import hashlib
 import os
+import re
 from os.path import dirname, join
 
 # Executors live next to this module.
@@ -43,6 +44,7 @@ import zephyr_patch  # noqa: E402
 
 BASELINE_NAME = "fixes.baseline"
 PATCH_SUFFIX = ".patch"
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def apply_all(platform_dir, framework_dir, zephyr_board, version=None):
@@ -114,8 +116,18 @@ def _load_baseline(fixes_dir):
             if not line or line.startswith("#"):
                 continue
             parts = line.split(None, 1)
-            if len(parts) == 2:
+            if len(parts) == 2 and _SHA256_RE.fullmatch(parts[1].strip()):
                 baseline[parts[0]] = parts[1].strip()
+            else:
+                # An invalid line (trailing comment, truncated sha, missing
+                # sha) must not become a never-matching expected value: it
+                # would fire a false "framework package may have been
+                # upgraded" warning on every build against a pristine
+                # package. Degrade to "no baseline" instead.
+                print(
+                    "WARNING: invalid fixes.baseline line %r (expected "
+                    "'<target> <64 lowercase hex sha256>') -- ignoring" % line
+                )
     return baseline
 
 
