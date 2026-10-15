@@ -4,7 +4,8 @@
  * Validated against: Zephyr 4.4.0 (framework-zephyr-nrf54lm20 3.40400.260428)
  * Reason: upstream Zephyr 4.4.0 has no STM32C5 XSPI flash support; this copy
  * adds it for the XSPI1 external NOR flash (PY25Q128HA) on XIAO STM32C5.
- * Exit condition: delete once upstream flash_stm32_xspi.c supports STM32C5.
+ * Exit condition: delete together with flash_stm32_xspi.h once upstream
+ * flash_stm32_xspi.c supports STM32C5 (they travel as a pair).
  */
 /*
  * Copyright (c) 2024 STMicroelectronics
