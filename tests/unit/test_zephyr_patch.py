@@ -92,6 +92,41 @@ class TestDeletionWithContext:
         assert a1 == a2
 
 
+class TestEdgeDeletion:
+    # Deletion at a hunk boundary: the new block is context-only, which is
+    # trivially contiguous in the unpatched file -- new-block presence must
+    # not be read as "already applied" (AI-review finding: the -U0 fix did
+    # not cover this shape).
+    FIRST = "--- a/f.c\n+++ b/f.c\n@@ -1,2 +1 @@\n-line-a\n line-b\n"
+    LAST = "--- a/f.c\n+++ b/f.c\n@@ -1,2 +1 @@\n line-a\n-line-b\n"
+
+    def test_deleting_first_line_applies(self, tmp_path):
+        s1, a1, s2, a2 = apply(tmp_path, self.FIRST, "line-a\nline-b\n")
+        assert a1 == "line-b\n"
+        assert s1 == {"applied": 1, "already-applied": 0}
+        assert s2["already-applied"] == 1
+        assert a1 == a2
+
+    def test_deleting_last_line_applies(self, tmp_path):
+        s1, a1, s2, a2 = apply(tmp_path, self.LAST, "line-a\nline-b\n")
+        assert a1 == "line-a\n"
+        assert s1 == {"applied": 1, "already-applied": 0}
+        assert s2["already-applied"] == 1
+        assert a1 == a2
+
+    def test_wide_context_first_line_deletion_applies(self, tmp_path):
+        body = (
+            "--- a/f.c\n+++ b/f.c\n@@ -1,4 +1,3 @@\n"
+            "-line-1\n line-2\n line-3\n line-4\n"
+        )
+        s1, a1, s2, a2 = apply(
+            tmp_path, body, "line-1\nline-2\nline-3\nline-4\n"
+        )
+        assert a1 == "line-2\nline-3\nline-4\n"
+        assert s1["applied"] == 1
+        assert a1 == a2
+
+
 class TestNoMatch:
     def test_drifted_target_raises(self, tmp_path):
         fw = tmp_path / "fw"
