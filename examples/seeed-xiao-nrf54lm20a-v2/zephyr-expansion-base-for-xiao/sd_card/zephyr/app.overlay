@@ -1,0 +1,17 @@
+
+&xiao_spi {
+	status = "okay";
+	cs-gpios = <&xiao_d 2 GPIO_ACTIVE_LOW>;
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+		spi-max-frequency = <24000000>;
+	};
+};
