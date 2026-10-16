@@ -1,0 +1,13 @@
+/* nPM1300 is connected to the nRF54LM20A board's GPIO-I2C PMIC bus. */
+
+&pmic_i2c {
+	sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+	scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+};
+
+&pmic_charger {
+	term-microvolt = <4200000>;
+	current-microamp = <150000>;
+	vbus-limit-microamp = <500000>;
+	charging-enable;
+};
