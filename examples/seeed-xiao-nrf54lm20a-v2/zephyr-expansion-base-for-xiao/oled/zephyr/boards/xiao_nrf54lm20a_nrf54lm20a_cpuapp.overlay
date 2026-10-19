@@ -1,0 +1,28 @@
+/ {
+	chosen {
+		zephyr,display = &ssd1306_128x64;
+	};
+};
+
+&xiao_i2c {
+	/* SSD1306 sends a 1-byte I2C control byte plus up to 1024 bytes of
+	 * framebuffer data in one burst. The nRF TWIM driver defaults to 16
+	 * bytes, which causes the framebuffer transfer to fail with -ENOSPC. */
+	zephyr,concat-buf-size = <2048>;
+	zephyr,flash-buf-max-size = <2048>;
+
+	ssd1306_128x64: ssd1306@3c {
+		compatible = "solomon,ssd1306";
+		reg = <0x3c>;
+		status = "okay";
+		width = <128>;
+		height = <64>;
+		segment-offset = <0>;
+		page-offset = <0>;
+		display-offset = <0>;
+		multiplex-ratio = <63>;
+		segment-remap;
+		com-invdir;
+		prechargep = <0xF1>;
+	};
+};

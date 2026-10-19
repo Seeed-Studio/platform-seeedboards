@@ -1,0 +1,36 @@
+/* SD card on the XIAO Expansion Base using the nRF54LM20A XIAO SPI pins. */
+
+/ {
+	aliases {
+		sdhc0 = &sdhc0;
+	};
+};
+
+&xiao_spi {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	cs-gpios = <&xiao_d 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+		spi-max-frequency = <24000000>;
+	};
+};
+
+&spi23_default {
+	group1 {
+		psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
+			<NRF_PSEL(SPIM_MOSI, 1, 6)>;
+	};
+	group2 {
+		psels = <NRF_PSEL(SPIM_MISO, 1, 5)>;
+		bias-pull-up;
+	};
+};
