@@ -6,8 +6,7 @@
       "mcu": "nrf54lm20a",
       "zephyr": {
         "variant": "xiao_nrf54lm20a/nrf54lm20a/cpuapp",
-        "package": "framework-zephyr-nrf54lm20",
-        "board_name": "xiao_nrf54lm20a"
+        "package": "framework-zephyr-nrf54lm20"
      }
     },
     "connectivity": [
