@@ -1,29 +1,46 @@
 # platform-unified
 
-Multi-chip unified PlatformIO platform: one `platform =` address, chip
-families as pluggable data + classes, upstream reused by reference.
+A multi-chip PlatformIO platform: one `platform =` address, every chip
+family plugged in as data + classes, upstream platforms reused by
+reference instead of copy.
 
-**Status: docs-first scaffold.** No code yet — by design. The founding
-documents are the contract every later commit implements:
+Switch boards, not platforms:
 
-- [AGENTS.md](AGENTS.md) — five binding principles, ownership, commit
-  rules, inline validation loop
-- [docs/architecture.md](docs/architecture.md) — the implementation
-  handbook (amended design; all flows)
-- [docs/decisions/](docs/decisions/) — ADRs:
-  [0001 ChipFamily registry](docs/decisions/0001-chipfamily-registry.md),
-  [0002 single pin per package](docs/decisions/0002-single-pin-per-package.md),
-  [0003 fixes mechanism](docs/decisions/0003-fixes-mechanism.md),
-  [0004 reuse ladder + validation tiers](docs/decisions/0004-reuse-ladder-and-validation-tiers.md),
-  [0005 CI merge gate + demo matrix](docs/decisions/0005-ci-merge-gate.md)
+```ini
+[env:xiao]
+platform = https://github.com/<org>/platform-unified.git
+board = <board-id>
+framework = <arduino | espidf | zephyr>
+```
 
-## Implementation order
+## What this is
 
-1. `families/base.py` — the registry (ADR-0001)
-2. Offline gates + tests (ADR-0004 T0) — before any family
-3. `platform.py` / `builder/main.py` zero-string core
-4. First family (recommended: samd — smallest, upstream exists)
-5. Second family with a package collision (esp) — proves ADR-0002
-6. Zephyr family + fixes mechanism — proves ADR-0003
+- **For users**: build for any supported board with a single platform
+  entry; board manifests carry everything PlatformIO needs.
+- **For contributors**: chip families are pluggable modules — a new
+  family lands as files, without touching the routing core. Upstream
+  platforms are reused via version pins, imports, or build-script
+  delegation; framework-package gaps are covered by per-board fixes
+  that expire as upstream catches up.
+- **For agents**: the repository is governed by
+  [AGENTS.md](AGENTS.md) (principles, ownership, commit rules,
+  validation loop) — read it first.
 
-Apache-2.0.
+## Status
+
+Early-stage. The design is settled
+([architecture](docs/architecture.md)) and implementation is starting
+([roadmap](docs/roadmap.md)); no boards are buildable yet. Until the
+first release, use the production predecessor:
+[Seeed-Studio/platform-seeedboards](https://github.com/Seeed-Studio/platform-seeedboards).
+
+## Documentation
+
+- [Architecture](docs/architecture.md) — the implementation handbook
+- [Decision records](docs/decisions/) — binding ADRs
+- [Roadmap](docs/roadmap.md) — implementation order
+- [Contributing](docs/contributing.md) — change workflow and CI gates
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
