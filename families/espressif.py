@@ -24,6 +24,7 @@ registry (and scripts/ci/verify_board_manifests.py) imports it at module
 load; platformio and platform_cfg imports stay inside functions.
 """
 
+import os
 import subprocess
 import sys
 from importlib import import_module
@@ -171,11 +172,51 @@ class Esp32Family(ChipFamily):
             self.required_packages(platform.board_config(board_name))
             if board_name else set()
         )
-        for name in required:
-            if name in platform.packages:
-                platform.packages[name]["optional"] = False
+        # The upstream platform package is installed through
+        # PlatformPackageManager below (see _ensure_upstream_platform), so
+        # it must stay optional to keep the tool-package channel away
+        # from it.
+        if self.upstream_platform in required:
+            self._ensure_upstream_platform(platform)
         self._prefer_local_esp_tools(platform)
         self._ensure_esptoolpy_runtime_dependencies()
+
+    def _upstream_platform_dir(self):
+        from platformio.project.config import ProjectConfig
+        platforms_dir = ProjectConfig.get_instance().get("platformio", "platforms_dir")
+        return join(platforms_dir, self.upstream_platform)
+
+    def _ensure_upstream_platform(self, platform):
+        """Install the locked upstream pioarduino platform via
+        PlatformPackageManager.
+
+        pioarduino ships a platform.json manifest (no package.json), so
+        the regular tool-package channel refuses it;
+        PlatformPackageManager accepts platform.json and installs into
+        the platforms dir. Dependencies are skipped — this platform owns
+        its package set. The locked version lives in platform.json's
+        packages."espressif32".version.
+
+        Note: a user-installed official 'espressif32' platform in the
+        same platforms dir would collide; the directory is only trusted
+        when it carries our locked upstream content.
+        """
+        entry = platform.packages.get(self.upstream_platform, {})
+        version = entry.get("version")
+        if not version:
+            return None
+        if os.path.isfile(join(self._upstream_platform_dir(), "platform.json")):
+            return self._upstream_platform_dir()
+        try:
+            from platformio.package.manager.platform import PlatformPackageManager
+            PlatformPackageManager().install(version, skip_dependencies=True)
+        except Exception as e:
+            print("Warning: failed to install upstream '%s' platform: %s"
+                  % (self.upstream_platform, e))
+            return None
+        if os.path.isfile(join(self._upstream_platform_dir(), "platform.json")):
+            return self._upstream_platform_dir()
+        return None
 
     def post_configure_packages(self, platform, variables, targets):
         return self._prepare_esp_tools(platform)
@@ -263,16 +304,19 @@ class Esp32Family(ChipFamily):
         return join(platform.get_dir(), "builder", "board_build", "esp", "esp_build.py")
 
     def framework_script(self, platform, framework, board):
-        """Arduino builds load the upstream pioarduino script (package
-        espressif32, locked commit in platform.json) — no local copy.
-        espidf keeps the local snapshot for now (larger drift)."""
+        """Arduino builds load the upstream pioarduino script (platform
+        package espressif32, locked commit in platform.json, installed
+        into the platforms dir by _ensure_upstream_platform) — no local
+        copy. espidf keeps the local snapshot for now (larger drift)."""
         if framework != "arduino":
             return None
-        upstream_dir = platform.get_package_dir(self.upstream_platform)
-        if not upstream_dir:
+        upstream_dir = self._upstream_platform_dir()
+        script = join(upstream_dir, "builder", "frameworks", "arduino.py")
+        if not os.path.isfile(script):
             sys.stderr.write(
-                "Error: ESP32 Arduino builds require the '%s' upstream "
-                "package; it is declared in platform.json with a locked "
-                "commit.\n" % self.upstream_platform)
+                "Error: ESP32 Arduino builds require the upstream '%s' "
+                "platform package (locked commit declared in "
+                "platform.json); expected its builder at %s\n"
+                % (self.upstream_platform, script))
             sys.exit(1)
-        return join(upstream_dir, "builder", "frameworks", "arduino.py")
+        return script
