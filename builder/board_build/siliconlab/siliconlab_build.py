@@ -132,18 +132,15 @@ if not env.get("PIOFRAMEWORK"):
 #
 # Target: Build executable and linkable firmware
 #
+# (No Zephyr path here: mg24 boards are Arduino-only. The previous branch
+# referenced get_package_dir("framework-zephyr") -- a package name this
+# platform never declares -- and would have crashed had it ever run.)
 
-if "zephyr" in env.get("PIOFRAMEWORK", []):
-    env.SConscript(
-        join(platform.get_package_dir(
-            "framework-zephyr"), "scripts", "platformio", "platformio-build-pre.py"),
-        exports={"env": env}
-    )
-
-target_elf = None
 if "nobuild" in COMMAND_LINE_TARGETS:
     target_elf = join("$BUILD_DIR", "${PROGNAME}.elf")
-    target_firm = join("$BUILD_DIR", "${PROGNAME}.bin")
+    # Keep in sync with the ElfToHex artifact below (this builder produces
+    # .hex, never .bin).
+    target_firm = join("$BUILD_DIR", "${PROGNAME}.hex")
 else:
     target_elf = env.BuildProgram()
     target_firm = env.ElfToHex(join("$BUILD_DIR", "${PROGNAME}"), target_elf)

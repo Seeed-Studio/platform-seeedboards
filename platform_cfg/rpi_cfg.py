@@ -100,7 +100,10 @@ def configure_rpi_default_packages(self, variables, targets):
             elif build_core == "earlephilhower":
                 self.frameworks["arduino"]["package"] = "framework-arduinopico"
                 self.packages["framework-arduino-mbed"]["optional"] = True
-                self.packages.pop("toolchain-gccarmnoneeabi", None)
+                # Leave toolchain-gccarmnoneeabi in place (it stays optional,
+                # so it is never installed for rpi builds): popping it from
+                # the shared dict breaks any later in-process configuration
+                # of nrf/samd/siliconlab/stm32/renesas boards that require it.
                 self.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
                 # Configure toolchain download link dynamically
                 # RP2350 (RISC-V)
@@ -113,7 +116,7 @@ def configure_rpi_default_packages(self, variables, targets):
             else:
                 sys.stderr.write(
                     "Error! Unknown build.core value '%s'. Don't know which Arduino core package to use." % build_core)
-                env.Exit(1)
+                sys.exit(1)
 
         # if we want to build a filesystem, we need the tools.
         if "buildfs" in targets:

@@ -46,16 +46,11 @@ def configure_siliconlab_default_packages(self, variables, targets):
     else:
         self.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip"
 
-    if "tool-mklittlefs-rp2040-earlephilhower" in self.packages:
-        del self.packages["tool-mklittlefs-rp2040-earlephilhower"]
-    if "tool-openocd-rp2040-earlephilhower" in self.packages:
-        del self.packages["tool-openocd-rp2040-earlephilhower"]
-    if "tool-bossac-nordicnrf52" in self.packages:
-        del self.packages["tool-bossac-nordicnrf52"]
-    if "tool-esptoolpy" in self.packages:
-        del self.packages["tool-esptoolpy"]
-    if "tool-picotool-rp2040-earlephilhower" in self.packages:
-        del self.packages["tool-picotool-rp2040-earlephilhower"]
+    # Family configs must not delete other families' packages from the
+    # shared self.packages dict: the removed tools are optional here (never
+    # installed for mg24 builds), while other family configs access them
+    # unconditionally -- in one process, configuring an mg24 board used to
+    # leave rpi/nrf/esp configuration crashing with KeyError.
 
 
 
