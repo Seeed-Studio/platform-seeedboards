@@ -114,9 +114,9 @@ class SeeedstudioPlatform(PlatformBase):
         board -> family routing (see .agents/notes/proposed/
         2026-09-15-board-family-routing-single-source.md). Platform manifests
         missing the key fail loudly with the manifest path; manifests loaded
-        from outside this platform's boards/ directory (user-custom boards)
-        warn once and return None, preserving their historical no-family
-        handling.
+        from outside this platform's boards/ directory (user-custom or
+        project-shadowing boards) warn and skip family handling unless they
+        declare build.family themselves.
         """
         if isinstance(board, str):
             # Base implementation on purpose: no _add_dynamic_options side
@@ -134,9 +134,12 @@ class SeeedstudioPlatform(PlatformBase):
             os.path.dirname(os.path.abspath(__file__)), "boards"
         )
         if os.path.normpath(manifest_dir) != os.path.normpath(platform_boards_dir):
-            print(
+            sys.stderr.write(
                 "Warning: board '%s' declares no build.family in %s; "
-                "skipping family handling" % (board.id, board.manifest_path)
+                "family package/debug configuration is skipped. Add it to "
+                "the manifest -- one of esp, nrf, renesas, rpi, samd, "
+                "siliconlab, stm32 -- to enable family handling.\n"
+                % (board.id, board.manifest_path)
             )
             return None
         raise KeyError(
