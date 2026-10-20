@@ -15,25 +15,15 @@ class SamdConfig(FamilyConfig):
             # practice (PlatformIO always supplies a board) and platform.py
             # discards the hook's return value -- so simply defer nothing.
             return
-        board = self.platform.board_config(variables.get("board"))
-        upload_protocol = variables.get(
-            "upload_protocol", board.get("upload.protocol", "")
-        )
-        disabled_pkgs = []
-        upload_tool = "tool-openocd"
-        if upload_protocol == "sam-ba":
-            upload_tool = "tool-bossac"
-        elif upload_protocol == "jlink":
-            upload_tool = "tool-jlink"
-
-        if upload_tool:
-            for name, opts in self.platform.packages.items():
-                if "type" not in opts or opts["type"] != "uploader":
-                    continue
-                if name != upload_tool:
-                    disabled_pkgs.append(name)
-
-
+        # Uploader pruning removed: the old code deleted every type=uploader
+        # package except the one selected for this board, but samd's own
+        # uploaders (tool-bossac / tool-jlink) carry no type field, so it
+        # collected and deleted esp/renesas/nrf uploaders from the shared
+        # self.platform.packages dict too. Those packages are optional and
+        # never install for samd builds (would-install set verified
+        # identical without the loop), so deletion bought nothing while
+        # breaking later in-process configuration of those families --
+        # same cross-family fix as siliconlab/rpi (4d9cc22).
         self.mark_required(
             "framework-arduino-samd-seeed",
             "toolchain-gccarmnoneeabi",
@@ -45,12 +35,6 @@ class SamdConfig(FamilyConfig):
 
         print("optional is:",self.platform.packages["framework-cmsis"]["optional"])
         print("optional is:",self.platform.packages["framework-cmsis"]["version"])
-
-        for name in disabled_pkgs:
-            # OpenOCD should be available when debugging
-            if name == "tool-openocd" and variables.get("build_type", "") == "debug":
-                continue
-            del self.platform.packages[name]
 
     def add_default_debug_tools(self, board):
         debug = board.manifest.get("debug", {})

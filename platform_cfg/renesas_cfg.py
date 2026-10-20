@@ -71,8 +71,6 @@ class RenesasConfig(FamilyConfig):
                     "onboard": link in debug.get("onboard_tools", []),
                 }
             elif link == "cmsis-dap" and board.id in ("uno_r4_wifi", "uno_r4_minima","seeed-xiao-ra4m1"):
-                hwids = board.get("build.hwids", [["0x2341", "0x1002"]])
-
                 # Now OpenOCD does not have the ra4m1.cfg configuration file
                 # so we provide it in this repository.
                 current_file_path = os.path.abspath(__file__)

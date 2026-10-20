@@ -32,3 +32,24 @@ def test_siliconlab_then_rpi_esp_nrf_in_one_process():
             [],
         )
     # All four families configured through one shared instance.
+
+
+def test_samd_keeps_other_families_uploaders_in_one_process():
+    """samd used to delete every type=uploader package from the shared
+    packages dict -- its own uploaders (tool-bossac / tool-jlink) carry no
+    type field, so esp/renesas/nrf uploaders were collected and deleted
+    too. Those packages are optional for samd builds and never install
+    there; the deletion only broke later in-process configuration of the
+    families that need them (e.g. a multi-env ``pio run``)."""
+    repo = pathlib.Path(__file__).resolve().parents[1]
+    platform = PlatformFactory.new(str(repo))
+    platform.configure_default_packages(
+        {"board": "seeed-xiao-samd", "framework": ["arduino"], "pioframework": ["arduino"]},
+        [],
+    )
+    platform.configure_default_packages(
+        {"board": "seeed-xiao-esp32-c3", "framework": ["arduino"], "pioframework": ["arduino"]},
+        [],
+    )
+    # esp must still be able to mark its uploader required after samd ran
+    assert platform.packages["tool-esptoolpy"]["optional"] is False
