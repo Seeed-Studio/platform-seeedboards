@@ -20,7 +20,7 @@ import families  # noqa: E402  (side-effecting: triggers registration)
 from families.base import ChipFamily  # noqa: E402
 
 
-class PlatformUnified(PlatformBase):
+class UnifiedPlatform(PlatformBase):
     def configure_default_packages(self, variables, targets):
         if not variables.get("board"):
             return super().configure_default_packages(variables, targets)

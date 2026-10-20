@@ -59,7 +59,12 @@ class SamdFamily(ChipFamily):
         return protocol if protocol else "sam-ba"
 
     def build_script(self, env, board) -> str:
-        return join(dirname(dirname(_SCRIPTS_DIR)), "frameworks", "arduino.py")
+        # The family build script is the full entry: it sets the ARM
+        # toolchain env, registers upload actions, and dispatches the
+        # framework script. Pointing at the framework entry directly
+        # skips the toolchain setup (host c++ used, -mthumb fails).
+        return join(dirname(_SCRIPTS_DIR), "builder", "board_build", "samd",
+                    "samd_build.py")
 
     def arduino_script(self, env, board) -> str:
         # Relative to builder/frameworks/ (the framework script's dir).
