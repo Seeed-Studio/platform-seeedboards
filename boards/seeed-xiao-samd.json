@@ -3,6 +3,7 @@
     "arduino": {
       "ldscript": "flash_with_bootloader.ld"
     },
+    "chip_family": "samd",
     "core": "seeed",
     "cpu": "cortex-m0plus",
     "extra_flags": [

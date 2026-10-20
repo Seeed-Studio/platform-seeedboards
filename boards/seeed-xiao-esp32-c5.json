@@ -1,5 +1,6 @@
 {
   "build": {
+    "chip_family": "esp32",
     "partitions": "default_8MB.csv",
     "core": "esp32",
     "extra_flags": [
