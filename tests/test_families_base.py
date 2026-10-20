@@ -28,6 +28,9 @@ class _Sample(ChipFamily):
     def configure_debug_session(self, debug_config):
         pass
 
+    def build_script(self, env, board):
+        return "frameworks/_bare.py"
+
 
 class TestRegistration:
     def test_subclass_registers_all_ids(self):

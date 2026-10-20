@@ -1,0 +1,21 @@
+{
+  "name": "PlatformUnified",
+  "title": "Multi-chip Unified Platform",
+  "description": "One platform address, every chip family plugged in as data + classes",
+  "homepage": "https://github.com/example/platform-unified",
+  "license": "Apache-2.0",
+  "keywords": [
+    "dev-platform",
+    "multi-chip"
+  ],
+  "engines": {
+    "platformio": ">=6.1.16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/platform-unified.git"
+  },
+  "version": "0.0.1",
+  "frameworks": {},
+  "packages": {}
+}

@@ -118,3 +118,10 @@ class ChipFamily(ABC):
         """Optional env overrides at build entry (upload flags, builders).
         Default: no-op."""
         return None
+
+    @abstractmethod
+    def build_script(self, env, board) -> str:
+        """Path (relative to builder/) of the family build script this
+        board should be SConscript'ed into -- either adapted upstream
+        code (family-owned) or a package-shipped script path. The core
+        never decides this; the family does (ADR-0004 reuse ladder)."""
