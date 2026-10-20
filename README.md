@@ -6,15 +6,16 @@ families as pluggable data + classes, upstream reused by reference.
 **Status: docs-first scaffold.** No code yet — by design. The founding
 documents are the contract every later commit implements:
 
-- [AGENTS.md](AGENTS.md) — five binding principles, ownership, inline
-  validation loop
+- [AGENTS.md](AGENTS.md) — five binding principles, ownership, commit
+  rules, inline validation loop
 - [docs/architecture.md](docs/architecture.md) — the implementation
   handbook (amended design; all flows)
 - [docs/decisions/](docs/decisions/) — ADRs:
   [0001 ChipFamily registry](docs/decisions/0001-chipfamily-registry.md),
   [0002 single pin per package](docs/decisions/0002-single-pin-per-package.md),
   [0003 fixes mechanism](docs/decisions/0003-fixes-mechanism.md),
-  [0004 reuse ladder + validation tiers](docs/decisions/0004-reuse-ladder-and-validation-tiers.md)
+  [0004 reuse ladder + validation tiers](docs/decisions/0004-reuse-ladder-and-validation-tiers.md),
+  [0005 CI merge gate + demo matrix](docs/decisions/0005-ci-merge-gate.md)
 
 ## Implementation order
 

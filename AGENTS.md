@@ -45,8 +45,11 @@ formats) unless a decision record explicitly alters it.
 
 ## Validation loop (inline, machine-enforced where possible)
 
-Before every commit, run everything locally runnable; state anything not
-runnable with the reason in the commit message:
+A family PR merges only through green CI (ADR-0005): every demo of
+every board of the family builds; any platform.json change runs the
+full cross-family matrix. Before every commit, run everything locally
+runnable; state anything not runnable with the reason in the commit
+message:
 
 1. Offline gates (seconds):
    ```bash
@@ -62,6 +65,22 @@ runnable with the reason in the commit message:
    upstreams collide; interrupted downloads leave damaged packages that
    fail builds in confusing ways. Delete and re-download on suspicion.
 4. Hardware upload/debug is never claimed without device evidence.
+
+## Commit rules
+
+- Conventional commits: `<type>(<scope>): <subject>` — types: feat,
+  fix, refactor, docs, test, ci, chore, style, perf. Scope = family or
+  layer (esp, samd, zephyr, boards, ci, docs).
+- One commit = one reviewable unit. Isomorphic mechanical edits (e.g.
+  adding a key to 20 board manifests) land as ONE commit.
+- Subject: imperative, under ~65 characters, no trailing period. Body
+  explains **why** before **what**, limited to the net change; link the
+  governing ADR if one exists.
+- Validation in the commit message: what was actually run locally, and
+  what is left to CI. State anything not runnable with the reason.
+  Never claim hardware validation without device evidence.
+- No co-author trailers, no generated-by footers, no local absolute
+  paths. English only.
 
 ## Decision records
 
