@@ -1,0 +1,51 @@
+name: Build Arduino Examples
+
+on:
+  push:
+    branches: [main, develop]
+    paths: &arduino_paths
+      - '.github/workflows/build-arduino-examples.yml'
+      - 'platform.json'
+      - 'platform.py'
+      - 'boards/**'
+      - 'builder/**'
+      - 'families/**'
+      - 'examples/**'
+      - 'scripts/ci/**'
+  pull_request:
+    paths: *arduino_paths
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade pip platformio pytest
+
+      - name: Run offline gates
+        run: |
+          pytest tests/ -q
+          python scripts/ci/verify_boards.py
+          python scripts/ci/verify_core.py
+
+      - name: Build Arduino examples (all demos, all boards)
+        run: |
+          # CI rewrites the platform URL to the local checkout and
+          # builds every arduino demo env
+          python scripts/ci/build_arduino_examples.py --log-dir pio-logs --quiet
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pio-logs
+          path: pio-logs
+          if-no-files-found: ignore

@@ -125,3 +125,9 @@ class ChipFamily(ABC):
         board should be SConscript'ed into -- either adapted upstream
         code (family-owned) or a package-shipped script path. The core
         never decides this; the family does (ADR-0004 reuse ladder)."""
+
+    @abstractmethod
+    def arduino_script(self, env, board) -> str:
+        """Path (relative to the framework script's directory) of the
+        family's Arduino build script; delegated from the framework
+        entry (builder/frameworks/arduino.py)."""

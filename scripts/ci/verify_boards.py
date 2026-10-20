@@ -28,7 +28,7 @@ ROUTING_KEY = "build.chip_family"
 
 # Conscious snapshot of supported board ids; adding/removing a board is
 # a deliberate edit here (the failure message says so).
-SUPPORTED_BOARD_IDS = ()
+SUPPORTED_BOARD_IDS = ("seeed-xiao-samd",)
 
 
 def repo_root() -> Path:

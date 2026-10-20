@@ -31,6 +31,9 @@ class _Sample(ChipFamily):
     def build_script(self, env, board):
         return "frameworks/_bare.py"
 
+    def arduino_script(self, env, board):
+        return "../board_build/_bare/_bare.py"
+
 
 class TestRegistration:
     def test_subclass_registers_all_ids(self):
