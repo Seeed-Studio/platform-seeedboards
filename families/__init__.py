@@ -5,4 +5,5 @@ routing files never change (ADR-0001). This import is the only
 side-effecting one in the package.
 """
 
+from families.esp import EspFamily  # noqa: F401  (registration side effect)
 from families.samd import SamdFamily  # noqa: F401  (registration side effect)
