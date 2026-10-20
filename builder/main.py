@@ -13,35 +13,26 @@
 # limitations under the License.
 
 
+import sys
+
 from SCons.Script import DefaultEnvironment
 
 
 env = DefaultEnvironment()
+platform = env.PioPlatform()
 board = env.BoardConfig()
-if "esp32" in board.id:
-    print("board id is seeed-xiao-esp32,will call board_build/esp/esp_build.py")
-    env.SConscript("board_build/esp/esp_build.py", exports="env")
 
-if board.id == "seeed-xiao-ra4m1":
-    print("board id is seeed-xiao-ra4m1,will call board_build/renesas/renesas_build.py")
-    env.SConscript("board_build/renesas/renesas_build.py", exports="env")
+if platform.get_dir() not in sys.path:
+    # tail-append only: the repo root must never shadow stdlib `platform`
+    sys.path.append(platform.get_dir())
+from families import resolve_board_family
 
-if board.id == "seeed-xiao-rp2040" or board.id == "seeed-xiao-rp2350":
-    print("board id is seeed-xiao-rpi,will call board_build/rpi/rpi_build.py")
-    env.SConscript("board_build/rpi/rpi_build.py", exports="env")
-
-if "nrf" in board.id:
-    print("board id is nrf,will call board_build/nrf/nrf_build.py")
-    env.SConscript("board_build/nrf/nrf_build.py", exports="env")
-
-if "samd" in board.id:
-    print("board id is samd,will call board_build/samd/samd_build.py")
-    env.SConscript("board_build/samd/samd_build.py", exports="env")
-
-if "mg24" in board.id:
-    print("board id is mg24,will call board_build/siliconlab/siliconlab_build.py")
-    env.SConscript("board_build/siliconlab/siliconlab_build.py", exports="env")
-
-if "stm32" in board.id:
-    print("board id is stm32,will call board_build/stm32/stm32_build.py")
-    env.SConscript("board_build/stm32/stm32_build.py", exports="env")
+# Zero-string routing: the board manifest's build.chip_family selects the
+# family; the family owns which board-level build script runs (a local
+# board_build/<family>/ script or an upstream-platform one).
+family = resolve_board_family(board, board.id)
+script = family.build_script(platform, board)
+if script:
+    print("board %s: family '%s' -> %s"
+          % (board.id, family.family_ids[0], script))
+    env.SConscript(script, exports="env")

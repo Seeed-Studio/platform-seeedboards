@@ -42,19 +42,25 @@ platform_name = env.subst("$PIOPLATFORM")
 board_name = env.get("BOARD", "")
 platform = env.PioPlatform()
 framework_package_name = env.BoardConfig().get("build.zephyr.package", "")
+platform_dir = platform.get_dir()
 framework_version = None
 
-if board_name and "nrf" in board_name:
+# Family-driven PIOPLATFORM override (replaces board-name substring
+# checks): Zephyr's build expects the vendor platform name; ours is
+# restored after the framework script below runs.
+if platform_dir not in sys.path:
+    # tail-append only: the repo root must never shadow stdlib `platform`
+    sys.path.append(platform_dir)
+from families import resolve_board_family
+
+_family = resolve_board_family(env.BoardConfig(), board_name)
+_zephyr_platform_override = _family.zephyr_pioplatform()
+if _zephyr_platform_override:
     env.Replace(
-        PIOPLATFORM="nordicnrf52"
-    )
-if board_name and "stm32" in board_name:
-    env.Replace(
-        PIOPLATFORM="ststm32"
+        PIOPLATFORM=_zephyr_platform_override
     )
 # Clone hal_nordic package from west.yaml if not present
 framework_dir = platform.get_package_dir(framework_package_name)
-platform_dir = platform.get_dir()
 west_yml_path = join(framework_dir, "west.yml")
 hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 
@@ -998,12 +1004,8 @@ apply_all(platform_dir, framework_dir,
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
-    
-if board_name and "nrf" in board_name:
-    env.Replace(
-        PIOPLATFORM=platform_name
-    )
-if board_name and "stm32" in board_name:
+
+if _zephyr_platform_override:
     env.Replace(
         PIOPLATFORM=platform_name
     )
