@@ -1,0 +1,20 @@
+/*
+ * UART21 Demo - Device Tree Overlay for XIAO nRF54LM20A
+ * UART21: TX=P1.8, RX=P1.9
+ *
+ * Note: The pinctrl configuration is already defined in the board file.
+ * This overlay enables UART21 and sets it as disabled for the default console
+ * so it can be used as a general-purpose serial port.
+ */
+
+/* UART21 is already configured in the board dts, just make sure it's enabled */
+&uart20 {
+	current-speed = <1000000>;
+	status = "okay";
+};
+
+/* UART21 is already configured in the board dts, just make sure it's enabled */
+&uart21 {
+	current-speed = <1000000>;
+	status = "okay";
+};

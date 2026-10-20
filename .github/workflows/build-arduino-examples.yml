@@ -35,12 +35,13 @@ jobs:
           pytest tests/ -q
           python scripts/ci/verify_boards.py
           python scripts/ci/verify_core.py
+          python scripts/ci/verify_zephyr_routing.py
 
       - name: Build Arduino examples (all demos, all boards)
         run: |
           # CI rewrites the platform URL to the local checkout and
           # builds every arduino demo env
-          python scripts/ci/build_arduino_examples.py --log-dir pio-logs --quiet
+          python scripts/ci/build_examples.py --framework arduino
 
       - name: Upload logs
         if: always()
