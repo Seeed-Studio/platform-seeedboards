@@ -50,6 +50,29 @@ build matrices:
 Predecessor evidence above; this repo re-proves it on first family
 onboarding.
 
+## Stub expansion mechanics (proven on the ESP32 family)
+
+Three core behaviors make a stub replacement visible to PlatformIO;
+substituting any of them silently breaks `get_package_dir()`:
+
+1. **Install, never copy.** Replacing the package content must go
+   through `ToolPackageManager().install("file://<expanded>")`. That
+   call writes the `.piopm` marker (core's installed-package registry)
+   AND resets the process-wide package cache; `get_installed()` is
+   memcached, so a bare `copytree` of the expanded tree leaves the
+   package invisible even with correct content on disk.
+2. **Re-pin to the local path.** After expansion set
+   `platform.packages[name]["version"] = str(pkg_dir)`. Core's
+   `test_pkg_spec()` matches an external spec to a package by path
+   first, so the registry pin (the stub zip URL) no longer resolves —
+   and can no longer overwrite the expansion on a later build.
+3. **Re-validate every run.** An already-expanded package is checked
+   against the `package-version` pin; drift self-heals by
+   refetch + re-expand. Marker-less directories (interrupted
+   expansions) normalize from the cached expansion in the core tools
+   dir instead of relying on core's legacy-spec fallback.
+
 ## Related files
 
-- `platform.json`, `families/*.py`
+- `platform.json`, `families/*.py`, `families/esp.py` (reference
+  implementation of `post_activate_packages`)
