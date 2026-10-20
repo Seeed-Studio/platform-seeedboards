@@ -1,5 +1,6 @@
 {
     "build": {
+        "family": "stm32",
         "cpu": "cortex-m33",
         "f_cpu": "144000000L",
         "hwids": [

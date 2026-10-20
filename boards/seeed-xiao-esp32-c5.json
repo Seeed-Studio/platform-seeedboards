@@ -1,5 +1,6 @@
 {
   "build": {
+    "family": "esp",
     "partitions": "default_8MB.csv",
     "core": "esp32",
     "extra_flags": [

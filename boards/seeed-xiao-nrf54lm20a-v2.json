@@ -7,7 +7,6 @@
       "zephyr": {
         "variant": "xiao_nrf54lm20a@2.0.0/nrf54lm20a/cpuapp",
         "package": "framework-zephyr-nrf54lm20",
-        "board_name": "xiao_nrf54lm20a",
         "bootloader": {
           "header_len": "0x800",
           "flash_alignment": "16",

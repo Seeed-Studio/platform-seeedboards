@@ -1,5 +1,6 @@
 {
     "build": {
+        "family": "rpi",
         "arduino": {
             "earlephilhower": {
                 "boot2_source": "none.S",
