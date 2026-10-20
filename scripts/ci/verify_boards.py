@@ -34,7 +34,11 @@ SUPPORTED_BOARD_IDS = (
     "seeed-xiao-esp32-c6",
     "seeed-xiao-esp32-s3-plus",
     "seeed-xiao-esp32-s3-sense",
+    "seeed-xiao-nrf54l15",
+    "seeed-xiao-nrf54lm20a",
+    "seeed-xiao-nrf54lm20b",
     "seeed-xiao-samd",
+    "seeed-xiao-stm32c5",
 )
 
 
@@ -108,6 +112,14 @@ def verify_board_manifest(path: Path, known_family_ids: set) -> list:
             % (rel, ROUTING_KEY, family, ", ".join(sorted(known_family_ids)))
         )
     return errors
+
+
+def load_platform_packages(platform_json: Path) -> set:
+    """Package names declared in platform.json (None on any read error)."""
+    try:
+        return set(json.loads(platform_json.read_text(encoding="utf-8"))["packages"])
+    except (OSError, KeyError, json.JSONDecodeError):
+        return None
 
 
 def verify_boards_dir(boards_dir: Path, known_family_ids: set, expected_ids) -> list:

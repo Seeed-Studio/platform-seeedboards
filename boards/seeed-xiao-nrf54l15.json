@@ -1,0 +1,44 @@
+{
+  "build": {
+    "chip_family": "zephyr",
+    "cpu": "cortex-m33",
+    "f_cpu": "128000000L",
+    "mcu": "nrf54l15",
+    "zephyr": {
+      "package": "framework-zephyr-nrf54l15",
+      "board_name": "xiao_nrf54l15",
+      "variant": "xiao_nrf54l15/nrf54l15/cpuapp",
+      "masquerade": "nordicnrf52"
+    }
+  },
+  "connectivity": [
+    "bluetooth"
+  ],
+  "debug": {
+    "default_tools": [
+      "cmsis-dap"
+    ],
+    "jlink_device": "nRF54L15_M33",
+    "openocd_target": "$PROJECT_CORE_DIR/platforms/\"$PIOPLATFORM\"/builder/board_build/zephyr/nrf54l.cfg",
+    "svd_path": "nrf54l15.svd"
+  },
+  "frameworks": [
+    "zephyr"
+  ],
+  "name": "Seeed Studio XIAO nRF54L15",
+  "upload": {
+    "maximum_ram_size": 262144,
+    "maximum_size": 1572864,
+    "protocol": "cmsis-dap",
+    "pyocd_target": "nrf54l",
+    "pyocd_frequency": 4000000,
+    "protocols": [
+      "cmsis-dap",
+      "probe-rs",
+      "pyocd",
+      "jlink"
+    ]
+  },
+  "url": "https://wiki.seeedstudio.com/xiao_nrf54l15_sense_getting_started",
+  "vendor": "Seeed Studio"
+}

@@ -30,8 +30,23 @@ class SeeedPlatform(PlatformBase):
         if family is None:
             return super().configure_default_packages(variables, targets)
 
+        manifest = self.board_config(board_name).manifest
+
+        # Per-board framework packages: when one framework ships as several
+        # packages (e.g. the per-SoC Zephyr tarballs), the manifest pins the
+        # board's package under build.<framework>.package. Route it into the
+        # frameworks table so core resolves the board's package, never a
+        # platform-wide default.
+        for framework in variables.get("pioframework", []):
+            if framework not in (self.frameworks or {}):
+                continue
+            framework_options = (manifest.get("build") or {}).get(framework)
+            package_name = (framework_options or {}).get("package")
+            if package_name:
+                self.frameworks[framework]["package"] = package_name
+
         for name, version_override in family.required_packages(
-            self.board_config(board_name).manifest
+            manifest
         ).items():
             if name not in self.packages:
                 continue

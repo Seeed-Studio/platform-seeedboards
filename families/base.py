@@ -134,8 +134,22 @@ class ChipFamily(ABC):
         code (family-owned) or a package-shipped script path. The core
         never decides this; the family does (ADR-0004 reuse ladder)."""
 
-    @abstractmethod
     def arduino_script(self, env, board) -> str:
         """Path (relative to the framework script's directory) of the
         family's Arduino build script; delegated from the framework
-        entry (builder/frameworks/arduino.py)."""
+        entry (builder/frameworks/arduino.py). Families without Arduino
+        support keep the default, which fails loudly if routed to."""
+        raise NotImplementedError(
+            "%s does not support the arduino framework"
+            % type(self).__name__
+        )
+
+    def zephyr_script(self, env, board) -> str:
+        """Path (relative to the framework script's directory) of the
+        family's Zephyr build script; delegated from the framework entry
+        (builder/frameworks/zephyr.py). Families without Zephyr support
+        keep the default, which fails loudly if routed to."""
+        raise NotImplementedError(
+            "%s does not support the zephyr framework"
+            % type(self).__name__
+        )

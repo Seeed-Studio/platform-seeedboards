@@ -19,6 +19,9 @@
   "frameworks": {
     "arduino": {
       "script": "builder/frameworks/arduino.py"
+    },
+    "zephyr": {
+      "script": "builder/frameworks/zephyr.py"
     }
   },
   "packages": {
@@ -204,6 +207,34 @@
       "owner": "pioarduino",
       "package-version": "17.1.0+20260402",
       "version": "https://github.com/pioarduino/registry/releases/download/0.0.1/riscv32-esp-gdb-17.1_20260402.zip"
+    },
+    "framework-zephyr-nrf54l15": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40201.251021/framework-zephyr-3.40201.251021.tar.gz",
+      "optionalVersions": [
+        "~3.40201.251021"
+      ]
+    },
+    "framework-zephyr-nrf54lm20": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40402.0/framework-zephyr-3.40402.0.tar.gz",
+      "optionalVersions": [
+        "3.40402.0"
+      ]
+    },
+    "tool-dtc": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "~1.4.7"
+    },
+    "tool-gperf": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "^3.0.0"
     }
   }
 }
