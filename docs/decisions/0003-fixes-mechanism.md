@@ -47,7 +47,10 @@ comparison base was itself patched).
 
 Predecessor: full 4.4.0-custom → 4.4.2-vanilla upgrade cycle executed
 end to end (patches carried, overrides extracted, baselines re-cut,
-4/4 matrix green). This repo re-proves on first zephyr board.
+4/4 matrix green). Re-proven in this repo on the STM32C5 board:
+patches apply idempotently across rebuilds, overrides land against
+the vanilla 3.40402.0 tarball, and verify_zephyr_routing gates the
+two-way fix/baseline correspondence.
 
 ## Related files
 

@@ -28,10 +28,19 @@ framework = <arduino | espidf | zephyr>
 
 ## Status
 
-Early-stage. The design is settled
-([architecture](docs/architecture.md)) and implementation is starting
-([roadmap](docs/roadmap.md)); no boards are buildable yet. Until the
-first release, use the production predecessor:
+In development — three families are buildable and CI-gated:
+
+| Family | Boards | Framework |
+| --- | --- | --- |
+| SAMD | XIAO SAMD21 | Arduino |
+| ESP32 | XIAO ESP32-C3 / C5 / C6 / S3-Plus / S3-Sense | Arduino |
+| Zephyr | XIAO nRF54L15 / nRF54LM20A / nRF54LM20B / STM32C5 | Zephyr |
+
+Every demo of every board builds green in CI before a family merges
+([merge gate](docs/decisions/0005-ci-merge-gate.md)). Remaining
+families land one at a time per the
+[roadmap](docs/roadmap.md). Until the first release, use the
+production predecessor:
 [Seeed-Studio/platform-seeedboards](https://github.com/Seeed-Studio/platform-seeedboards).
 
 ## Documentation
