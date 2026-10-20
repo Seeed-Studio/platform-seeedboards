@@ -119,6 +119,14 @@ class ChipFamily(ABC):
         Default: no-op."""
         return None
 
+    def post_activate_packages(self, platform) -> bool:
+        """Called AFTER super().configure_default_packages() (packages
+        downloaded, stubs present) but before the second super() pass.
+        For family-specific package preparation -- the ESP stub-package
+        expansion lives here. Return True if any packages were modified
+        (triggers a re-resolve via a second super() call). Default: no-op."""
+        return False
+
     @abstractmethod
     def build_script(self, env, board) -> str:
         """Path (relative to builder/) of the family build script this

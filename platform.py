@@ -39,7 +39,15 @@ class SeeedPlatform(PlatformBase):
             if version_override:
                 self.packages[name]["version"] = version_override
 
-        return super().configure_default_packages(variables, targets)
+        # First pass: super() downloads the packages (including any
+        # tools.json stubs). Then the family's post-activate hook can
+        # expand stubs / replace packages; if it changed anything, a
+        # second super() re-resolves (the proven double-super pattern
+        # -- a stub must be downloaded before it can be expanded).
+        result = super().configure_default_packages(variables, targets)
+        if family.post_activate_packages(self):
+            result = super().configure_default_packages(variables, targets)
+        return result
 
     def get_board_family(self, board_name):
         """Resolve the ChipFamily for a board id, or None.
