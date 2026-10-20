@@ -15,50 +15,48 @@ class EspConfig(FamilyConfig):
     family = "esp"
 
     def configure_default_packages(self, variables, targets):
-        board_config = self.platform.board_config(variables.get("board"))
+        board_config = self.board_config(variables.get("board"))
         mcu = variables.get("board_build.mcu", board_config.get("build.mcu", "esp32"))
 
-        def _mark_required(package_name):
-            if package_name in self.platform.packages:
-                self.platform.packages[package_name]["optional"] = False
-
-        _mark_required("framework-arduinoespressif32")
-        _mark_required("framework-arduinoespressif32-libs")
-        _mark_required("esp32-arduino-libs")
-        _mark_required("tool-esptoolpy")
+        self.mark_required(
+            "framework-arduinoespressif32",
+            "framework-arduinoespressif32-libs",
+            "esp32-arduino-libs",
+            "tool-esptoolpy",
+        )
 
         # Make tool-xtensa-esp-elf-gdb and tool-riscv32-esp-elf-gdb required
         for gdb_package in ("tool-xtensa-esp-elf-gdb", "tool-riscv32-esp-elf-gdb"):
-            _mark_required(gdb_package)
+            self.mark_required(gdb_package)
             # if IS_WINDOWS:
             # Note: On Windows GDB v12 is not able to
             # launch a GDB server in pipe mode while v11 works fine
-            # self.packages[gdb_package]["version"] = "~11.2.0"
+            # self.platform.packages[gdb_package]["version"] = "~11.2.0"
 
         # Only "esp32", "esp32s2", "esp32s3" use the toolchain-xtensa-esp-elf
         # toolchain; other MCUs do not, so drop toolchain-xtensa-esp-elf entirely
         if mcu in ("esp32", "esp32s2", "esp32s3"):
-            _mark_required("toolchain-xtensa-esp-elf")
+            self.mark_required("toolchain-xtensa-esp-elf")
         else:
-            self.platform.packages.pop("toolchain-xtensa-esp-elf", None)
+            self.drop_package("toolchain-xtensa-esp-elf")
 
         if mcu in ("esp32s2", "esp32s3", "esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
             if mcu in ("esp32c2", "esp32c3", "esp32c5", "esp32c6", "esp32h2", "esp32p4"):
-                self.platform.packages.pop("toolchain-esp32ulp", None)
+                self.drop_package("toolchain-esp32ulp")
             # RISC-V based toolchain for ESP32C3, ESP32C6 ESP32S2, ESP32S3 ULP
-            _mark_required("toolchain-riscv32-esp")
+            self.mark_required("toolchain-riscv32-esp")
 
         # ROM ELF files: espidf.py references this package via ESP_ROM_ELF_DIR
         # during ESP-IDF builds; leaving it undeclared/uninstalled raises
         # KeyError (pioarduino upstream installs it for all ESP builds)
-        _mark_required("tool-esp-rom-elfs")
+        self.mark_required("tool-esp-rom-elfs")
 
         # esp32c2 / esp32c61 have no prebuilt Arduino libs; they need the
         # matching skeleton packages
         if mcu == "esp32c2":
-            _mark_required("framework-arduino-c2-skeleton-lib")
+            self.mark_required("framework-arduino-c2-skeleton-lib")
         if mcu == "esp32c61":
-            _mark_required("framework-arduino-c61-skeleton-lib")
+            self.mark_required("framework-arduino-c61-skeleton-lib")
 
     def add_default_debug_tools(self, board):
         # print("in _add_default_esp_debug_tools")

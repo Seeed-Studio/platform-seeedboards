@@ -88,20 +88,18 @@ class RpiConfig(FamilyConfig):
         frameworks = variables.get("pioframework", [])
         # Configure OpenOCD package if used
         openocd_pkg = "tool-openocd-rp2040-earlephilhower"
-        self.platform.packages[openocd_pkg]["optional"] = False
-        if openocd_pkg in self.platform.packages:
-            self.platform.packages[openocd_pkg]["version"] = earle_openocd[sys_type]
+        self.mark_required(openocd_pkg)
+        self.pin_version(openocd_pkg, earle_openocd[sys_type])
         picotool_pkg = "tool-picotool-rp2040-earlephilhower"
-        self.platform.packages[picotool_pkg]["optional"] = False
-        if picotool_pkg in self.platform.packages:
-            self.platform.packages[picotool_pkg]["version"] = earle_picotool[sys_type]
+        self.mark_required(picotool_pkg)
+        self.pin_version(picotool_pkg, earle_picotool[sys_type])
         print("build_core =:",build_core,)
         if "arduino" in frameworks:
             if build_core == "arduino":
                 self.platform.frameworks["arduino"]["package"] = "framework-arduino-mbed"
                 self.platform.packages["framework-arduinopico"]["optional"] = True
                 self.platform.packages["toolchain-rp2040-earlephilhower"]["optional"] = True
-                self.platform.packages.pop("toolchain-rp2040-earlephilhower", None)
+                self.drop_package("toolchain-rp2040-earlephilhower")
             elif build_core == "earlephilhower":
                 self.platform.frameworks["arduino"]["package"] = "framework-arduinopico"
                 self.platform.packages["framework-arduino-mbed"]["optional"] = True
@@ -109,15 +107,15 @@ class RpiConfig(FamilyConfig):
                 # so it is never installed for rpi builds): popping it from
                 # the shared dict breaks any later in-process configuration
                 # of nrf/samd/siliconlab/stm32/renesas boards that require it.
-                self.platform.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
+                self.mark_required("toolchain-rp2040-earlephilhower")
                 # Configure toolchain download link dynamically
                 # RP2350 (RISC-V)
                 print("chip =:",chip)
                 if chip == "rp2350-riscv":
-                    self.platform.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_riscv[sys_type]
+                    self.pin_version("toolchain-rp2040-earlephilhower", earle_toolchain_riscv[sys_type])
                 # RP2040, RP2350 (ARM)
                 else:
-                    self.platform.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_arm[sys_type]
+                    self.pin_version("toolchain-rp2040-earlephilhower", earle_toolchain_arm[sys_type])
             else:
                 sys.stderr.write(
                     "Error! Unknown build.core value '%s'. Don't know which Arduino core package to use." % build_core)
@@ -125,22 +123,9 @@ class RpiConfig(FamilyConfig):
 
         # if we want to build a filesystem, we need the tools.
         if "buildfs" in targets:
-            self.platform.packages["tool-mklittlefs-rp2040-earlephilhower"]["optional"] = False
+            self.mark_required("tool-mklittlefs-rp2040-earlephilhower")
 
-        # configure J-LINK tool
-        jlink_conds = [
-            "jlink" in variables.get(option, "")
-            for option in ("upload_protocol", "debug_tool")
-        ]
-        if variables.get("board"):
-            board_config = self.platform.board_config(variables.get("board"))
-            jlink_conds.extend([
-                "jlink" in board_config.get(key, "")
-                for key in ("debug.default_tools", "upload.protocol")
-            ])
-        jlink_pkgname = "tool-jlink"
-        if not any(jlink_conds) and jlink_pkgname in self.platform.packages:
-            del self.platform.packages[jlink_pkgname]
+        self.prune_jlink(variables)
 
     def add_default_debug_tools(self, board):
         debug = board.manifest.get("debug", {})

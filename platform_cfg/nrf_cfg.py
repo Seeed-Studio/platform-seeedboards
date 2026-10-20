@@ -16,15 +16,15 @@ class NrfConfig(FamilyConfig):
         if board:
             upload_protocol = variables.get(
                 "upload_protocol",
-                self.platform.board_config(board).get("upload.protocol", ""))
+                self.board_config(board).get("upload.protocol", ""))
 
-            self.platform.packages["toolchain-gccarmnoneeabi"]["optional"] = False
+            self.mark_required("toolchain-gccarmnoneeabi")
             # Arduino BSP selection for nRF52840 boards comes from the manifest's
             # build.bsp.name ("adafruit" or "mbed"), not the board id substring.
             # Only nRF52840-family Arduino boards declare a BSP; nRF54 boards are
             # zephyr-only and never reach here.
             if "arduino" in frameworks:
-                board_config = self.platform.board_config(board)
+                board_config = self.board_config(board)
                 if (board_config.get("build.mcu", "") or "").startswith("nrf52"):
                     bsp = board_config.get("build.bsp.name", "")
                     if bsp not in ("adafruit", "mbed"):
@@ -35,46 +35,28 @@ class NrfConfig(FamilyConfig):
                         sys.exit(1)
                     if bsp == "adafruit":
                         self.platform.frameworks["arduino"]["package"] = "framework-arduinoadafruitnrf52"
-                        self.platform.packages["framework-cmsis"]["optional"] = False
-                        self.platform.packages["tool-adafruit-nrfutil"]["optional"] = False
+                        self.mark_required("framework-cmsis", "tool-adafruit-nrfutil")
                     else:  # mbed
-                        self.platform.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
-                        self.platform.packages["tool-openocd"]["optional"] = False
-                        self.platform.packages["tool-bossac-nordicnrf52"]["optional"] = False
+                        self.pin_version("toolchain-gccarmnoneeabi", "~1.80201.0")
+                        self.mark_required("tool-openocd", "tool-bossac-nordicnrf52")
                         self.platform.frameworks["arduino"]["package"] = "framework-arduino-mbed"
                         # needed to build the ZIP file
-                        self.platform.packages["tool-adafruit-nrfutil"]["optional"] = False
+                        self.mark_required("tool-adafruit-nrfutil")
                         self.platform.frameworks["arduino"][
                             "script"] = "builder/board_build/nrf/arduino-core-mbed.py"
 
             if "zephyr" in frameworks:
-                for p in self.platform.packages:
-                    if p in ("tool-cmake", "tool-dtc", "tool-ninja"):
-                        self.platform.packages[p]["optional"] = False
-                self.platform.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
+                self.mark_required("tool-cmake", "tool-dtc", "tool-ninja")
+                self.pin_version("toolchain-gccarmnoneeabi", "~1.80201.0")
                 if not IS_WINDOWS:
-                    self.platform.packages["tool-gperf"]["optional"] = False
+                    self.mark_required("tool-gperf")
 
         if set(["bootloader", "erase"]) & set(targets):
-            self.platform.packages["tool-nrfjprog"]["optional"] = False
-        elif (upload_protocol and upload_protocol != "nrfjprog"
-                and "tool-nrfjprog" in self.platform.packages):
-            del self.platform.packages["tool-nrfjprog"]
+            self.mark_required("tool-nrfjprog")
+        elif (upload_protocol and upload_protocol != "nrfjprog"):
+            self.drop_package("tool-nrfjprog")
 
-        # configure J-LINK tool
-        jlink_conds = [
-            "jlink" in variables.get(option, "")
-            for option in ("upload_protocol", "debug_tool")
-        ]
-        if board:
-            board_config = self.platform.board_config(board)
-            jlink_conds.extend([
-                "jlink" in board_config.get(key, "")
-                for key in ("debug.default_tools", "upload.protocol")
-            ])
-        jlink_pkgname = "tool-jlink"
-        if not any(jlink_conds) and jlink_pkgname in self.platform.packages:
-            del self.platform.packages[jlink_pkgname]
+        self.prune_jlink(variables)
 
     def add_default_debug_tools(self, board):
         debug = board.manifest.get("debug", {})

@@ -34,13 +34,14 @@ class SamdConfig(FamilyConfig):
                     disabled_pkgs.append(name)
 
 
-        self.platform.packages["framework-arduino-samd-seeed"]["optional"] = False
-        self.platform.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-        self.platform.packages["tool-bossac"]["optional"] = False
-        self.platform.packages["framework-cmsis-atmel"]["optional"] = False
-
-        self.platform.packages["framework-cmsis"]["optional"] = False
-        self.platform.packages["framework-cmsis"]["version"] = "~2.50400.0"
+        self.mark_required(
+            "framework-arduino-samd-seeed",
+            "toolchain-gccarmnoneeabi",
+            "tool-bossac",
+            "framework-cmsis-atmel",
+            "framework-cmsis",
+        )
+        self.pin_version("framework-cmsis", "~2.50400.0")
 
         print("optional is:",self.platform.packages["framework-cmsis"]["optional"])
         print("optional is:",self.platform.packages["framework-cmsis"]["version"])

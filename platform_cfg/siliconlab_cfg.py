@@ -37,19 +37,16 @@ class SiliconlabConfig(FamilyConfig):
     family = "siliconlab"
 
     def configure_default_packages(self, variables, targets):
-        self.platform.packages["toolchain-gccarmnoneeabi"]["version"] = '1.120301.0'
-        self.platform.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-
-        self.platform.packages["framework-arduino-silabs"]["optional"] = False
-        self.platform.packages["tool-openocd"]["optional"] = False
+        self.pin_version("toolchain-gccarmnoneeabi", '1.120301.0')
+        self.mark_required("toolchain-gccarmnoneeabi", "framework-arduino-silabs", "tool-openocd")
 
         sys_type = util.get_systype()
         if "darwin" in sys_type:
-            self.platform.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz"
+            self.pin_version("tool-openocd", "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz")
         elif "linux" in sys_type:
-            self.platform.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz"
+            self.pin_version("tool-openocd", "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz")
         else:
-            self.platform.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip"
+            self.pin_version("tool-openocd", "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip")
 
         # Family configs must not delete other families' packages from the
         # shared self.platform.packages dict: the removed tools are optional

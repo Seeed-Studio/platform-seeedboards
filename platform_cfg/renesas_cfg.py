@@ -28,8 +28,7 @@ class RenesasConfig(FamilyConfig):
             else:
                 self.platform.packages[package_name]["optional"] = False
 
-        self.platform.packages["toolchain-gccarmnoneeabi"]["optional"] = False
-        self.platform.packages["framework-arduinorenesas-uno"]["optional"] = False
+        self.mark_required("toolchain-gccarmnoneeabi", "framework-arduinorenesas-uno")
 
         for package, interface in (
             ("tool-dfuutil-arduino", "dfu"),

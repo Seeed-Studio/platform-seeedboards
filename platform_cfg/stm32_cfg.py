@@ -13,27 +13,15 @@ class Stm32Config(FamilyConfig):
         frameworks = variables.get("pioframework", [])
 
         if board:
-            self.platform.packages["toolchain-gccarmnoneeabi"]["optional"] = False
+            self.mark_required("toolchain-gccarmnoneeabi")
 
             if "zephyr" in frameworks:
-                for package_name in ("tool-cmake", "tool-dtc", "tool-ninja"):
-                    self.platform.packages[package_name]["optional"] = False
-                self.platform.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
+                self.mark_required("tool-cmake", "tool-dtc", "tool-ninja")
+                self.pin_version("toolchain-gccarmnoneeabi", "~1.80201.0")
                 if not IS_WINDOWS:
-                    self.platform.packages["tool-gperf"]["optional"] = False
+                    self.mark_required("tool-gperf")
 
-        jlink_requested = any(
-            "jlink" in variables.get(option, "")
-            for option in ("upload_protocol", "debug_tool")
-        )
-        if board:
-            board_config = self.platform.board_config(board)
-            jlink_requested = jlink_requested or any(
-                "jlink" in board_config.get(key, "")
-                for key in ("debug.default_tools", "upload.protocol")
-            )
-        if not jlink_requested and "tool-jlink" in self.platform.packages:
-            del self.platform.packages["tool-jlink"]
+        self.prune_jlink(variables)
 
     def add_default_debug_tools(self, board):
         debug = board.manifest.setdefault("debug", {})

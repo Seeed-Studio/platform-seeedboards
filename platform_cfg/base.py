@@ -31,3 +31,36 @@ class FamilyConfig:
     def configure_debug_session(self, debug_config):
         """Adjust the debug session (GDB server/client options)."""
         raise NotImplementedError
+
+    # ---- shared helpers ----
+
+    def mark_required(self, *package_names):
+        """Flip optional=False for packages present on the platform menu."""
+        for name in package_names:
+            if name in self.platform.packages:
+                self.platform.packages[name]["optional"] = False
+
+    def pin_version(self, package, version):
+        self.platform.packages[package]["version"] = version
+
+    def drop_package(self, package):
+        self.platform.packages.pop(package, None)
+
+    def board_config(self, board):
+        return self.platform.board_config(board)
+
+    def prune_jlink(self, variables):
+        """Drop tool-jlink unless the build or board manifest asks for it."""
+        requested = any(
+            "jlink" in variables.get(option, "")
+            for option in ("upload_protocol", "debug_tool")
+        )
+        board = variables.get("board")
+        if not requested and board:
+            board_config = self.board_config(board)
+            requested = any(
+                "jlink" in board_config.get(key, "")
+                for key in ("debug.default_tools", "upload.protocol")
+            )
+        if not requested:
+            self.drop_package("tool-jlink")
