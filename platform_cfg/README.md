@@ -1,33 +1,48 @@
 # platform_cfg/
 
-Per-architecture package and debug-tool configuration.
+Per-family package and debug-tool configuration, one `FamilyConfig`
+subclass per architecture family.
 
-`platform.py` resolves a board's architecture family from its board id,
-then dynamically imports the matching `<arch>_cfg.py` from this directory
-and calls the three hook functions below **by naming convention**
-(`import_module` + `getattr`). Each hook receives the `SeeedstudioPlatform`
-instance as `self`, so every file here behaves like an extension of the
-platform class.
+`platform.py` resolves a board's family from the `build.family` key in its
+board manifest (`SeeedstudioPlatform.get_board_family()`), then looks the
+family up in the `FAMILY_CONFIGS` registry (`platform_cfg/__init__.py`)
+and calls the three hook methods on a fresh config instance. The instance
+carries the platform (`self.platform`), so subclasses read packages and
+board configs through `self.platform.packages` / `self.board_config(...)`
+or the shared base helpers.
 
-## Architecture detection (in `platform.py`)
+## Families
 
-| Architecture   | Selected when                                    |
-| -------------- | ------------------------------------------------ |
-| `esp`          | `"esp32"` appears in the board id                |
-| `nrf`          | `"nrf"` appears in the board id                  |
-| `samd`         | `"samd"` appears in the board id                 |
-| `siliconlab`   | `"mg24"` appears in the board id                 |
-| `stm32`        | `"stm32"` appears in the board id                |
-| `renesas`      | board id is `seeed-xiao-ra4m1`                   |
-| `rpi`          | board id is `seeed-xiao-rp2040` / `rp2350`       |
+| Family         | Class            | Board manifest `build.family` |
+| -------------- | ---------------- | ----------------------------- |
+| `esp`          | `EspConfig`      | all ESP32 boards              |
+| `nrf`          | `NrfConfig`      | nRF52 / nRF54 boards          |
+| `rpi`          | `RpiConfig`      | RP2040 / RP2350 boards        |
+| `renesas`      | `RenesasConfig`  | RA4M1                         |
+| `samd`         | `SamdConfig`     | SAMD21                        |
+| `siliconlab`   | `SiliconlabConfig` | MG24                        |
+| `stm32`        | `Stm32Config`    | STM32                         |
 
-## The three hooks (every `<arch>_cfg.py` defines all of them)
+## The three hooks (every subclass defines all of them)
 
 | Hook | Called from | Purpose |
 | ---- | ----------- | ------- |
-| `configure_<arch>_default_packages(self, variables, targets)` | `SeeedstudioPlatform.configure_default_packages` | The tool-selection layer: flips `optional` / `version` flags and deletes entries in `self.packages` so only the tools this build actually needs are installed. Inputs: the board manifest (`build.mcu`, `build.bsp.name`, ...), the selected frameworks (`variables["pioframework"]`), the upload protocol, and the active targets (e.g. `bootloader` / `erase` pull in `tool-nrfjprog`). |
-| `_add_<arch>_default_debug_tools(self, board)` | `SeeedstudioPlatform._add_dynamic_options` | Registers the board's default debug tools (probe protocols, server options). |
-| `configure_<arch>_debug_session(self, debug_config)` | `SeeedstudioPlatform.configure_debug_session` | Adjusts the debug session configuration (GDB server / client options). |
+| `configure_default_packages(variables, targets)` | `SeeedstudioPlatform.configure_default_packages` | The tool-selection layer: flips `optional` / `version` flags and deletes entries in `self.platform.packages` so only the tools this build actually needs are installed. Inputs: the board manifest (`build.mcu`, `build.bsp.name`, ...), the selected frameworks (`variables["pioframework"]`), the upload protocol, and the active targets (e.g. `bootloader` / `erase` pull in `tool-nrfjprog`). |
+| `add_default_debug_tools(board)` | `SeeedstudioPlatform._add_dynamic_options` | Registers the board's default debug tools (probe protocols, server options). |
+| `configure_debug_session(debug_config)` | `SeeedstudioPlatform.configure_debug_session` | Adjusts the debug session configuration (GDB server / client options). |
+
+The base class (`base.py`) raises `NotImplementedError` for any hook a
+subclass forgets to override; an unknown `build.family` value raises
+`ValueError` listing the valid families at dispatch time.
+
+## Shared helpers (`base.FamilyConfig`)
+
+- `mark_required(*names)` — flip `optional = False` for packages present
+  on the platform menu
+- `pin_version(package, version)` / `drop_package(package)`
+- `board_config(board)` — delegate to the platform
+- `prune_jlink(variables)` — drop `tool-jlink` unless the build variables
+  or the board manifest ask for it (shared by stm32 / nrf / rpi)
 
 ## Division of responsibility
 
@@ -35,21 +50,21 @@ Keep this layer thin and put data where it belongs:
 
 - **Board-intrinsic, static facts** belong in the board manifest
   (`boards/*.json`): `build.mcu`, `build.bsp.name`, `build.zephyr.package`,
-  `upload.cdc.*`, ... — anything a board can declare once and forever.
+  `build.family`, `upload.cdc.*`, ... — anything a board can declare once
+  and forever.
 - **Session-dependent rules** belong here: the chosen framework, the
   active targets, `upload_protocol`, user variables. A static manifest
   cannot express "only when ...".
 - **The package menu and default flags** live in `platform.json`
-  (`packages` section). These files only pick from that menu; they do
+  (`packages` section). These classes only pick from that menu; they do
   not declare packages.
 
 ## Conventions
 
-- Names are load-bearing: `platform.py` resolves both the module and the
-  functions by string. Renaming a file or hook here breaks dispatch at
-  runtime.
-- A new architecture family needs (1) a detection rule in `platform.py`
-  at both dispatch sites, and (2) a new `<arch>_cfg.py` with all three
-  hooks.
-- A missing hook currently fails softly (dispatch prints an error and
-  continues). Do not rely on that — define all three.
+- `self.platform.packages` is shared across families in one process:
+  only touch what your family needs and never delete another family's
+  packages (`tests/test_cross_family_isolation.py`).
+- A new architecture family needs (1) `build.family` in the new board
+  manifests, and (2) a new `<family>_cfg.py` subclass plus one
+  `FAMILY_CONFIGS` entry in `platform_cfg/__init__.py` — a missing
+  registry entry fails loudly with the list of valid families.
