@@ -1,4 +1,4 @@
-# platform-unified — agent and contributor rules
+# platform-seeed — agent and contributor rules
 
 This repository implements the multi-chip unified PlatformIO platform:
 one `platform =` address, families plugged in as data + classes, upstream

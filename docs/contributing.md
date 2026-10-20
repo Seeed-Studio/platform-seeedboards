@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving platform-unified. The repository has strict
+Thanks for improving platform-seeed. The repository has strict
 layering; most changes land in exactly one layer.
 
 ## Before you start

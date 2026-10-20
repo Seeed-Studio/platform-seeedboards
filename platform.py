@@ -1,4 +1,4 @@
-# platform-unified platform entry.
+# platform-seeed platform entry.
 #
 # Zero-string core (ADR-0001): the family is resolved exclusively via
 # the ChipFamily registry keyed by the manifest's build.chip_family.
@@ -20,7 +20,7 @@ import families  # noqa: E402  (side-effecting: triggers registration)
 from families.base import ChipFamily  # noqa: E402
 
 
-class UnifiedPlatform(PlatformBase):
+class SeeedPlatform(PlatformBase):
     def configure_default_packages(self, variables, targets):
         if not variables.get("board"):
             return super().configure_default_packages(variables, targets)

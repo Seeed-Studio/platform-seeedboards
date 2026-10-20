@@ -1,4 +1,4 @@
-# platform-unified
+# platform-seeed
 
 A multi-chip PlatformIO platform: one `platform =` address, every chip
 family plugged in as data + classes, upstream platforms reused by
@@ -8,7 +8,7 @@ Switch boards, not platforms:
 
 ```ini
 [env:xiao]
-platform = https://github.com/<org>/platform-unified.git
+platform = https://github.com/<org>/platform-seeed.git
 board = <board-id>
 framework = <arduino | espidf | zephyr>
 ```
