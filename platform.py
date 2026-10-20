@@ -38,7 +38,11 @@ IS_WINDOWS = sys.platform.startswith("win")
 if IS_WINDOWS:
     os.environ["PLATFORMIO_SYSTEM_TYPE"] = "windows_amd64"
 
+# Make this platform's own packages (platform_cfg/, builder/) importable both
+# for the import below and for any runtime import_module() call.
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from platform_cfg import get_family_config  # noqa: E402
 
 # Per-board Zephyr framework package name and Zephyr board.name live in each
 # board's manifest (build.zephyr.package / build.zephyr.variant). Builders read
@@ -62,9 +66,9 @@ class SeeedstudioPlatform(PlatformBase):
         family = self.get_board_family(board_name)
 
         if family:
-            board_module = import_module(f"platform_cfg.{family}_cfg")
-            configure_board = getattr(board_module, f"configure_{family}_default_packages")
-            configure_board(self, variables, targets)
+            get_family_config(family, self).configure_default_packages(
+                variables, targets
+            )
 
         if family == "esp":
             self._prefer_local_esp_tools()
@@ -331,9 +335,7 @@ class SeeedstudioPlatform(PlatformBase):
         if not family:
             return board
 
-        board_module = import_module(f"platform_cfg.{family}_cfg")
-        configure_tool = getattr(board_module, f"_add_{family}_default_debug_tools")
-        return configure_tool(self, board)
+        return get_family_config(family, self).add_default_debug_tools(board)
 
 
     def configure_debug_session(self, debug_config):
@@ -345,8 +347,4 @@ class SeeedstudioPlatform(PlatformBase):
         if not family:
             return
 
-        board_module = import_module(f"platform_cfg.{family}_cfg")
-        configure_debug_session = getattr(
-            board_module, f"configure_{family}_debug_session"
-        )
-        configure_debug_session(self, debug_config)
+        get_family_config(family, self).configure_debug_session(debug_config)

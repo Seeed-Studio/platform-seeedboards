@@ -15,7 +15,10 @@
 import json
 import os
 import sys
+
 from platformio import util
+
+from platform_cfg.base import FamilyConfig
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -30,69 +33,69 @@ openocd_path = {
 }
 
 
+class SiliconlabConfig(FamilyConfig):
+    family = "siliconlab"
 
-def configure_siliconlab_default_packages(self, variables, targets):
-    self.packages["toolchain-gccarmnoneeabi"]["version"] = '1.120301.0'
-    self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
+    def configure_default_packages(self, variables, targets):
+        self.platform.packages["toolchain-gccarmnoneeabi"]["version"] = '1.120301.0'
+        self.platform.packages["toolchain-gccarmnoneeabi"]["optional"] = False
 
-    self.packages["framework-arduino-silabs"]["optional"] = False
-    self.packages["tool-openocd"]["optional"] = False
+        self.platform.packages["framework-arduino-silabs"]["optional"] = False
+        self.platform.packages["tool-openocd"]["optional"] = False
 
-    sys_type = util.get_systype()
-    if "darwin" in sys_type:
-        self.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz"
-    elif "linux" in sys_type:
-        self.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz"
-    else:
-        self.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip"
+        sys_type = util.get_systype()
+        if "darwin" in sys_type:
+            self.platform.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-apple.tar.gz"
+        elif "linux" in sys_type:
+            self.platform.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz"
+        else:
+            self.platform.packages["tool-openocd"]["version"] = "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-win.zip"
 
-    # Family configs must not delete other families' packages from the
-    # shared self.packages dict: the removed tools are optional here (never
-    # installed for mg24 builds), while other family configs access them
-    # unconditionally -- in one process, configuring an mg24 board used to
-    # leave rpi/nrf/esp configuration crashing with KeyError.
+        # Family configs must not delete other families' packages from the
+        # shared self.platform.packages dict: the removed tools are optional
+        # here (never installed for mg24 builds), while other family configs
+        # access them unconditionally -- in one process, configuring an mg24
+        # board used to leave rpi/nrf/esp configuration crashing with KeyError.
 
+    def add_default_debug_tools(self, board):
 
-
-def _add_siliconlab_default_debug_tools(self, board):
-
-    debug = board.manifest.get("debug", {})
-    upload_protocols = board.manifest.get("upload", {}).get(
-        "protocols", [])
-    if "tools" not in debug:
-        debug["tools"] = {}
-
-
-    openocd_target = debug.get("openocd_target")
-    assert openocd_target, ("Missing target configuration for %s" %
-                            board.id)
-    debug["tools"]["cmsis-dap"] = {
-        "server": {
-            "executable": "bin/openocd",
-            "package": "tool-openocd",
-            "arguments": [
-                "-s", "$PACKAGE_DIR/share/openocd/scripts",
-                "-f", "interface/cmsis-dap.cfg",
-                "-f", "target/%s" % openocd_target,
-                "-c", "adapter speed 1000",
-            ]
-        },
-        "load_cmds": "preload",
-        "init_cmds": [
-            "target extended-remote $DEBUG_PORT",
-            "$LOAD_CMDS",
-            "pio_reset_halt_target",
-            "$INIT_BREAK",
-        ],
-    }
+        debug = board.manifest.get("debug", {})
+        upload_protocols = board.manifest.get("upload", {}).get(
+            "protocols", [])
+        if "tools" not in debug:
+            debug["tools"] = {}
 
 
-    board.manifest["debug"] = debug
-    return board
+        openocd_target = debug.get("openocd_target")
+        assert openocd_target, ("Missing target configuration for %s" %
+                                board.id)
+        debug["tools"]["cmsis-dap"] = {
+            "server": {
+                "executable": "bin/openocd",
+                "package": "tool-openocd",
+                "arguments": [
+                    "-s", "$PACKAGE_DIR/share/openocd/scripts",
+                    "-f", "interface/cmsis-dap.cfg",
+                    "-f", "target/%s" % openocd_target,
+                    "-c", "adapter speed 1000",
+                ]
+            },
+            "load_cmds": "preload",
+            "init_cmds": [
+                "target extended-remote $DEBUG_PORT",
+                "$LOAD_CMDS",
+                "pio_reset_halt_target",
+                "$INIT_BREAK",
+            ],
+        }
 
-def configure_siliconlab_debug_session(self, debug_config):
-    if debug_config.speed:
-        if "jlink" in (debug_config.server or {}).get("executable", "").lower():
-            debug_config.server["arguments"].extend(
-                ["-speed", debug_config.speed]
-            )
+
+        board.manifest["debug"] = debug
+        return board
+
+    def configure_debug_session(self, debug_config):
+        if debug_config.speed:
+            if "jlink" in (debug_config.server or {}).get("executable", "").lower():
+                debug_config.server["arguments"].extend(
+                    ["-speed", debug_config.speed]
+                )

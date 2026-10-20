@@ -2,6 +2,8 @@ import sys
 import platform
 from platformio import util
 
+from platform_cfg.base import FamilyConfig
+
 
 earle_toolchain_arm = {
     # Windows
@@ -68,12 +70,15 @@ earle_picotool = {
 }
 
 
-def configure_rpi_default_packages(self, variables, targets):
+class RpiConfig(FamilyConfig):
+    family = "rpi"
+
+    def configure_default_packages(self, variables, targets):
         #print("System type: %s" % (util.get_systype()))
         # configure arduino core package.
         # select the right one based on the build.core, disable other one.
         board = variables.get("board")
-        board_config = self.board_config(board)
+        board_config = self.platform.board_config(board)
         chip = variables.get("board_build.mcu", board_config.get("build.mcu"))
         build_core = variables.get(
             "board_build.core", board_config.get("build.core", "arduino"))
@@ -83,36 +88,36 @@ def configure_rpi_default_packages(self, variables, targets):
         frameworks = variables.get("pioframework", [])
         # Configure OpenOCD package if used
         openocd_pkg = "tool-openocd-rp2040-earlephilhower"
-        self.packages[openocd_pkg]["optional"] = False
-        if openocd_pkg in self.packages:
-            self.packages[openocd_pkg]["version"] = earle_openocd[sys_type]
+        self.platform.packages[openocd_pkg]["optional"] = False
+        if openocd_pkg in self.platform.packages:
+            self.platform.packages[openocd_pkg]["version"] = earle_openocd[sys_type]
         picotool_pkg = "tool-picotool-rp2040-earlephilhower"
-        self.packages[picotool_pkg]["optional"] = False
-        if picotool_pkg in self.packages:
-            self.packages[picotool_pkg]["version"] = earle_picotool[sys_type]
+        self.platform.packages[picotool_pkg]["optional"] = False
+        if picotool_pkg in self.platform.packages:
+            self.platform.packages[picotool_pkg]["version"] = earle_picotool[sys_type]
         print("build_core =:",build_core,)
         if "arduino" in frameworks:
             if build_core == "arduino":
-                self.frameworks["arduino"]["package"] = "framework-arduino-mbed"
-                self.packages["framework-arduinopico"]["optional"] = True
-                self.packages["toolchain-rp2040-earlephilhower"]["optional"] = True
-                self.packages.pop("toolchain-rp2040-earlephilhower", None)
+                self.platform.frameworks["arduino"]["package"] = "framework-arduino-mbed"
+                self.platform.packages["framework-arduinopico"]["optional"] = True
+                self.platform.packages["toolchain-rp2040-earlephilhower"]["optional"] = True
+                self.platform.packages.pop("toolchain-rp2040-earlephilhower", None)
             elif build_core == "earlephilhower":
-                self.frameworks["arduino"]["package"] = "framework-arduinopico"
-                self.packages["framework-arduino-mbed"]["optional"] = True
+                self.platform.frameworks["arduino"]["package"] = "framework-arduinopico"
+                self.platform.packages["framework-arduino-mbed"]["optional"] = True
                 # Leave toolchain-gccarmnoneeabi in place (it stays optional,
                 # so it is never installed for rpi builds): popping it from
                 # the shared dict breaks any later in-process configuration
                 # of nrf/samd/siliconlab/stm32/renesas boards that require it.
-                self.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
+                self.platform.packages["toolchain-rp2040-earlephilhower"]["optional"] = False
                 # Configure toolchain download link dynamically
                 # RP2350 (RISC-V)
                 print("chip =:",chip)
                 if chip == "rp2350-riscv":
-                    self.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_riscv[sys_type]
+                    self.platform.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_riscv[sys_type]
                 # RP2040, RP2350 (ARM)
                 else:
-                    self.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_arm[sys_type]
+                    self.platform.packages["toolchain-rp2040-earlephilhower"]["version"] = earle_toolchain_arm[sys_type]
             else:
                 sys.stderr.write(
                     "Error! Unknown build.core value '%s'. Don't know which Arduino core package to use." % build_core)
@@ -120,7 +125,7 @@ def configure_rpi_default_packages(self, variables, targets):
 
         # if we want to build a filesystem, we need the tools.
         if "buildfs" in targets:
-            self.packages["tool-mklittlefs-rp2040-earlephilhower"]["optional"] = False
+            self.platform.packages["tool-mklittlefs-rp2040-earlephilhower"]["optional"] = False
 
         # configure J-LINK tool
         jlink_conds = [
@@ -128,17 +133,16 @@ def configure_rpi_default_packages(self, variables, targets):
             for option in ("upload_protocol", "debug_tool")
         ]
         if variables.get("board"):
-            board_config = self.board_config(variables.get("board"))
+            board_config = self.platform.board_config(variables.get("board"))
             jlink_conds.extend([
                 "jlink" in board_config.get(key, "")
                 for key in ("debug.default_tools", "upload.protocol")
             ])
         jlink_pkgname = "tool-jlink"
-        if not any(jlink_conds) and jlink_pkgname in self.packages:
-            del self.packages[jlink_pkgname]
+        if not any(jlink_conds) and jlink_pkgname in self.platform.packages:
+            del self.platform.packages[jlink_pkgname]
 
-
-def _add_rpi_default_debug_tools(self, board):
+    def add_default_debug_tools(self, board):
         debug = board.manifest.get("debug", {})
         upload_protocols = board.manifest.get("upload", {}).get(
             "protocols", [])
@@ -202,8 +206,7 @@ def _add_rpi_default_debug_tools(self, board):
         board.manifest["debug"] = debug
         return board
 
-
-def configure_rpi_debug_session(self, debug_config):
+    def configure_debug_session(self, debug_config):
         is_riscv = False
         if "board_build.mcu" in debug_config.env_options:
             is_riscv = debug_config.env_options["board_build.mcu"] == "rp2350-riscv"
