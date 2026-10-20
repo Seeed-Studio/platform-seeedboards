@@ -1,0 +1,247 @@
+# Copyright 2026-present Seeed Studio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Espressif ESP32 chip family.
+
+Platform-side package/debug behavior delegates to platform_cfg.esp_cfg.
+The ESP32 tool-expansion logic (pioarduino tool-esp_install / idf_tools.py
+based expansion and local-package preference) moved here from platform.py
+and is owned by this family.
+
+Note: keep this module importable without PlatformIO installed — the
+registry (and scripts/ci/verify_board_manifests.py) imports it at module
+load; platformio and platform_cfg imports stay inside functions.
+"""
+
+import subprocess
+from importlib import import_module
+from os.path import join
+from pathlib import Path
+
+from .base import ChipFamily
+
+
+def _iter_required_esp_tools(platform):
+    return [
+        name
+        for name, options in platform.packages.items()
+        if name != "tool-esp_install"
+        and name.startswith(("tool-", "toolchain-"))
+        and not options.get("optional", True)
+    ]
+
+
+def _pio():
+    from platformio.package.manager.tool import ToolPackageManager
+    from platformio.proc import get_pythonexe_path
+    from platformio.project.config import ProjectConfig
+    return ToolPackageManager, get_pythonexe_path, ProjectConfig
+
+
+def _get_packages_dir():
+    _, _, ProjectConfig = _pio()
+    config = ProjectConfig.get_instance()
+    return config.get("platformio", "packages_dir")
+
+
+def _get_core_dir():
+    _, _, ProjectConfig = _pio()
+    config = ProjectConfig.get_instance()
+    return config.get("platformio", "core_dir")
+
+
+def _ensure_esp_installer(platform, packages_dir):
+    installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
+    if installer.exists():
+        return
+
+    package_data = platform.packages.get("tool-esp_install", {})
+    version = package_data.get("version")
+    if not version:
+        return
+
+    ToolPackageManager, _, _ = _pio()
+    try:
+        ToolPackageManager().install(version)
+    except Exception as e:
+        print("Warning: failed to install tool-esp_install: %s" % e)
+
+
+def _expand_and_link_esp_tool(platform, tool_name, packages_dir, core_dir):
+    ToolPackageManager, get_pythonexe_path, _ = _pio()
+    pkg_dir = packages_dir / tool_name
+    tools_json = pkg_dir / "tools.json"
+    if not tools_json.exists():
+        return False
+
+    installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
+    core_tool_dir = core_dir / "tools" / tool_name
+
+    if not (core_tool_dir / "package.json").exists():
+        if not installer.exists():
+            print("Warning: idf_tools.py not found, cannot expand %s" % tool_name)
+            return False
+
+        cmd = [
+            get_pythonexe_path(),
+            str(installer),
+            "--quiet",
+            "--non-interactive",
+            "--tools-json",
+            str(tools_json),
+            "install",
+        ]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            tail = (result.stderr or result.stdout or "").strip()[-1000:]
+            print("Warning: failed to expand %s via idf_tools.py: %s" % (tool_name, tail))
+            return False
+
+    if not (core_tool_dir / "package.json").exists():
+        return False
+
+    changed = False
+    try:
+        pkg_meta = pkg_dir / "package.json"
+        if not pkg_meta.exists():
+            ToolPackageManager().install("file://%s" % core_tool_dir)
+            changed = True
+
+        if tool_name in platform.packages:
+            linked_version = str(packages_dir / tool_name)
+            if platform.packages[tool_name].get("version") != linked_version:
+                changed = True
+            platform.packages[tool_name]["version"] = linked_version
+            platform.packages[tool_name]["optional"] = False
+    except Exception as e:
+        print("Warning: failed to link expanded tool %s: %s" % (tool_name, e))
+        return False
+
+    return changed
+
+
+class Esp32Family(ChipFamily):
+    family_ids = ("esp32",)
+    upstream_platform = "espressif32"
+    # configure_esp_default_packages drops these for RISC-V-only MCUs.
+    owned_packages = ("toolchain-xtensa-esp-elf", "toolchain-esp32ulp")
+
+    def __init__(self):
+        self._tools_prepared = False
+        self._python_deps_prepared = False
+
+    # -- platform side --------------------------------------------------
+
+    def configure_default_packages(self, platform, variables, targets):
+        from platform_cfg import esp_cfg
+        esp_cfg.configure_esp_default_packages(platform, variables, targets)
+        self._prefer_local_esp_tools(platform)
+        self._ensure_esptoolpy_runtime_dependencies()
+
+    def post_configure_packages(self, platform, variables, targets):
+        return self._prepare_esp_tools(platform)
+
+    def add_default_debug_tools(self, platform, board):
+        from platform_cfg import esp_cfg
+        return esp_cfg._add_esp_default_debug_tools(platform, board)
+
+    def configure_debug_session(self, platform, debug_config):
+        from platform_cfg import esp_cfg
+        esp_cfg.configure_esp_debug_session(debug_config)
+
+    # -- ESP tool expansion (moved from platform.py) --------------------
+
+    @staticmethod
+    def _prefer_local_esp_tools(platform):
+        packages_dir = Path(_get_packages_dir())
+        if not packages_dir.exists():
+            return
+
+        for tool_name in _iter_required_esp_tools(platform):
+            pkg_meta = packages_dir / tool_name / "package.json"
+            if pkg_meta.exists() and tool_name in platform.packages:
+                platform.packages[tool_name]["version"] = str(packages_dir / tool_name)
+                platform.packages[tool_name]["optional"] = False
+
+    def _prepare_esp_tools(self, platform):
+        if self._tools_prepared:
+            return False
+
+        packages_dir = Path(_get_packages_dir())
+        core_dir = Path(_get_core_dir())
+        if not packages_dir.exists() or not core_dir.exists():
+            return False
+
+        _ensure_esp_installer(platform, packages_dir)
+
+        changed = False
+        for tool_name in _iter_required_esp_tools(platform):
+            if _expand_and_link_esp_tool(platform, tool_name, packages_dir, core_dir):
+                changed = True
+
+        self._tools_prepared = True
+        return changed
+
+    def _ensure_esptoolpy_runtime_dependencies(self):
+        if self._python_deps_prepared:
+            return
+
+        self._python_deps_prepared = True
+
+        _, get_pythonexe_path, _ = _pio()
+        python_exe = get_pythonexe_path()
+        if not python_exe:
+            return
+        # esptool runs from the $PYTHONEXE (penv) python with the
+        # tool-esptoolpy dir on PYTHONPATH. That tool copy is expanded by
+        # idf_tools.py and brings no bundled Python deps, so install the
+        # optional runtime modules it imports: rich_click (CLI formatting)
+        # and intelhex (image merge / bootloader.bin generation).
+        for dep, module in (("rich_click<2", "rich_click"),
+                            ("intelhex", "intelhex")):
+            try:
+                import_module(module)
+            except ImportError:
+                try:
+                    subprocess.run(
+                        [
+                            python_exe,
+                            "-m",
+                            "pip",
+                            "install",
+                            dep,
+                            "--disable-pip-version-check",
+                            "--no-input",
+                        ],
+                        check=True,
+                    )
+                except Exception as e:
+                    print("Warning: failed to install %s for esptoolpy: %s" % (dep, e))
+
+    # -- builder side ----------------------------------------------------
+
+    def build_script(self, platform, board):
+        return join(platform.get_dir(), "builder", "board_build", "esp", "esp_build.py")
+
+    def framework_script(self, platform, framework, board):
+        if framework != "arduino":
+            return None
+        return join(platform.get_dir(), "builder", "board_build", "esp", "esp_arduino.py")
