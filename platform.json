@@ -31,6 +31,12 @@
     }
   },
   "packages": {
+    "espressif32": {
+      "type": "platform",
+      "optional": true,
+      "owner": "pioarduino",
+      "version": "https://github.com/pioarduino/platform-espressif32.git#d2f1607cb561cf3da3f2cc03ceb94d25255e6fe4"
+    },
     "framework-arduinoespressif32": {
       "type": "framework",
       "optional": true,

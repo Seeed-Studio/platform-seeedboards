@@ -25,6 +25,7 @@ load; platformio and platform_cfg imports stay inside functions.
 """
 
 import subprocess
+import sys
 from importlib import import_module
 from os.path import join
 from pathlib import Path
@@ -140,6 +141,9 @@ def _expand_and_link_esp_tool(platform, tool_name, packages_dir, core_dir):
 
 class Esp32Family(ChipFamily):
     family_ids = ("esp32",)
+    # The upstream pioarduino platform package: installed (locked commit,
+    # declared in platform.json) and its builder/frameworks/arduino.py is
+    # SConscript-dynamically loaded — no local copy of the script.
     upstream_platform = "espressif32"
     # configure_esp_default_packages drops these for RISC-V-only MCUs.
     owned_packages = ("toolchain-xtensa-esp-elf", "toolchain-esp32ulp")
@@ -150,9 +154,26 @@ class Esp32Family(ChipFamily):
 
     # -- platform side --------------------------------------------------
 
+    def required_packages(self, board):
+        """Activate the upstream platform package whenever the Arduino
+        framework is requested: its builder script is the entry point."""
+        frameworks = board.get("frameworks", []) if board is not None else []
+        packages = set()
+        if "arduino" in frameworks:
+            packages.add(self.upstream_platform)
+        return packages
+
     def configure_default_packages(self, platform, variables, targets):
         from platform_cfg import esp_cfg
         esp_cfg.configure_esp_default_packages(platform, variables, targets)
+        board_name = variables.get("board")
+        required = (
+            self.required_packages(platform.board_config(board_name))
+            if board_name else set()
+        )
+        for name in required:
+            if name in platform.packages:
+                platform.packages[name]["optional"] = False
         self._prefer_local_esp_tools(platform)
         self._ensure_esptoolpy_runtime_dependencies()
 
@@ -242,6 +263,16 @@ class Esp32Family(ChipFamily):
         return join(platform.get_dir(), "builder", "board_build", "esp", "esp_build.py")
 
     def framework_script(self, platform, framework, board):
+        """Arduino builds load the upstream pioarduino script (package
+        espressif32, locked commit in platform.json) — no local copy.
+        espidf keeps the local snapshot for now (larger drift)."""
         if framework != "arduino":
             return None
-        return join(platform.get_dir(), "builder", "board_build", "esp", "esp_arduino.py")
+        upstream_dir = platform.get_package_dir(self.upstream_platform)
+        if not upstream_dir:
+            sys.stderr.write(
+                "Error: ESP32 Arduino builds require the '%s' upstream "
+                "package; it is declared in platform.json with a locked "
+                "commit.\n" % self.upstream_platform)
+            sys.exit(1)
+        return join(upstream_dir, "builder", "frameworks", "arduino.py")
