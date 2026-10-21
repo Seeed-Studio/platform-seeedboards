@@ -297,6 +297,17 @@ SDKCONFIG_PATH = os.path.expandvars(board.get(
         "build.esp-idf.sdkconfig_path",
         str(Path(PROJECT_DIR) / ("sdkconfig.%s" % env.subst("$PIOENV"))),
 ))
+# Per-env sdkconfig defaults (pioarduino convention): IDF only reads the
+# bare sdkconfig.defaults unless the list is passed explicitly, so both
+# the shared and the per-env file are forwarded when they exist (IDF
+# errors on a listed-but-missing file, hence the filtering).
+_sdkconfig_defaults = [
+    path for path in (
+        str(Path(PROJECT_DIR) / "sdkconfig.defaults"),
+        str(Path(PROJECT_DIR) / ("sdkconfig.defaults.%s" % env.subst("$PIOENV"))),
+    ) if os.path.isfile(path)
+]
+SDKCONFIG_DEFAULTS = ";".join(_sdkconfig_defaults)
 
 def contains_path_traversal(url):
     """Best-effort detection of path traversal sequences."""
@@ -1968,6 +1979,7 @@ def build_bootloader(sdk_config):
             "-DPYTHON=" + get_python_exe(),
             "-DIDF_PATH=" + FRAMEWORK_DIR,
             "-DSDKCONFIG=" + SDKCONFIG_PATH,
+        ] + (["-DSDKCONFIG_DEFAULTS=" + SDKCONFIG_DEFAULTS] if SDKCONFIG_DEFAULTS else []) + [
             "-DPROJECT_SOURCE_DIR=" + PROJECT_DIR,
             "-DLEGACY_INCLUDE_COMMON_HEADERS=",
             "-DEXTRA_COMPONENT_DIRS=" + str(Path(FRAMEWORK_DIR) / "components" / "bootloader"),
@@ -2718,6 +2730,7 @@ extra_cmake_args = [
     "-DEXTRA_COMPONENT_DIRS:PATH=" + ";".join(str(Path(p).resolve()) for p in extra_components),
     "-DPYTHON=" + get_python_exe(),
     "-DSDKCONFIG=" + SDKCONFIG_PATH,
+] + (["-DSDKCONFIG_DEFAULTS=" + SDKCONFIG_DEFAULTS] if SDKCONFIG_DEFAULTS else []) + [
     f"-DESP_IDF_VERSION={major_version}",
     f"-DESP_IDF_VERSION_MAJOR={framework_version.split('.')[0]}",
     f"-DESP_IDF_VERSION_MINOR={framework_version.split('.')[1]}",
@@ -2894,6 +2907,21 @@ env.AddBuildMiddleware(_skip_prj_source_files)
 fwpartitions_dir = str(Path(FRAMEWORK_DIR) / "components" / "partition_table")
 partitions_csv = board.get("build.partitions", "partitions_singleapp.csv")
 partition_table_offset = sdk_config.get("PARTITION_TABLE_OFFSET", 0x8000)
+
+# A manifest may carry an Arduino-convention partition file (e.g.
+# default_8MB.csv, shipped by the arduino core's tools/partitions, not
+# by ESP-IDF). Fall back to the IDF single-app table with a warning
+# instead of failing the configure on a file this package never had.
+if not (
+    os.path.isfile(str(Path(fwpartitions_dir) / partitions_csv))
+    or os.path.isfile(partitions_csv)
+):
+    print(
+        "Warning: partition table %r not found in ESP-IDF or the project; "
+        "falling back to partitions_singleapp.csv "
+        "(Arduino-convention file on an espidf build?)" % partitions_csv
+    )
+    partitions_csv = "partitions_singleapp.csv"
 
 env.Replace(
     PARTITIONS_TABLE_CSV=os.path.abspath(

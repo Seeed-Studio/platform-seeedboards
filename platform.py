@@ -51,7 +51,12 @@ class SeeedPlatform(PlatformBase):
             if name not in self.packages:
                 continue
             self.packages[name]["optional"] = False
-            if version_override:
+            if isinstance(version_override, dict):
+                # full override: version plus companion fields such as
+                # package-version (stub drift validation compares against
+                # it, so it must move together with the pin)
+                self.packages[name].update(version_override)
+            elif version_override:
                 self.packages[name]["version"] = version_override
 
         # First pass: super() downloads the packages (including any

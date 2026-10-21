@@ -34,9 +34,12 @@ class EspFamily(ChipFamily):
 
     def required_packages(self, board, variables=None) -> "dict[str, object]":
         mcu = (board.get("build") or {}).get("mcu", "esp32")
+        frameworks = []
+        if variables is not None:
+            frameworks = list(variables.get("pioframework", []))
+        # Shared ESP tools regardless of framework (upstream keeps them
+        # for both arduino and espidf builds).
         packages = {
-            "framework-arduinoespressif32": None,
-            "framework-arduinoespressif32-libs": None,
             "tool-esptoolpy": None,
             "tool-esp_install": None,
             "tool-esp-rom-elfs": None,
@@ -49,6 +52,15 @@ class EspFamily(ChipFamily):
             "tool-ninja": "^1.7.0",
             "tool-scons": None,
         }
+        if "espidf" in frameworks:
+            # arduino-only packages stay optional for pure espidf builds
+            packages["framework-espidf"] = None
+        else:
+            packages["framework-arduinoespressif32"] = None
+            packages["framework-arduinoespressif32-libs"] = None
+
+        # Toolchain slots by MCU (platform.json pin 14.2.0+20260121 serves
+        # both arduino and the IDF 5.5.5 allowlist).
         if mcu in XTESA_MCUS:
             packages["toolchain-xtensa-esp-elf"] = None
             # S2/S3 carry a RISC-V ULP coprocessor; pioarduino keeps

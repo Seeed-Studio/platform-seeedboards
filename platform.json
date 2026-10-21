@@ -22,6 +22,10 @@
     },
     "zephyr": {
       "script": "builder/frameworks/zephyr.py"
+    },
+    "espidf": {
+      "package": "framework-espidf",
+      "script": "builder/frameworks/espidf.py"
     }
   },
   "packages": {
