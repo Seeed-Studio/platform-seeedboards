@@ -142,10 +142,16 @@ def _expand_and_link_esp_tool(platform, tool_name, packages_dir, core_dir):
 
 class Esp32Family(ChipFamily):
     family_ids = ("esp32",)
-    # The upstream pioarduino platform package: installed (locked commit,
-    # declared in platform.json) and its builder/frameworks/arduino.py is
-    # SConscript-dynamically loaded — no local copy of the script.
+    # Upstream pioarduino platform: installed from this locked spec into
+    # the platforms dir (see _ensure_upstream_platform), and its
+    # builder/frameworks/arduino.py is SConscript-dynamically loaded —
+    # no local copy of the script. Bumping this = maintainer-driven
+    # upstream upgrade + regression.
     upstream_platform = "espressif32"
+    upstream_version = (
+        "https://github.com/pioarduino/platform-espressif32.git"
+        "#d2f1607cb561cf3da3f2cc03ceb94d25255e6fe4"  # 53.03.13
+    )
     # configure_esp_default_packages drops these for RISC-V-only MCUs.
     owned_packages = ("toolchain-xtensa-esp-elf", "toolchain-esp32ulp")
 
@@ -172,10 +178,8 @@ class Esp32Family(ChipFamily):
             self.required_packages(platform.board_config(board_name))
             if board_name else set()
         )
-        # The upstream platform package is installed through
-        # PlatformPackageManager below (see _ensure_upstream_platform), so
-        # it must stay optional to keep the tool-package channel away
-        # from it.
+        # The upstream platform (if needed) installs through
+        # PlatformPackageManager below — see _ensure_upstream_platform.
         if self.upstream_platform in required:
             self._ensure_upstream_platform(platform)
         self._prefer_local_esp_tools(platform)
@@ -194,22 +198,21 @@ class Esp32Family(ChipFamily):
         the regular tool-package channel refuses it;
         PlatformPackageManager accepts platform.json and installs into
         the platforms dir. Dependencies are skipped — this platform owns
-        its package set. The locked version lives in platform.json's
-        packages."espressif32".version.
+        its package set. The locked spec lives in upstream_version
+        (kept here, not in platform.json's packages: it is a source
+        reference, not a core-installable package).
 
         Note: a user-installed official 'espressif32' platform in the
         same platforms dir would collide; the directory is only trusted
         when it carries our locked upstream content.
         """
-        entry = platform.packages.get(self.upstream_platform, {})
-        version = entry.get("version")
-        if not version:
+        if not self.upstream_version:
             return None
         if os.path.isfile(join(self._upstream_platform_dir(), "platform.json")):
             return self._upstream_platform_dir()
         try:
             from platformio.package.manager.platform import PlatformPackageManager
-            PlatformPackageManager().install(version, skip_dependencies=True)
+            PlatformPackageManager().install(self.upstream_version, skip_dependencies=True)
         except Exception as e:
             print("Warning: failed to install upstream '%s' platform: %s"
                   % (self.upstream_platform, e))
@@ -305,9 +308,9 @@ class Esp32Family(ChipFamily):
 
     def framework_script(self, platform, framework, board):
         """Arduino builds load the upstream pioarduino script (platform
-        package espressif32, locked commit in platform.json, installed
-        into the platforms dir by _ensure_upstream_platform) — no local
-        copy. espidf keeps the local snapshot for now (larger drift)."""
+        espressif32, locked by upstream_version, installed into the
+        platforms dir by _ensure_upstream_platform) — no local copy.
+        espidf keeps the local snapshot for now (larger drift)."""
         if framework != "arduino":
             return None
         upstream_dir = self._upstream_platform_dir()
