@@ -28,19 +28,22 @@ framework = <arduino | espidf | zephyr>
 
 ## Status
 
-In development — three families are buildable and CI-gated:
+In development — all board families are buildable and CI-gated (23 boards):
 
 | Family | Boards | Framework |
 | --- | --- | --- |
 | SAMD | XIAO SAMD21 | Arduino |
 | ESP32 | XIAO ESP32-C3 / C5 / C6 / S3-Plus / S3-Sense | Arduino |
 | Zephyr | XIAO nRF54L15 / nRF54LM20A / nRF54LM20B / STM32C5 | Zephyr |
+| RP2040/RP2350 | XIAO RP2040 / RP2350 | Arduino (earlephilhower) |
+| Renesas RA | XIAO RA4M1 | Arduino |
+| Silicon Labs | XIAO MG24 / MG24 Sense | Arduino |
+| nRF52 | XIAO nRF52840 line (Adafruit + mbed cores, 8 variants) | Arduino |
 
 Every demo of every board builds green in CI before a family merges
-([merge gate](docs/decisions/0005-ci-merge-gate.md)). Remaining
-families land one at a time per the
-[roadmap](docs/roadmap.md). Until the first release, use the
-production predecessor:
+([merge gate](docs/decisions/0005-ci-merge-gate.md)); the current
+matrix is 46 environments (38 Arduino + 8 Zephyr). Until the first
+release, use the production predecessor:
 [Seeed-Studio/platform-seeedboards](https://github.com/Seeed-Studio/platform-seeedboards).
 
 ## Documentation
