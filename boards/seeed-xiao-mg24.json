@@ -1,0 +1,43 @@
+{
+  "build": {
+    "chip_family": "silabs",
+    "core": "silabs",
+    "f_cpu": "39000000L",
+    "mcu": "cortex-m33",
+    "variant": "xiao_mg24",
+    "arduino": {
+      "package": "framework-arduino-silabs"
+    }
+  },
+  "extra_flags": "-DSEEED_XIAO_MG24 -DARDUINO_ARCH_SILABS -DEFR32MG24B220F1536IM48",
+  "connectivity": [
+    "bluetooth",
+    "thread",
+    "wifi",
+    "zigbee"
+  ],
+  "debug": {
+    "jlink_device": "EFR32MG24B020F1536IM40",
+    "openocd_target": "efm32s2_g23.cfg",
+    "svd_path": "EFR32MG24B020F1536IM40.svd",
+    "onboard_tools": [
+      "cmsis-dap"
+    ]
+  },
+  "frameworks": [
+    "arduino"
+  ],
+  "name": "Seeed Studio MG24",
+  "upload": {
+    "flash_size": "5767168",
+    "maximum_ram_size": 262144,
+    "maximum_size": 5767168,
+    "protocol": "cmsis-dap",
+    "protocols": [
+      "cmsis-dap",
+      "jlink"
+    ]
+  },
+  "url": "https://wiki.seeedstudio.com/xiao_mg24_getting_started/",
+  "vendor": "Seeed Studio"
+}

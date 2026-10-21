@@ -36,6 +36,8 @@ SUPPORTED_BOARD_IDS = (
     "seeed-xiao-esp32-s3-sense",
     "seeed-xiao-nrf54l15",
     "seeed-xiao-nrf54lm20a",
+    "seeed-xiao-mg24",
+    "seeed-xiao-mg24-sense",
     "seeed-xiao-nrf54lm20b",
     "seeed-xiao-ra4m1",
     "seeed-xiao-rp2040",
