@@ -61,7 +61,6 @@
       ]
     },
     "tool-bossac": {
-      "type": "uploader",
       "optional": true,
       "owner": "platformio",
       "version": "~1.10901.0"
@@ -267,6 +266,18 @@
       "optional": true,
       "owner": "earlephilhower",
       "version": "https://github.com/maxgerhardt/toolchain-dummy/archive/refs/heads/main.zip"
+    },
+    "framework-arduinorenesas-uno": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://files.seeedstudio.com/arduino/core/renesas/ArduinoCore-renesas-1.2.2.tar.bz2"
+    },
+    "tool-dfuutil-arduino": {
+      "type": "uploader",
+      "optional": true,
+      "owner": "platformio",
+      "version": "~1.11.0"
     }
   }
 }

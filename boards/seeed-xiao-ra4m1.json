@@ -1,0 +1,49 @@
+{
+  "build": {
+    "chip_family": "renesas",
+    "core": "arduino",
+    "cpu": "cortex-m4",
+    "f_cpu": "48000000L",
+    "hwids": [
+      [
+        "0x2886",
+        "0x0049"
+      ]
+    ],
+    "mcu": "ra4m1",
+    "variant": "XIAORA4M1",
+    "arduino": {
+      "ldscript": "fsp.ld",
+      "package": "framework-arduinorenesas-uno"
+    },
+    "extra_flags": [
+      "-DARDUINO_MINIMA",
+      "-DARDUINO_XIAO_RA4M1",
+      "-DARDUINO_ARCH_RENESAS_UNO",
+      "-DCFG_TUSB_MCU=OPT_MCU_RAXXX"
+    ]
+  },
+  "debug": {
+    "jlink_device": "R7FA4M1AB",
+    "svd_path": "R7FA4M1AB.svd"
+  },
+  "frameworks": [
+    "arduino"
+  ],
+  "name": "Seeed Studio XIAO RA4M1",
+  "upload": {
+    "maximum_ram_size": 32768,
+    "maximum_size": 262144,
+    "native_usb": true,
+    "protocol": "dfu",
+    "protocols": [
+      "cmsis-dap",
+      "dfu",
+      "jlink",
+      "pyocd"
+    ],
+    "offset_address": "0x4000"
+  },
+  "url": "https://wiki.seeedstudio.com/getting_started_xiao_ra4m1/",
+  "vendor": "Seeed Studio"
+}
