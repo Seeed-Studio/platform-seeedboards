@@ -46,7 +46,7 @@ class SeeedPlatform(PlatformBase):
                 self.frameworks[framework]["package"] = package_name
 
         for name, version_override in family.required_packages(
-            manifest
+            manifest, variables=variables
         ).items():
             if name not in self.packages:
                 continue
