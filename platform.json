@@ -289,6 +289,36 @@
       "optional": true,
       "owner": "seeedstudio",
       "version": "https://files.seeedstudio.com/arduino/platformio/forsilicon-openocd-linux.tar.gz"
+    },
+    "framework-arduinoadafruitnrf52": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://files.seeedstudio.com/arduino/platformio/framework-arduinoadafruitnrf52.tar.bz2",
+      "optionalVersions": [
+        "~1.10601.0"
+      ]
+    },
+    "framework-arduino-mbed": {
+      "type": "framework",
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://files.seeedstudio.com/arduino/core/mbed/ArduinoCore-mbed-pio-2.9.2.tar.bz2"
+    },
+    "tool-adafruit-nrfutil": {
+      "owner": "platformio",
+      "optional": true,
+      "version": "~1.503.0"
+    },
+    "tool-bossac-nordicnrf52": {
+      "type": "uploader",
+      "optional": true,
+      "owner": "platformio",
+      "version": "~1.10901.0"
+    },
+    "tool-sreccat": {
+      "owner": "platformio",
+      "version": "~1.164.0"
     }
   }
 }
