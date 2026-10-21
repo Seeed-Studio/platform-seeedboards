@@ -28,7 +28,7 @@ class SamdFamily(ChipFamily):
     # Package activation (called from platform.py)
     # ------------------------------------------------------------------
 
-    def required_packages(self, board) -> "dict[str, object]":
+    def required_packages(self, board, variables=None) -> "dict[str, object]":
         mcu = (board.get("build") or {}).get("mcu", "")
         packages = {
             "toolchain-gccarmnoneeabi": None,  # platform.json range

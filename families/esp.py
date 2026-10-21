@@ -32,7 +32,7 @@ _ESPTOOLPY_DEPS_PREPARED = False
 class EspFamily(ChipFamily):
     family_ids = ("esp32",)
 
-    def required_packages(self, board) -> "dict[str, object]":
+    def required_packages(self, board, variables=None) -> "dict[str, object]":
         mcu = (board.get("build") or {}).get("mcu", "esp32")
         packages = {
             "framework-arduinoespressif32": None,

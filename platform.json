@@ -235,6 +235,38 @@
       "optional": true,
       "owner": "platformio",
       "version": "^3.0.0"
+    },
+    "framework-arduinopico": {
+      "type": "framework",
+      "optional": true,
+      "owner": "earlephilhower",
+      "version": "https://github.com/earlephilhower/arduino-pico.git#fd65f6d4ab168d4bb181a3709738fe353ac93585"
+    },
+    "tool-mklittlefs-rp2040-earlephilhower": {
+      "optional": true,
+      "owner": "earlephilhower",
+      "version": "~5.100300.0"
+    },
+    "tool-openocd-rp2040-earlephilhower": {
+      "optional": true,
+      "owner": "earlephilhower",
+      "version": "~5.100300.0"
+    },
+    "tool-picotool-rp2040-earlephilhower": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "https://github.com/maxgerhardt/picotool-dummy/archive/refs/heads/main.zip"
+    },
+    "tool-pioasm-rp2040-earlephilhower": {
+      "optional": true,
+      "owner": "earlephilhower",
+      "version": "https://github.com/maxgerhardt/pioasm-dummy/archive/refs/heads/main.zip"
+    },
+    "toolchain-rp2040-earlephilhower": {
+      "type": "toolchain",
+      "optional": true,
+      "owner": "earlephilhower",
+      "version": "https://github.com/maxgerhardt/toolchain-dummy/archive/refs/heads/main.zip"
     }
   }
 }

@@ -81,11 +81,13 @@ class ChipFamily(ABC):
     # -- interface ------------------------------------------------------------
 
     @abstractmethod
-    def required_packages(self, board) -> "dict[str, Optional[str]]":
+    def required_packages(self, board, variables=None) -> "dict[str, Optional[str]]":
         """Packages to activate for this board: name -> version override
         (None = platform.json pin as-is). Returns a dict, not a set, so
         families can narrow versions per ADR-0002 with evidence in the
-        family module's comments."""
+        family module's comments. `variables` carries the project options
+        (board_build.* overrides, pioframework) for families whose package
+        set depends on them; it may be None in unit-test contexts."""
 
     @abstractmethod
     def build_flags(self, board) -> list:

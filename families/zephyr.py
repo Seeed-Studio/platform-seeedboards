@@ -36,7 +36,7 @@ DEBUG_LINKS = ("blackmagic", "jlink", "stlink", "cmsis-dap")
 class ZephyrFamily(ChipFamily):
     family_ids = ("zephyr",)
 
-    def required_packages(self, board) -> "dict[str, object]":
+    def required_packages(self, board, variables=None) -> "dict[str, object]":
         zephyr = (board.get("build") or {}).get("zephyr") or {}
         framework_package = zephyr.get("package")
         if not framework_package:

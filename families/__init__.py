@@ -6,5 +6,6 @@ side-effecting one in the package.
 """
 
 from families.esp import EspFamily  # noqa: F401  (registration side effect)
+from families.rpi import RpiFamily  # noqa: F401  (registration side effect)
 from families.samd import SamdFamily  # noqa: F401  (registration side effect)
 from families.zephyr import ZephyrFamily  # noqa: F401  (registration side effect)
