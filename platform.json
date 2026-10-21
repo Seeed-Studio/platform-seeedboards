@@ -2,7 +2,7 @@
   "name": "seeed",
   "title": "Seeed Studio Multi-Chip Platform",
   "description": "One platform address, every chip family plugged in as data + classes",
-  "homepage": "https://github.com/example/platform-seeed",
+  "homepage": "https://github.com/Seeed-Studio/platform-seeed",
   "license": "Apache-2.0",
   "keywords": [
     "dev-platform",
