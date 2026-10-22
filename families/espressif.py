@@ -150,7 +150,7 @@ class Esp32Family(ChipFamily):
     upstream_platform = "espressif32"
     upstream_version = (
         "https://github.com/pioarduino/platform-espressif32.git"
-        "#d2f1607cb561cf3da3f2cc03ceb94d25255e6fe4"  # 53.03.13
+        "#b58b4492b841f3518768753443f7d2e9bd1df794"  # 55.03.312
     )
     # configure_esp_default_packages drops these for RISC-V-only MCUs.
     owned_packages = ("toolchain-xtensa-esp-elf", "toolchain-esp32ulp")
@@ -174,6 +174,13 @@ class Esp32Family(ChipFamily):
         from platform_cfg import esp_cfg
         esp_cfg.configure_esp_default_packages(platform, variables, targets)
         board_name = variables.get("board")
+        # The upstream espidf builder drives CMake/Ninja itself; the old
+        # local snapshot never activated them (no espidf consumer existed
+        # on this platform until now).
+        if "espidf" in variables.get("pioframework", []):
+            for name in ("tool-cmake", "tool-ninja"):
+                if name in platform.packages:
+                    platform.packages[name]["optional"] = False
         required = (
             self.required_packages(platform.board_config(board_name))
             if board_name else set()
@@ -190,6 +197,25 @@ class Esp32Family(ChipFamily):
         platforms_dir = ProjectConfig.get_instance().get("platformio", "platforms_dir")
         return join(platforms_dir, self.upstream_platform)
 
+    def _upstream_matches_lock(self):
+        """True when the installed upstream checkout is the locked commit.
+        The installed manifest's version is the upstream's own tag string
+        (e.g. '55.03.312'), which says nothing about the exact commit, so
+        compare against the VCS checkout instead."""
+        upstream_dir = self._upstream_platform_dir()
+        if not os.path.isdir(join(upstream_dir, ".git")):
+            return False
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "-C", upstream_dir, "rev-parse", "HEAD"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, check=True)
+        except (OSError, subprocess.CalledProcessError):
+            return False
+        locked_sha = self.upstream_version.rsplit("#", 1)[-1]
+        return result.stdout.strip().lower().startswith(locked_sha[:7].lower())
+
     def _ensure_upstream_platform(self, platform):
         """Install the locked upstream pioarduino platform via
         PlatformPackageManager.
@@ -200,25 +226,30 @@ class Esp32Family(ChipFamily):
         the platforms dir. Dependencies are skipped — this platform owns
         its package set. The locked spec lives in upstream_version
         (kept here, not in platform.json's packages: it is a source
-        reference, not a core-installable package).
-
-        Note: a user-installed official 'espressif32' platform in the
-        same platforms dir would collide; the directory is only trusted
-        when it carries our locked upstream content.
+        reference, not a core-installable package). When the lock moves,
+        a stale install is uninstalled first so the upgrade is
+        maintainer-driven but automatic in effect (handbook 4.7).
         """
         if not self.upstream_version:
             return None
-        if os.path.isfile(join(self._upstream_platform_dir(), "platform.json")):
-            return self._upstream_platform_dir()
+        upstream_dir = self._upstream_platform_dir()
+        if self._upstream_matches_lock():
+            return upstream_dir
         try:
             from platformio.package.manager.platform import PlatformPackageManager
-            PlatformPackageManager().install(self.upstream_version, skip_dependencies=True)
+            pm = PlatformPackageManager()
+            if os.path.isdir(join(upstream_dir, ".git")):
+                # skip_dependencies: pioarduino's uninstall would otherwise
+                # remove shared packages (framework-espidf, toolchains)
+                # that this platform installed itself.
+                pm.uninstall(self.upstream_platform, skip_dependencies=True)
+            pm.install(self.upstream_version, skip_dependencies=True)
         except Exception as e:
             print("Warning: failed to install upstream '%s' platform: %s"
                   % (self.upstream_platform, e))
             return None
-        if os.path.isfile(join(self._upstream_platform_dir(), "platform.json")):
-            return self._upstream_platform_dir()
+        if self._upstream_matches_lock():
+            return upstream_dir
         return None
 
     def post_configure_packages(self, platform, variables, targets):
@@ -307,19 +338,19 @@ class Esp32Family(ChipFamily):
         return join(platform.get_dir(), "builder", "board_build", "esp", "esp_build.py")
 
     def framework_script(self, platform, framework, board):
-        """Arduino builds load the upstream pioarduino script (platform
-        espressif32, locked by upstream_version, installed into the
-        platforms dir by _ensure_upstream_platform) — no local copy.
-        espidf keeps the local snapshot for now (larger drift)."""
-        if framework != "arduino":
+        """Both ESP32 frameworks load upstream pioarduino scripts
+        (platform espressif32, locked by upstream_version, installed into
+        the platforms dir by _ensure_upstream_platform) — no local
+        copies."""
+        if framework not in ("arduino", "espidf"):
             return None
         upstream_dir = self._upstream_platform_dir()
-        script = join(upstream_dir, "builder", "frameworks", "arduino.py")
+        script = join(upstream_dir, "builder", "frameworks", framework + ".py")
         if not os.path.isfile(script):
             sys.stderr.write(
-                "Error: ESP32 Arduino builds require the upstream '%s' "
-                "platform package (locked commit declared in "
-                "platform.json); expected its builder at %s\n"
-                % (self.upstream_platform, script))
+                "Error: ESP32 %s builds require the upstream '%s' "
+                "platform package (locked by upstream_version); expected "
+                "its builder at %s\n"
+                % (framework, self.upstream_platform, script))
             sys.exit(1)
         return script
