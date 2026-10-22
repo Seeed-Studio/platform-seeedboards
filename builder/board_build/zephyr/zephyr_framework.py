@@ -37,6 +37,11 @@ except ImportError:
 
 Import("env")
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+from zephyr_view import ensure_view, digest_paths, atomic_write_text, atomic_copy
+
 platform_name = env.subst("$PIOPLATFORM")
 board = env.BoardConfig()
 platform = env.PioPlatform()
@@ -57,8 +62,32 @@ if masquerade_platform:
     env.Replace(
         PIOPLATFORM=masquerade_platform
     )
-framework_dir = platform.get_package_dir(framework_package_name)
+framework_source_dir = platform.get_package_dir(framework_package_name)
 platform_dir = platform.get_dir()
+
+
+def _framework_view_key():
+    """Key a framework view by package version + all platform inputs."""
+    return digest_paths([
+        join(framework_source_dir, "package.json"),
+        join(platform_dir, "zephyr", "boards", "arm", zephyr_board),
+        join(platform_dir, "zephyr", "modules"),
+        join(platform_dir, "builder", "board_build", "zephyr"),
+    ]) + "-" + zephyr_board
+
+
+if os.environ.get("PIO_ZEPHYR_VIEW", "1") == "0":
+    # Explicit debugging escape hatch from ADR-0006. Never used in CI.
+    framework_dir = framework_source_dir
+else:
+    # ADR-0006: build in a hardlink view; the installed package stays
+    # read-only and boards cannot contaminate each other's cache.
+    framework_dir = ensure_view(
+        framework_source_dir,
+        join(env.subst("$PROJECT_CORE_DIR"), "zephyr-views"),
+        _framework_view_key(),
+        prefix=framework_package_name,
+    )
 
 # Copy custom board definitions into Zephyr framework boards directory
 # so that Zephyr CMake can discover them during build configuration.
@@ -240,8 +269,43 @@ def _ensure_minimal_west_workspace(framework_dir):
             current = fp.read()
 
     if current != expected:
-        with open(west_config, "w", encoding="utf-8") as fp:
-            fp.write(expected)
+        atomic_write_text(west_config, expected)
+
+
+def _patch_platformio_framework_dir(framework_dir):
+    """Make the upstream build script resolve FRAMEWORK_DIR from itself.
+
+    The stock script hardcodes
+    ``FRAMEWORK_DIR = platform.get_package_dir("framework-zephyr-...")``.
+    In a view that would point CMake back at the global package and hide
+    every fix (ADR-0006). Derive it from __file__ instead:
+    <view>/scripts/platformio/platformio-build.py -> <view>.
+    """
+    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
+    if not os.path.isfile(build_py):
+        return
+    with open(build_py, "r", encoding="utf-8") as fp:
+        text = fp.read()
+
+    replacement = (
+        'FRAMEWORK_DIR = os.path.abspath(os.path.join('
+        'os.path.dirname(__file__), "..", ".."))'
+    )
+    if replacement in text:
+        return  # already patched in a reused view
+
+    pattern = re.compile(
+        r"^FRAMEWORK_DIR = platform\.get_package_dir\([^\n]*\)\s*$",
+        re.MULTILINE,
+    )
+    new_text, count = pattern.subn(replacement, text, count=1)
+    if not count:
+        raise RuntimeError(
+            "cannot point FRAMEWORK_DIR at the Zephyr view: expected "
+            "`FRAMEWORK_DIR = platform.get_package_dir(...)` in %s"
+            % build_py
+        )
+    atomic_write_text(build_py, new_text)
 
 
 def _patch_platformio_path_handling(framework_dir):
@@ -271,8 +335,7 @@ def _patch_platformio_path_handling(framework_dir):
         if needle in text and replacement not in text:
             text = text.replace(needle, replacement)
 
-    with open(build_py, "w", encoding="utf-8") as fp:
-        fp.write(text)
+    atomic_write_text(build_py, text)
 
 
 def _patch_platformio_object_naming(framework_dir):
@@ -328,8 +391,7 @@ def _patch_platformio_object_naming(framework_dir):
         text = text.replace(old_else, new_else)
         changed = True
     if changed:
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
+        atomic_write_text(build_py, text)
 
 
 def _patch_platformio_framework_package_name(framework_dir, framework_package_name):
@@ -355,8 +417,7 @@ def _patch_platformio_framework_package_name(framework_dir, framework_package_na
             changed = True
 
     if changed:
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
+        atomic_write_text(build_py, text)
 
 
 def _patch_platformio_mcuboot_signing(framework_dir):
@@ -435,8 +496,7 @@ def _patch_platformio_mcuboot_signing(framework_dir):
         changed = True
 
     if changed:
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
+        atomic_write_text(build_py, text)
         print("XIAO: enabled default MCUboot signing for board-declared images")
 
 
@@ -481,8 +541,7 @@ def _patch_platformio_prebuilt_lib_linking(framework_dir):
 
     if old in text and new not in text:
         text = text.replace(old, new)
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
+        atomic_write_text(build_py, text)
         print("Patched PlatformIO: prebuilt-archive linking (-l form for abs .a)")
 
 
@@ -560,8 +619,7 @@ def _patch_platformio_extra_modules(framework_dir):
         text = text.replace(marker, addition + marker, 1)
         changed = True
     if changed:
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
+        atomic_write_text(build_py, text)
         print("XIAO Edge AI: enabled Zephyr module discovery")
 
 
@@ -744,20 +802,15 @@ def _ensure_module(label, cache_dir, remote, revision, override_env):
     return os.path.normpath(cache_dir)
 
 
-def _provision_xiao_dfu_module(framework_dir):
-    """Refresh the 20B DFU module and board retention configuration.
+def _provision_xiao_dfu_module(framework_dir, zephyr_board):
+    """Refresh the DFU-reset module for 20B and LM20A V2.
 
-    Framework board files are copied only when missing, and the framework
-    package is cached by PlatformIO. Refresh both inputs on every 20B build so
-    UART line control, boot-mode retention, and diagnostic output stay in sync
-    with the platform repository.
+    The module source is copied for both boards. The 20B board DTSI is also
+    refreshed; V2's revision overlay already carries the boot-mode retention
+    nodes, so copying the 20B DTSI there would be wrong.
     """
     source_module = join(platform_dir, "zephyr", "modules", "xiao_dfu_reset")
     target_module = join(framework_dir, "_pio", "modules", "xiao_dfu_reset")
-    source_board = join(platform_dir, "zephyr", "boards", "arm",
-                        "xiao_nrf54lm20b", "nrf54lm20b_cpuapp_common.dtsi")
-    target_board = join(framework_dir, "boards", "seeed", "xiao_nrf54lm20b",
-                        "nrf54lm20b_cpuapp_common.dtsi")
 
     if not os.path.isdir(source_module):
         raise RuntimeError("Missing bundled xiao_dfu_reset module")
@@ -767,10 +820,17 @@ def _provision_xiao_dfu_module(framework_dir):
         os.remove(target_module)
     shutil.copytree(source_module, target_module)
 
-    if not os.path.isfile(source_board):
-        raise RuntimeError("Missing XIAO nRF54LM20B board DTSI")
-    shutil.copyfile(source_board, target_board)
-    print("XIAO: refreshed 20B DFU module and boot-mode retention in framework")
+    if zephyr_board == "xiao_nrf54lm20b":
+        source_board = join(platform_dir, "zephyr", "boards", "arm",
+                            "xiao_nrf54lm20b", "nrf54lm20b_cpuapp_common.dtsi")
+        target_board = join(framework_dir, "boards", "seeed",
+                            "xiao_nrf54lm20b", "nrf54lm20b_cpuapp_common.dtsi")
+        if not os.path.isfile(source_board):
+            raise RuntimeError("Missing XIAO nRF54LM20B board DTSI")
+        atomic_copy(source_board, target_board)
+        print("XIAO: refreshed 20B DFU module and boot-mode retention in framework")
+    else:
+        print("XIAO: refreshed xiao_dfu_reset module for %s" % zephyr_board)
 
 
 def _patch_cdc_vidpid(framework_dir):
@@ -822,8 +882,7 @@ def _patch_cdc_vidpid(framework_dir):
         # Unrecognised file shape; leave it untouched rather than corrupt it.
         return
 
-    with open(path, "w", encoding="utf-8") as fp:
-        fp.write(text)
+    atomic_write_text(path, text)
     print("XIAO: ensured CDC ACM VID:PID = 2886:8013 in board Kconfig.defconfig")
 
 
@@ -851,8 +910,7 @@ def _patch_edge_impulse_sdk(ei_dir):
     )
     if old in text and new not in text:
         text = text.replace(old, new)
-        with open(cmake, "w", encoding="utf-8") as fp:
-            fp.write(text)
+        atomic_write_text(cmake, text)
         print("XIAO Edge AI: patched edge-impulse-sdk to exclude ESP32 sources (ARM)")
 
     # The EXCLUDE_DIR macro matches ".*\/<dir>\/.*" with forward slashes, which
@@ -869,8 +927,7 @@ def _patch_edge_impulse_sdk(ei_dir):
         )
         if u_old in utext and u_new not in utext:
             utext = utext.replace(u_old, u_new)
-            with open(utils_cmake, "w", encoding="utf-8") as fp:
-                fp.write(utext)
+            atomic_write_text(utils_cmake, utext)
             print("XIAO Edge AI: patched edge-impulse-sdk EXCLUDE_DIR macro (Win path-sep)")
 
 
@@ -920,6 +977,7 @@ def _provision_edge_ai():
 _ensure_zephyr_python_env()
 _ensure_minimal_west_workspace(framework_dir)
 _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
+_patch_platformio_framework_dir(framework_dir)
 _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
 _patch_platformio_framework_package_name(framework_dir, framework_package_name)
@@ -930,8 +988,9 @@ _patch_platformio_extra_modules(framework_dir)
 # boot-mode retention in the framework package on every build. Other boards
 # (including STM32C5, whose module block below copies all bundled modules
 # anyway) must not depend on 20B-specific sources existing.
+if zephyr_board in ("xiao_nrf54lm20b", "xiao_nrf54lm20a"):
+    _provision_xiao_dfu_module(framework_dir, zephyr_board)
 if zephyr_board == "xiao_nrf54lm20b":
-    _provision_xiao_dfu_module(framework_dir)
     _patch_cdc_vidpid(framework_dir)
 _provision_edge_ai()
 

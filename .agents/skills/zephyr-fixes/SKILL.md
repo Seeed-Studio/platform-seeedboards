@@ -41,11 +41,10 @@ tarball: baselines point at VANILLA upstream content only.
 ## 3. Re-cut baselines
 
 For every fix that stays or changes, recompute the pristine sha256
-from the NEW vanilla file and update `fixes.baseline`:
-
-```
-sha256sum ~/.platformio/packages/framework-zephyr-*/<path-inside-package>
-```
+from the NEW vanilla file and update `fixes.baseline`. Do **not** hash
+the installed package or a build view: both may already contain applied
+fixes (ADR-0006). Extract the pinned tarball into a scratch directory
+(or install into a scratch PlatformIO core dir) and hash that file.
 
 The two-way correspondence between fix files and baseline entries is
 enforced by `verify_zephyr_routing.py` -- run it (T0).

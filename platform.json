@@ -2,7 +2,7 @@
   "name": "seeed",
   "title": "Seeed Studio Multi-Chip Platform",
   "description": "One platform address, every chip family plugged in as data + classes",
-  "homepage": "https://github.com/Seeed-Studio/platform-seeed",
+  "homepage": "https://github.com/Seeed-Studio/platform-seeedboards",
   "license": "Apache-2.0",
   "keywords": [
     "dev-platform",
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Seeed-Studio/platform-seeed.git"
+    "url": "https://github.com/Seeed-Studio/platform-seeedboards.git"
   },
   "version": "0.0.1",
   "frameworks": {
@@ -147,7 +147,7 @@
     },
     "tool-esp_install": {
       "type": "tool",
-      "optional": false,
+      "optional": true,
       "owner": "pioarduino",
       "package-version": "5.3.4",
       "version": "https://github.com/pioarduino/esp_install/releases/download/v5.3.4/esp_install-v5.3.4.zip"
@@ -322,7 +322,13 @@
     },
     "tool-sreccat": {
       "owner": "platformio",
+      "optional": true,
       "version": "~1.164.0"
+    },
+    "tool-nrfjprog": {
+      "optional": true,
+      "owner": "platformio",
+      "version": "~1.90702.0"
     }
   }
 }

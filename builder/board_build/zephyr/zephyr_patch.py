@@ -12,7 +12,14 @@ Dispatched by builder/frameworks/zephyr_fixes.py. Interface:
 """
 
 import os
-from os.path import join
+import sys
+from os.path import dirname, join
+
+_HERE = dirname(__file__)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from zephyr_view import atomic_write_text
 
 
 def apply_patch(src_patch, framework_dir, target_relpath=None):
@@ -74,8 +81,9 @@ def _write_text_lines(file_path, lines, newline, trailing_newline):
     if trailing_newline:
         text += newline
 
-    with open(file_path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
+    # Atomic replacement breaks the hardlink to the view source rather than
+    # truncating the shared inode (ADR-0006).
+    atomic_write_text(file_path, text, newline="")
 
 
 def _apply_patch_hunk(file_path, old_lines, new_lines):

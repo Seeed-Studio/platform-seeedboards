@@ -23,17 +23,24 @@ FORBIDDEN = (
     r"\bstm32", r"\bra4m1", r"\bmg24", r"\bsilabs", r"\brenesas",
 )
 
-CORE_FILES = ("platform.py", "builder/main.py")
+CORE_FILES = (
+    "platform.py",
+    "builder/main.py",
+    "builder/frameworks/arduino.py",
+    "builder/frameworks/zephyr.py",
+)
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def verify_zero_string() -> list:
+def verify_zero_string(root: Path = None, core_files=None) -> list:
+    root = Path(root) if root else repo_root()
+    core_files = core_files or CORE_FILES
     errors = []
-    for rel in CORE_FILES:
-        path = repo_root() / rel
+    for rel in core_files:
+        path = root / rel
         if not path.is_file():
             errors.append("core: %s not found" % rel)
             continue
@@ -51,9 +58,10 @@ def verify_zero_string() -> list:
     return errors
 
 
-def verify_platform_json() -> list:
+def verify_platform_json(root: Path = None) -> list:
     errors = []
-    path = repo_root() / "platform.json"
+    root = Path(root) if root else repo_root()
+    path = root / "platform.json"
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -63,7 +71,7 @@ def verify_platform_json() -> list:
         script = fw.get("script")
         if not script:
             continue
-        if not (repo_root() / script).is_file():
+        if not (root / script).is_file():
             errors.append(
                 "platform.json: frameworks.%s script %r not found" % (name, script)
             )

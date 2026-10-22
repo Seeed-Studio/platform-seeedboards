@@ -18,7 +18,7 @@ class ChipFamily(ABC):
     ChipFamily.get() -- the only routing path; platform.py and
     builder/main.py carry no chip-name literals.
 
-    Interface contract (ADR-0001, six methods):
+    Interface contract (ADR-0001):
         required_packages      names (+ optional version overrides) to
                                activate; the single-slot rule (ADR-0002)
                                applies -- overrides narrow, never widen
@@ -30,6 +30,7 @@ class ChipFamily(ABC):
                               manifest (every upstream platform does this;
                               ~80 lines per family, not optional in practice)
         configure_debug_session  tweak the debug server config before launch
+        build_script          path to the family build entry the core delegates to
         get_build_hooks       optional pre/post/middleware SCons hooks
         configure_env         optional env overrides at build entry
     """
@@ -44,7 +45,7 @@ class ChipFamily(ABC):
         # runs, so abstractness cannot be detected here. Intermediate
         # bases skip registration by declaring family_ids = (); a
         # concrete family that forgets family_ids is caught by the
-        # verify_families gate after class creation completes.
+        # verify_boards gate after class creation completes.
         ids = getattr(cls, "family_ids", ())
         registry = cls._registry
         for family_id in ids:

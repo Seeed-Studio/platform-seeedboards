@@ -20,11 +20,13 @@ Exit 0 = pass, 1 = violations listed per file.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
 REQUIRED_FIELDS = ("name", "url", "vendor")
 ROUTING_KEY = "build.chip_family"
+_VIDPID_RE = re.compile(r"^[0-9A-F]{4}:[0-9A-F]{4}$")
 
 # Conscious snapshot of supported board ids; adding/removing a board is
 # a deliberate edit here (the failure message says so).
@@ -44,6 +46,7 @@ SUPPORTED_BOARD_IDS = (
     "seeed-xiao-mbed-nrf52840-sense-plus",
     "seeed-xiao-nrf54l15",
     "seeed-xiao-nrf54lm20a",
+    "seeed-xiao-nrf54lm20a-v2",
     "seeed-xiao-mg24",
     "seeed-xiao-mg24-sense",
     "seeed-xiao-nrf54lm20b",
@@ -96,7 +99,25 @@ def verify_families_concreteness(chip_family_cls) -> list:
     return errors
 
 
-def verify_board_manifest(path: Path, known_family_ids: set) -> list:
+def _get(obj, dotted, default=None):
+    cur = obj
+    for part in dotted.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return default
+        cur = cur[part]
+    return cur
+
+
+def load_platform_manifest(platform_json: Path):
+    """Parsed platform.json, or None when unreadable/malformed."""
+    try:
+        data = json.loads(platform_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def verify_board_manifest(path: Path, known_family_ids: set, platform=None) -> list:
     errors = []
     rel = path.name
     try:
@@ -124,6 +145,83 @@ def verify_board_manifest(path: Path, known_family_ids: set) -> list:
             "%s: %s %r is not a registered family (known: %s)"
             % (rel, ROUTING_KEY, family, ", ".join(sorted(known_family_ids)))
         )
+
+    # Optional schema rules (the stdlib-only subset of verify_platform.py).
+    if platform is not None:
+        frameworks = manifest.get("frameworks") or []
+        declared_frameworks = set(platform.get("frameworks") or {})
+        declared_packages = set(platform.get("packages") or {})
+        build = manifest.get("build") or {}
+
+        if not isinstance(frameworks, list) or not frameworks:
+            errors.append("%s: frameworks must be a non-empty list" % rel)
+        for framework in frameworks:
+            if framework not in declared_frameworks:
+                errors.append(
+                    "%s: framework %r is not declared in platform.json"
+                    % (rel, framework))
+            package_key = "build.%s.package" % framework
+            package = _get(manifest, package_key)
+            if package and package not in declared_packages:
+                errors.append(
+                    "%s: %s %r is not declared in platform.json"
+                    % (rel, package_key, package))
+
+        if not build.get("mcu"):
+            errors.append("%s: missing build.mcu" % rel)
+        if "extra_flags" in manifest:
+            errors.append(
+                "%s: extra_flags is at the manifest top level; PlatformIO "
+                "only reads build.extra_flags" % rel)
+
+        upload = manifest.get("upload") or {}
+        protocol = upload.get("protocol")
+        protocols = upload.get("protocols") or []
+        if not protocol:
+            errors.append("%s: missing upload.protocol" % rel)
+        elif not isinstance(protocols, list) or not protocols:
+            errors.append("%s: upload.protocols must be a non-empty list" % rel)
+        elif protocol not in protocols:
+            errors.append(
+                "%s: upload.protocol %r is not listed in upload.protocols"
+                % (rel, protocol))
+
+        if protocol == "nrfutil-mcumgr":
+            app = _get(manifest, "upload.cdc.app_vidpid", "")
+            loaders = _get(manifest, "upload.cdc.loader_vidpids", [])
+            if not app or not _VIDPID_RE.match(app):
+                errors.append(
+                    "%s: upload.protocol 'nrfutil-mcumgr' requires "
+                    "upload.cdc.app_vidpid as UPPER:UPPER hex" % rel)
+            if not isinstance(loaders, list) or not loaders:
+                errors.append(
+                    "%s: upload.protocol 'nrfutil-mcumgr' requires "
+                    "upload.cdc.loader_vidpids" % rel)
+            else:
+                for value in loaders:
+                    if not isinstance(value, str) or not _VIDPID_RE.match(value):
+                        errors.append(
+                            "%s: bad upload.cdc.loader_vidpids entry %r "
+                            "(UPPER:UPPER hex)" % (rel, value))
+
+        if "zephyr" in frameworks:
+            for key in ("build.zephyr.package", "build.zephyr.variant",
+                        "build.zephyr.board_name"):
+                if not _get(manifest, key):
+                    errors.append(
+                        "%s: zephyr framework requires %s" % (rel, key))
+            variant = _get(manifest, "build.zephyr.variant", "")
+            derived = variant.split("/")[0].split("@")[0] if variant else ""
+            if variant and not derived:
+                errors.append(
+                    "%s: cannot derive Zephyr board name from variant %r"
+                    % (rel, variant))
+            board_name = _get(manifest, "build.zephyr.board_name", "")
+            if derived and board_name and derived != board_name:
+                errors.append(
+                    "%s: build.zephyr.board_name %r does not match the "
+                    "variant-derived name %r" % (rel, board_name, derived))
+
     return errors
 
 
@@ -135,7 +233,8 @@ def load_platform_packages(platform_json: Path) -> set:
         return None
 
 
-def verify_boards_dir(boards_dir: Path, known_family_ids: set, expected_ids) -> list:
+def verify_boards_dir(boards_dir: Path, known_family_ids: set, expected_ids,
+                      platform=None) -> list:
     errors = []
     manifests = sorted(boards_dir.glob("*.json")) if boards_dir.is_dir() else []
     if not manifests and not expected_ids:
@@ -149,7 +248,7 @@ def verify_boards_dir(boards_dir: Path, known_family_ids: set, expected_ids) -> 
     actual_ids = set()
     for path in manifests:
         actual_ids.add(path.stem)
-        errors.extend(verify_board_manifest(path, known_family_ids))
+        errors.extend(verify_board_manifest(path, known_family_ids, platform))
 
     expected = set(expected_ids)
     for board_id in sorted(expected - actual_ids):
@@ -176,8 +275,13 @@ def main() -> int:
         return 1
 
     known = chip_family_cls.known_family_ids()
+    platform = load_platform_manifest(root / "platform.json")
+    if platform is None:
+        print("verify_boards: cannot read platform.json", file=sys.stderr)
+        return 1
     errors.extend(verify_families_concreteness(chip_family_cls))
-    errors.extend(verify_boards_dir(root / "boards", known, SUPPORTED_BOARD_IDS))
+    errors.extend(verify_boards_dir(root / "boards", known,
+                                    SUPPORTED_BOARD_IDS, platform))
 
     if errors:
         for error in errors:

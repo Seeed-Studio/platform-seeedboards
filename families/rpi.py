@@ -119,6 +119,8 @@ class RpiFamily(ChipFamily):
                 "framework-arduinopico": None,
                 "tool-openocd-rp2040-earlephilhower": EARLE_OPENOCD[sys_type],
                 "tool-picotool-rp2040-earlephilhower": EARLE_PICOTOOL[sys_type],
+                # filesystem images (buildfs/uploadfs) use mklittlefs.
+                "tool-mklittlefs-rp2040-earlephilhower": None,
                 # PIO assembler for .pio sources (upstream _build_pioasm.py).
                 "tool-pioasm-rp2040-earlephilhower": EARLE_PIOASM[sys_type],
                 # RP2350 (RISC-V) takes the RISC-V toolchain; RP2040 and

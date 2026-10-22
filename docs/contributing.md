@@ -13,11 +13,13 @@ layering; most changes land in exactly one layer.
 
 ## The CI gate
 
-A family PR merges only when the family's **entire demo matrix** is
-green in CI: every demo of every board (ADR-0005). Each board carries
-at least blink + uart + one framework-canonical demo; each family
-exercises every upload protocol, debug injection, and fix it ships.
-Any `platform.json` change runs the full cross-family matrix.
+A family PR merges only when its CI matrix is green. `verify_examples.py`
+requires at least one demo env for every board/framework pair, and the
+per-framework workflows build every env. Arduino/Zephyr smoke projects carry
+blink + uart; ESP-IDF carries blink. Canonical/per-protocol/per-fix demos
+remain release criteria (ADR-0005 amendment), not something the current
+matrix silently drops. Any `platform.json` change runs the full cross-family
+matrix.
 
 ## Development loop
 
@@ -25,12 +27,18 @@ Any `platform.json` change runs the full cross-family matrix.
    ```bash
    pytest tests/ -q                      # console script, never python -m pytest
    python scripts/ci/verify_boards.py
-   python scripts/ci/verify_families.py
+   python scripts/ci/verify_core.py
+   python scripts/ci/verify_zephyr_routing.py
+   python scripts/ci/verify_platform.py
+   python scripts/ci/verify_examples.py
+   python scripts/ci/verify_workflows.py
    ```
 2. For build-behavior changes: build the affected boards through the
    local-checkout override, `pio run -t clean` first, with a FRESH
    platform cache (delete the cached platform dir — path installs
-   dedupe by name and reuse stale copies).
+   dedupe by name and reuse stale copies). Zephyr fixes run in a per-build
+   framework view (ADR-0006); remove `$PROJECT_CORE_DIR/zephyr-views` if a
+   view is suspected stale.
 3. Shared-package discipline: same-named packages from different
    upstreams collide (one version slot per name platform-wide,
    ADR-0002); interrupted downloads leave damaged packages. Delete and

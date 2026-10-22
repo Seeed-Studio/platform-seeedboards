@@ -29,7 +29,10 @@ REPO_PLATFORM_PREFIXES = (
 
 
 def find_projects(examples_dir: Path) -> list:
-    return sorted(set(p.parent for p in examples_dir.rglob("platformio.ini")))
+    return sorted({
+        p.parent for p in examples_dir.rglob("platformio.ini")
+        if ".pio" not in p.parts
+    })
 
 
 def uses_framework(ini_text: str, framework: str) -> bool:
@@ -46,7 +49,8 @@ def uses_framework(ini_text: str, framework: str) -> bool:
 def extract_envs(ini_path: Path) -> list:
     envs = []
     seen = set()
-    for m in re.finditer(r"^\[env:(.+?)\]", ini_path.read_text(), re.MULTILINE):
+    for m in re.finditer(r"^\[env:(.+?)\]", ini_path.read_text(encoding="utf-8"),
+                         re.MULTILINE):
         if m.group(1) not in seen:
             seen.add(m.group(1))
             envs.append(m.group(1))
@@ -64,6 +68,19 @@ def localize_platform(ini_text: str, root: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
+def has_repo_platform(ini_text: str) -> bool:
+    """True when every platform= line points at this repository."""
+    values = []
+    for line in ini_text.splitlines():
+        m = re.match(r"^platform\s*=\s*(.+)$", line.strip())
+        if m:
+            values.append(m.group(1).strip())
+    return bool(values) and all(
+        any(value.startswith(pfx) for pfx in REPO_PLATFORM_PREFIXES)
+        for value in values
+    )
+
+
 def main(argv: list = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -72,6 +89,9 @@ def main(argv: list = None) -> int:
     parser.add_argument(
         "--examples-dir", default="examples",
         help="directory holding the example projects (default: examples)")
+    parser.add_argument(
+        "--log-dir", default=None,
+        help="write one log per env under this directory (CI artifact)")
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -80,9 +100,14 @@ def main(argv: list = None) -> int:
         print("examples dir not found: %s" % examples, file=sys.stderr)
         return 2
 
+    log_dir = (root / args.log_dir).resolve() if args.log_dir else None
+    if log_dir:
+        log_dir.mkdir(parents=True, exist_ok=True)
+
     projects = [
         p for p in find_projects(examples)
-        if uses_framework(p.joinpath("platformio.ini").read_text(), args.framework)
+        if uses_framework(p.joinpath("platformio.ini").read_text(encoding="utf-8"),
+                          args.framework)
     ]
     if not projects:
         print("no %s projects found under %s" % (args.framework, examples),
@@ -91,19 +116,39 @@ def main(argv: list = None) -> int:
 
     failures = []
     for project in projects:
-        ini_text = project.joinpath("platformio.ini").read_text()
+        ini_text = project.joinpath("platformio.ini").read_text(encoding="utf-8")
+        if not has_repo_platform(ini_text):
+            print("%s: platform URL is not the maintained repository"
+                  % project.name, file=sys.stderr)
+            failures.append("%s:platform-url" % project.name)
+            continue
         conf = project / ".pio-ci.platformio.ini"
-        conf.write_text(localize_platform(ini_text, root))
+        conf.write_text(localize_platform(ini_text, root), encoding="utf-8")
         try:
             for env in extract_envs(project / "platformio.ini"):
-                rc = subprocess.run(
-                    ["platformio", "run", "-d", str(project),
-                     "--project-conf", str(conf), "-e", env],
-                    cwd=str(root),
-                ).returncode
-                print("%s:%s -> %s" % (
-                    project.name, env, "OK" if rc == 0 else "FAILED"), flush=True
-                )
+                log_path = None
+                log_file = None
+                if log_dir:
+                    safe_project = project.relative_to(examples).as_posix().replace(
+                        "/", "_")
+                    log_path = log_dir / ("%s__%s.log" % (safe_project, env))
+                    log_file = open(log_path, "w", encoding="utf-8")
+                try:
+                    kwargs = {"cwd": str(root)}
+                    if log_file:
+                        kwargs["stdout"] = log_file
+                        kwargs["stderr"] = subprocess.STDOUT
+                    rc = subprocess.run(
+                        ["platformio", "run", "-d", str(project),
+                         "--project-conf", str(conf), "-e", env],
+                        **kwargs).returncode
+                finally:
+                    if log_file:
+                        log_file.close()
+                print("%s:%s -> %s%s" % (
+                    project.name, env, "OK" if rc == 0 else "FAILED",
+                    (" (log: %s)" % log_path) if rc != 0 and log_path else "",
+                ), flush=True)
                 if rc != 0:
                     failures.append("%s:%s" % (project.name, env))
         finally:

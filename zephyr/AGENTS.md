@@ -16,7 +16,9 @@ lives here, keyed by upstream-style board directories.
   / patch failure with context) on the first build: re-evaluate each fix
   -- upstreamed means deleted, still needed means refreshed plus a new
   baseline.
-- The package cache is never the source of truth; this directory is.
+- The package cache is never the source of truth; this directory is. Builds
+  use a read-only hardlink framework view (ADR-0006); never write into the
+  installed package directly.
 - zephyr/modules/<name>/ modules are auto-discovered (no edit needed to
   add one); see zephyr/README.md.
 - Run `python scripts/ci/verify_zephyr_routing.py` before committing.

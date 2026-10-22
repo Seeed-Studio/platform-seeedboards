@@ -110,23 +110,32 @@ flowchart LR
     D --> E["SConscript(upstream build script)"]
 ```
 
-### 3.4 The ChipFamily interface (six methods — ADR-0001)
+### 3.4 The ChipFamily interface (ADR-0001)
 
 ```python
 class ChipFamily(ABC):
     family_ids: tuple[str, ...]
-    def required_packages(self, board) -> set[str] | dict[str, str]
+    # abstract contract
+    def required_packages(self, board, variables=None) -> dict[str, object]
     def build_flags(self, board) -> list[str]
     def upload_protocol(self, board) -> str
-    def inject_debug_tools(self, board) -> None        # every upstream has ~80 lines here
+    def inject_debug_tools(self, board) -> None
     def configure_debug_session(self, debug_config) -> None
-    def get_build_hooks(self) -> list[dict]             # optional
-    def configure_env(self, env, board) -> None         # optional override
+    def build_script(self, env, board) -> str
+    # optional extension points
+    def arduino_script(self, env, board) -> str
+    def zephyr_script(self, env, board) -> str
+    def get_build_hooks(self) -> list[dict]
+    def configure_env(self, env, board) -> None
+    def post_activate_packages(self, platform) -> bool
 ```
 
-Upload **action construction** (commands, signing, touch sequences)
-lives in the family build script or hooks — a protocol string is never
-the whole story.
+`upload_protocol()` is the family fallback for a board manifest that omits
+`upload.protocol`; a board/project setting always wins. Upload **action
+construction** (commands, signing, touch sequences) lives in the family
+build script or hooks — a protocol string is never the whole story.
+`build_flags()` is consumed by the families that need it (ESP/SAMD); other
+families derive flags in their build script.
 
 ## 4. Upstream reuse ladder (ADR-0004)
 
@@ -143,7 +152,7 @@ flowchart TD
     A4 & A5 & A6 --> R2["explicit, documented exception"]
 ```
 
-## 5. Fixes mechanism (ADR-0003, summary)
+## 5. Fixes mechanism (ADR-0003, ADR-0006)
 
 `zephyr/boards/arm/<board>/fixes/` — directory IS the registration;
 `.patch` = diff, plain file = override with provenance header;
@@ -151,6 +160,10 @@ flowchart TD
 against VANILLA content). Upgrades: bump pin → expect drift →
 re-evaluate (upstreamed dies, needed refreshes) → re-cut baselines →
 full matrix.
+
+Fixes are applied to a per-build **hardlink framework view** (ADR-0006),
+never to the installed package: fixed inputs create a new view, later
+builds reuse it, and every write is atomic so the package stays pristine.
 
 ## 6. Validation tiers (ADR-0004)
 

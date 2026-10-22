@@ -32,7 +32,10 @@ class RenesasFamily(ChipFamily):
     def required_packages(self, board, variables=None) -> "dict[str, object]":
         packages = {
             "framework-arduinorenesas-uno": None,
-            "toolchain-gccarmnoneeabi": None,
+            # ArduinoCore-renesas-uno validates the GCC 7 line; leaving
+            # the platform-wide range would silently move to GCC 12
+            # (ADR-0002 records that exact predecessor regression).
+            "toolchain-gccarmnoneeabi": "~1.70201.0",
         }
         # Uploaders stay optional unless the active protocol needs them
         # (project upload_protocol overrides the manifest default).

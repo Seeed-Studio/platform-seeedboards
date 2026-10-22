@@ -49,7 +49,12 @@ class SeeedPlatform(PlatformBase):
             manifest, variables=variables
         ).items():
             if name not in self.packages:
-                continue
+                raise KeyError(
+                    "family %s requires package %r, which platform.json "
+                    "does not declare -- add the package declaration or "
+                    "fix the family (ADR-0002)"
+                    % (type(family).__name__, name)
+                )
             self.packages[name]["optional"] = False
             if isinstance(version_override, dict):
                 # full override: version plus companion fields such as

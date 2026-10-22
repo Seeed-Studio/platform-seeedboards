@@ -19,6 +19,8 @@ _SCRIPTS_DIR = dirname(__file__)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
+IS_WINDOWS = sys.platform.startswith("win")
+
 # Pinned GCC ARM toolchain line required by the Silicon Labs core
 GCCARM_TOOLCHAIN_VERSION = "~1.120301.0"
 
@@ -76,7 +78,7 @@ class SilabsFamily(ChipFamily):
         openocd_target = debug.get("openocd_target")
         assert openocd_target, (
             "Missing target configuration for %s" % board.id)
-        debug["tools"] = {
+        tools = {
             "cmsis-dap": {
                 "server": {
                     "executable": "bin/openocd",
@@ -97,6 +99,35 @@ class SilabsFamily(ChipFamily):
                 ],
             }
         }
+
+        # Both MG24 manifests advertise J-Link in upload.protocols and
+        # carry debug.jlink_device. The shared OpenOCD build above is
+        # not used for J-Link; inject the standard J-Link server so the
+        # board's advertised debug capability is real.
+        upload_protocols = (board.manifest.get("upload") or {}).get(
+            "protocols", [])
+        if "jlink" in upload_protocols:
+            jlink_device = debug.get("jlink_device")
+            assert jlink_device, (
+                "Missing J-Link Device ID for %s" % board.id)
+            tools["jlink"] = {
+                "server": {
+                    "package": "tool-jlink",
+                    "arguments": [
+                        "-singlerun", "-if", "SWD", "-select", "USB",
+                        "-device", jlink_device, "-port", "2331",
+                    ],
+                    "executable": (
+                        "JLinkGDBServerCL.exe" if IS_WINDOWS
+                        else "JLinkGDBServer"),
+                },
+            }
+
+        for name, tool in tools.items():
+            tool.setdefault("onboard", name in debug.get("onboard_tools", []))
+            tool.setdefault("default", name in debug.get("default_tools", []))
+
+        debug["tools"] = tools
         board.manifest["debug"] = debug
 
     def configure_debug_session(self, debug_config) -> None:

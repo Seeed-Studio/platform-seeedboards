@@ -42,6 +42,9 @@ class NrfFamily(ChipFamily):
                 "framework-arduinoadafruitnrf52": None,
                 "framework-cmsis": "~2.50700.0",
                 "tool-adafruit-nrfutil": "~1.503.0",
+                "tool-nrfjprog": None,
+                # SoftDevice merge (nrf_build.py MergeHex) needs srec_cat.
+                "tool-sreccat": None,
                 # Adafruit nRF52 core (1.10x) links only on the GCC 7
                 # line; GCC 12 fails with undefined USB CDC symbols.
                 "toolchain-gccarmnoneeabi": "~1.70201.0",
@@ -52,6 +55,7 @@ class NrfFamily(ChipFamily):
                 "tool-adafruit-nrfutil": "~1.503.0",
                 "tool-bossac-nordicnrf52": "~1.10901.0",
                 "tool-openocd": "~3.1200.0",
+                "tool-nrfjprog": None,
                 # ArduinoCore-mbed for nRF52840, validated on GCC 8.
                 "toolchain-gccarmnoneeabi": "~1.80201.0",
             }

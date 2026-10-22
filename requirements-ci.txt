@@ -1,0 +1,6 @@
+# CI-only tooling. Keep this file the single source of the versions the
+# merge gate validates against; workflows install from it instead of
+# floating `pip install platformio pytest` commands.
+platformio==6.1.19
+pytest>=8,<10
+PyYAML>=6,<7

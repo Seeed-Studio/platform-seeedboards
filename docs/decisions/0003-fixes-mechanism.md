@@ -54,5 +54,8 @@ two-way fix/baseline correspondence.
 
 ## Related files
 
-- `zephyr/boards/arm/<board>/fixes/` (to be populated)
-- `scripts/ci/verify_zephyr_routing.py` (to be implemented)
+- `zephyr/boards/arm/<board>/fixes/` (populated)
+- `scripts/ci/verify_zephyr_routing.py` (implemented)
+- `docs/decisions/0006-zephyr-framework-views.md` (fixes write to a
+  per-build bridge view, never the package cache)
+- `builder/board_build/zephyr/zephyr_fixes.py`

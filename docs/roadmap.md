@@ -7,7 +7,7 @@ pass the validation tier shown.
 | # | Deliverable | Validates | Tier |
 | --- | --- | --- | --- |
 | 1 | `families/base.py` — ChipFamily ABC + `__init_subclass__` registry + registry unit tests | ADR-0001 | T0 |
-| 2 | Offline gates: `verify_boards.py`, `verify_families.py` (registry/zero-string grep), smoke; pytest suites with pass/fail fixtures per rule | ADR-0004 T0 | T0 |
+| 2 | Offline gates: `verify_boards.py`, `verify_core.py` (registry/zero-string grep), `verify_platform.py`, smoke; pytest suites with pass/fail fixtures per rule | ADR-0004 T0 | T0 |
 | 3 | `platform.py` + `builder/main.py` zero-string core (empty registry path works, fails loudly on unknown family) | ADR-0001 | T0 + boards smoke |
 | 4 | First family: **samd** (smallest, upstream exists, no package collisions) + board manifest + blink/uart demos | ADR-0001 + CI gate | T1 + CI |
 | 5 | Family with a package collision: **esp** (brings stub-package machinery + the single-slot decision) | ADR-0002 | T2 (samd + esp) |

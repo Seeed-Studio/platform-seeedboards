@@ -14,9 +14,12 @@ Apply the repository rules in `AGENTS.md` first. Validation is tiered
 ```
 pytest tests/ -q                      # run as the console script; python -m
                                       # would shadow the stdlib platform module
-python3 scripts/ci/verify_boards.py   # manifest snapshot + family registry
+python3 scripts/ci/verify_boards.py   # manifest snapshot + schema + family registry
 python3 scripts/ci/verify_core.py     # zero-string routing + platform.json
 python3 scripts/ci/verify_zephyr_routing.py  # routing closure + fixes layout
+python3 scripts/ci/verify_platform.py # family/package/debug runtime contract
+python3 scripts/ci/verify_examples.py # every board/framework has a demo; URL pin
+python3 scripts/ci/verify_workflows.py # YAML, permissions, v3 push branches
 ```
 
 Any failure blocks everything below. Gate errors name the file and the
@@ -34,7 +37,7 @@ python3 scripts/ci/build_examples.py --framework zephyr
 python3 scripts/ci/build_examples.py --framework espidf
 ```
 
-Current scale: 38 + 8 + 5 = 51 environments. `RESULT: ALL GREEN` (exit 0)
+Current scale: 38 + 10 + 5 = 53 environments. `RESULT: ALL GREEN` (exit 0)
 is the only pass state.
 
 Rules of engagement:
@@ -43,6 +46,9 @@ Rules of engagement:
   installed once and never refreshed) produces `UnknownBoard` after you
   add boards or edit routing: `rm -rf ~/.platformio/platforms/seeed`
   and rerun.
+- Zephyr fixes run in a per-build framework view under
+  `$PROJECT_CORE_DIR/zephyr-views` (ADR-0006), not in the installed
+  package. Remove that directory if a view is suspected stale.
 - First-time framework builds download gigabytes (ESP-IDF ~2 GB,
   Zephyr tarballs + west deps); budget minutes-to-tens-of-minutes and
   prefer a background run.

@@ -31,7 +31,7 @@ class SamdFamily(ChipFamily):
     def required_packages(self, board, variables=None) -> "dict[str, object]":
         mcu = (board.get("build") or {}).get("mcu", "")
         packages = {
-            "toolchain-gccarmnoneeabi": None,  # platform.json range
+            "toolchain-gccarmnoneeabi": "~1.70201.0",  # Seeed SAMD core validated on GCC 7
             "framework-arduino-samd-seeed": None,
             "framework-cmsis": "~2.50400.0",   # seeed core needs 2.5.x (ADR-0002)
             "framework-cmsis-atmel": None,
@@ -80,7 +80,7 @@ class SamdFamily(ChipFamily):
             return  # manifest already carries tool configs
         tools = debug.setdefault("tools", {})
 
-        for link in ("blackmagic", "jlink", "cmsis-dap"):
+        for link in ("blackmagic", "jlink", "cmsis-dap", "atmel-ice"):
             if link in tools:
                 continue
             if link == "blackmagic":
@@ -108,13 +108,22 @@ class SamdFamily(ChipFamily):
                 chipname = debug.get("openocd_chipname")
                 if not chipname:
                     continue
+                if link == "atmel-ice":
+                    # Atmel-ICE is a CMSIS-DAP probe; keep the same
+                    # OpenOCD path and pin its USB VID:PID.
+                    interface = [
+                        "-f", "interface/cmsis-dap.cfg",
+                        "-c", "cmsis_dap_vid_pid 0x03eb 0x2141",
+                    ]
+                else:
+                    interface = ["-f", "interface/%s.cfg" % link]
                 tools[link] = {
                     "server": {
                         "package": "tool-openocd",
                         "executable": "bin/openocd",
                         "arguments": [
                             "-s", "$PACKAGE_DIR/openocd/scripts",
-                            "-f", "interface/%s.cfg" % link,
+                            *interface,
                             "-c", "set CHIPNAME %s" % chipname,
                             "-f", "target/%s" % debug.get(
                                 "openocd_target", chipname

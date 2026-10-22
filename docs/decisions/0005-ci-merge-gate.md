@@ -19,20 +19,23 @@ per board is a smoke, not a validation.
    pre-loop. PR bodies record what was run locally and what is left to
    CI.
 
-2. **Per-board demo matrix** — every board ships with multiple demos,
-   and CI builds all of them:
-   - mandatory, per board: `blink` (GPIO), `uart` (console), and one
-     framework-canonical sample (e.g. `ble` for zephyr boards, `wifi`
-     for esp);
-   - per family, at least one board exercising: each upload protocol
-     the family enables, each debug tool injection it implements, and
-     each fix it carries (a board with fixes must have a demo that
-     builds ONLY because the fix applied — USB CDC for the STM32C5
-     overrides, XSPI flash for the flash overrides);
-   - demos live under `examples/<board-id>/<demo>/` (board-grouped so
-     discovery is by declared framework, never directory naming).
-   The blink-only CI of the predecessor is explicitly rejected: demos
-     are regression contracts, not decoration.
+2. **Per-board demo matrix** — every board/framework pair has at least one
+   demo env; the Arduino/Zephyr smoke projects carry `blink` + `uart`,
+   ESP-IDF carries `blink`. Before release, each family still needs at
+   least one demo exercising each upload protocol, debug-tool injection,
+   and fix it ships (a board with fixes must have a demo that builds ONLY
+   because the fix applied — USB CDC for the STM32C5 overrides, XSPI flash
+   for the flash overrides).
+   - demos live under `examples/<demo>/platformio.ini` (demo-grouped: one
+     file carries all boards of a framework). Board-specific hardware
+     samples may live under `examples/<board-id>/<sample>/`; discovery is
+     by the `framework =` line, never directory naming.
+   **Amendment 1 (2026-10-22)** — the v3 automated gate enforces and builds
+   the one-env-per-board/framework minimum (`verify_examples.py` plus the
+   per-framework workflows). Framework-canonical (`ble`/`wifi`),
+   per-protocol, per-debug and per-fix demos remain release criteria,
+   tracked in the roadmap. This amendment narrows the automated merge gate,
+   not the release bar. The predecessor's blink-only CI remains rejected.
 
 3. **Cross-family guard**: any PR touching `platform.json` (any package
    pin) or a shared gate runs the FULL matrix — every family, every
@@ -41,12 +44,16 @@ per board is a smoke, not a validation.
 
 4. **Workflows** (mirroring the gates, run on push/PR):
    - `ci-verify`: offline gates — pytest, `verify_boards.py`,
-     `verify_families.py` (registry/zero-string checks),
-     `verify_routing.py` (zephyr chain + fixes), `pio boards` smoke.
+     `verify_core.py` (zero-string routing), `verify_zephyr_routing.py`
+     (zephyr chain + fixes), `verify_platform.py` (family/package/debug
+     runtime contract), `verify_examples.py` (demo matrix + URL pin),
+     `verify_workflows.py` (YAML/permissions/branch), and the platform-load
+     smoke.
    - `build-<framework>-examples` (one per declared framework):
      discovers demos by the `framework =` line, builds every env
      through the local-checkout override.
-   - PR template: Why / What Changed / Validation.
+   - PR template: `.github/pull_request_template.md` — Why / What Changed /
+     Validation.
 
 5. **Gate tests**: every verify-gate rule ships with a passing sample
    and a failing counterexample under `tests/` (fixtures); a rule

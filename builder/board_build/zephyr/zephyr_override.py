@@ -16,7 +16,14 @@ Dispatched by builder/frameworks/zephyr_fixes.py. Interface:
 import hashlib
 import os
 import shutil
-from os.path import join
+import sys
+from os.path import dirname, join
+
+_HERE = dirname(__file__)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from zephyr_view import atomic_copy
 
 
 def apply_override(src_override, framework_dir, target_relpath, baseline_sha=None):
@@ -53,7 +60,7 @@ def apply_override(src_override, framework_dir, target_relpath, baseline_sha=Non
             baseline_ok = True
 
     os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
-    shutil.copy2(src_override, dst)
+    atomic_copy(src_override, dst)
     print("Applied Zephyr override: %s -> %s" % (target_relpath, os.path.basename(src_override)))
 
     return {"applied": True, "baseline_ok": baseline_ok, "warning": warning}

@@ -7,9 +7,9 @@
     "variant": "xiao_mg24",
     "arduino": {
       "package": "framework-arduino-silabs"
-    }
+    },
+    "extra_flags": "-DSEEED_XIAO_MG24 -DSEEED_XIAO_MG24_SENSE -DARDUINO_ARCH_SILABS -DEFR32MG24B220F1536IM48"
   },
-  "extra_flags": "-DSEEED_XIAO_MG24 -DSEEED_XIAO_MG24_SENSE -DARDUINO_ARCH_SILABS -DEFR32MG24B220F1536IM48",
   "connectivity": [
     "bluetooth",
     "thread",

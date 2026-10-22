@@ -3,7 +3,18 @@
 This directory carries everything Zephyr needs beyond the stock
 `framework-zephyr-*` package: board definitions, bundled west modules, and
 per-board fixes for upstream gaps. Applied before the build by
-`builder/frameworks/zephyr.py` + `builder/frameworks/zephyr_fixes.py`.
+`builder/board_build/zephyr/zephyr_framework.py` and
+`builder/board_build/zephyr/zephyr_fixes.py`.
+
+## Framework views (ADR-0006)
+
+The installed framework package is **read-only**. Each build uses a hardlink
+view under `$PROJECT_CORE_DIR/zephyr-views/<package>-<board>-<key>`; fixes,
+board copies and build-script patches are written only into that view.
+`PIO_ZEPHYR_VIEW=0` restores the old in-place behavior for debugging and
+must not be used in CI. A new key creates a new view (first build pays the
+hardlink walk; later builds reuse it). Remove `$PROJECT_CORE_DIR/zephyr-views`
+to reclaim cache metadata; the package data is shared by hardlinks.
 
 ## Layout
 

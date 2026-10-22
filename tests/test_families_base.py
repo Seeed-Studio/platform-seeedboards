@@ -69,7 +69,7 @@ class TestRegistration:
     def test_concrete_family_without_ids_not_caught_at_class_creation(self):
         # __init_subclass__ runs before ABCMeta computes __abstractmethods__,
         # so the missing-ids guard cannot fire there (see base.py comment).
-        # Such a class simply registers nothing; the verify_families gate
+        # Such a class simply registers nothing; the verify_boards gate
         # catches it post-creation. This test pins that semantics.
 
         class _NoIds(ChipFamily):

@@ -61,8 +61,20 @@ def BeforeUpload(target, source, env):  # pylint: disable=W0613,W0621
 #   LOADER_CDC : the DFU loader image (Seeed VID 0x2886, PID 0x0013, baked into
 #                scripts/factory_flash/firmware/USB_DFU.hex). Listed as a tuple
 #                so a legacy loader VID:PID can be added in one line if needed.
-_APP_CDC_VIDPID = "2886:8013"
-_LOADER_CDC_VIDPIDS = ("2886:0013",)
+_DEFAULT_APP_CDC_VIDPID = "2886:8013"
+_DEFAULT_LOADER_CDC_VIDPIDS = ("2886:0013",)
+
+
+def _cdc_identities(env):
+    """Return (app_vidpid, loader_vidpids) from the board manifest.
+
+    The USB identities are board facts (the V2 and 20B loaders enumerate
+    different PIDs), so they live in upload.cdc.* instead of this script.
+    """
+    cdc = env.BoardConfig().get("upload.cdc", {}) or {}
+    app = cdc.get("app_vidpid") or _DEFAULT_APP_CDC_VIDPID
+    loaders = tuple(cdc.get("loader_vidpids") or _DEFAULT_LOADER_CDC_VIDPIDS)
+    return app, loaders
 
 
 def _find_port_by_vidpid(vidpid, ports=None):
@@ -73,18 +85,19 @@ def _find_port_by_vidpid(vidpid, ports=None):
     return None
 
 
-def _find_loader_port(ports=None):
-    for vidpid in _LOADER_CDC_VIDPIDS:
+def _find_loader_port(env, ports=None):
+    _app, loaders = _cdc_identities(env)
+    for vidpid in loaders:
         port = _find_port_by_vidpid(vidpid, ports)
         if port:
             return port
     return None
 
 
-def _wait_for_loader_port(timeout=60):
+def _wait_for_loader_port(env, timeout=60):
     import time
     for _ in range(timeout):
-        port = _find_loader_port()
+        port = _find_loader_port(env)
         if port:
             return port
         time.sleep(1)
@@ -108,17 +121,18 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
          for the loader CDC.
     """
     explicit = env.subst("$UPLOAD_PORT")
+    app_vidpid, loader_vidpids = _cdc_identities(env)
 
     # (1) Explicit port: detect its role by VID:PID.
     if explicit:
-        if explicit == _find_loader_port():
+        if explicit == _find_loader_port(env):
             print("Configured port %s is the DFU loader; using it directly."
                   % explicit)
             return
         # Otherwise treat it as the app port -> fall through to the touch path.
     else:
         # (2) Loader CDC already present -> board already in DFU mode.
-        loader_port = _find_loader_port()
+        loader_port = _find_loader_port(env)
         if loader_port:
             env.Replace(UPLOAD_PORT=loader_port)
             print("Board already in DFU mode; using loader port %s."
@@ -126,12 +140,12 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
             return
 
     # (3) App CDC present -> touch 1200 -> poll for the loader CDC.
-    app_port = explicit or _find_port_by_vidpid(_APP_CDC_VIDPID)
+    app_port = explicit or _find_port_by_vidpid(app_vidpid)
     if app_port:
         env.Replace(UPLOAD_PORT=app_port)
         print("Touching %s at 1200 baud -> DFU..." % app_port)
         env.TouchSerialPort("$UPLOAD_PORT", 1200)
-        loader_port = _wait_for_loader_port(60)
+        loader_port = _wait_for_loader_port(env, 60)
         if not loader_port:
             sys.stderr.write(
                 "Error: the board did not enter DFU mode after the 1200-bps "
@@ -145,9 +159,9 @@ def DfuUpload1200(target, source, env):  # pylint: disable=W0613,W0621
     sys.stdout.write(
         "No app CDC (VID:PID=%s) found. To recover, hold Button 0 "
         "(P0.09) and press reset to enter DFU mode. Waiting for the DFU "
-        "loader CDC (VID:PID=%s)...\n" % (_APP_CDC_VIDPID, _LOADER_CDC_VIDPIDS[0]))
+        "loader CDC (VID:PID=%s)...\n" % (app_vidpid, loader_vidpids[0]))
     sys.stdout.flush()
-    port = _wait_for_loader_port(60)
+    port = _wait_for_loader_port(env, 60)
     if not port:
         sys.stderr.write(
             "Error: could not find the DFU port. Put the board in DFU mode "

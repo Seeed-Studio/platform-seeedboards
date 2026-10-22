@@ -18,6 +18,14 @@ from verify_boards import (
 
 
 KNOWN = {"samd", "esp"}
+KNOWN_ALL = {"samd", "esp", "zephyr"}
+PLATFORM = {
+    "frameworks": {"arduino": {}, "zephyr": {}},
+    "packages": {
+        "framework-arduino-x": {},
+        "framework-zephyr-x": {},
+    },
+}
 
 
 def write_manifest(path, manifest):
@@ -34,6 +42,20 @@ def good_manifest(**overrides):
         "vendor": "Test",
     }
     manifest.update(overrides)
+    return manifest
+
+
+def full_manifest():
+    manifest = good_manifest()
+    manifest["build"] = {
+        "mcu": "testmcu",
+        "chip_family": "samd",
+        "arduino": {"package": "framework-arduino-x"},
+    }
+    manifest["upload"] = {
+        "protocol": "sam-ba",
+        "protocols": ["sam-ba", "jlink"],
+    }
     return manifest
 
 
@@ -64,6 +86,88 @@ class TestManifestRules:
             tmp_path / "uf.json", good_manifest(build={"chip_family": "mips"})
         )
         assert any("not a registered family" in e for e in verify_board_manifest(path, KNOWN))
+
+    def test_full_manifest_with_platform_passes(self, tmp_path):
+        path = write_manifest(tmp_path / "full.json", full_manifest())
+        assert verify_board_manifest(path, KNOWN_ALL, PLATFORM) == []
+
+    def test_top_level_extra_flags_rejected(self, tmp_path):
+        manifest = full_manifest()
+        manifest["extra_flags"] = "-DWRONG=1"
+        path = write_manifest(tmp_path / "flags.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("top level" in e for e in errors)
+
+    def test_unknown_framework_rejected(self, tmp_path):
+        manifest = full_manifest()
+        manifest["frameworks"] = ["mbed"]
+        path = write_manifest(tmp_path / "fw.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("not declared in platform.json" in e for e in errors)
+
+    def test_undeclared_per_board_package_rejected(self, tmp_path):
+        manifest = full_manifest()
+        manifest["build"]["arduino"]["package"] = "framework-missing"
+        path = write_manifest(tmp_path / "pkg.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("framework-missing" in e for e in errors)
+
+    def test_upload_protocol_must_be_in_protocols(self, tmp_path):
+        manifest = full_manifest()
+        manifest["upload"]["protocol"] = "dfu"
+        path = write_manifest(tmp_path / "proto.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("not listed in upload.protocols" in e for e in errors)
+
+    def test_zephyr_requires_routing_fields(self, tmp_path):
+        manifest = full_manifest()
+        manifest["build"] = {"mcu": "nrf54lm20a", "chip_family": "zephyr",
+                             "zephyr": {}}
+        manifest["frameworks"] = ["zephyr"]
+        path = write_manifest(tmp_path / "z.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("build.zephyr.package" in e for e in errors)
+        assert any("build.zephyr.variant" in e for e in errors)
+
+    def test_zephyr_board_name_must_match_variant(self, tmp_path):
+        manifest = full_manifest()
+        manifest["build"] = {
+            "mcu": "nrf54lm20a",
+            "chip_family": "zephyr",
+            "zephyr": {
+                "package": "framework-zephyr-x",
+                "variant": "xiao_a/nrf54lm20a/cpuapp",
+                "board_name": "xiao_b",
+            },
+        }
+        manifest["frameworks"] = ["zephyr"]
+        path = write_manifest(tmp_path / "zname.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("does not match" in e for e in errors)
+
+    def test_nrfutil_mcumgr_requires_cdc(self, tmp_path):
+        manifest = full_manifest()
+        manifest["upload"] = {
+            "protocol": "nrfutil-mcumgr",
+            "protocols": ["nrfutil-mcumgr"],
+        }
+        path = write_manifest(tmp_path / "cdc.json", manifest)
+        errors = verify_board_manifest(path, KNOWN_ALL, PLATFORM)
+        assert any("upload.cdc.app_vidpid" in e for e in errors)
+        assert any("upload.cdc.loader_vidpids" in e for e in errors)
+
+    def test_nrfutil_mcumgr_valid_cdc_passes(self, tmp_path):
+        manifest = full_manifest()
+        manifest["upload"] = {
+            "protocol": "nrfutil-mcumgr",
+            "protocols": ["nrfutil-mcumgr"],
+            "cdc": {
+                "app_vidpid": "2886:8068",
+                "loader_vidpids": ["2886:0068"],
+            },
+        }
+        path = write_manifest(tmp_path / "cdc-ok.json", manifest)
+        assert verify_board_manifest(path, KNOWN_ALL, PLATFORM) == []
 
 
 class TestDirRules:

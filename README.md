@@ -2,7 +2,7 @@
 
 **The PlatformIO platform for the Seeed Studio XIAO family.**
 
-One `platform =` line builds for every XIAO board — 23 boards across 7 chip
+One `platform =` line builds for every XIAO board — 24 boards across 7 chip
 families and 3 frameworks — with toolchains, uploaders and debug support
 resolved per board.
 
@@ -49,6 +49,7 @@ under [`examples/`](examples/).
 | `seeed-xiao-esp32-s3-plus` | XIAO ESP32-S3 Plus | ESP32-S3 | Arduino, ESP-IDF |
 | `seeed-xiao-nrf54l15` | XIAO nRF54L15 | nRF54L15 | Zephyr |
 | `seeed-xiao-nrf54lm20a` | XIAO nRF54LM20A | nRF54LM20A | Zephyr |
+| `seeed-xiao-nrf54lm20a-v2` | XIAO nRF54LM20A V2 | nRF54LM20A | Zephyr |
 | `seeed-xiao-nrf54lm20b` | XIAO nRF54LM20B | nRF54LM20B | Zephyr |
 | `seeed-xiao-stm32c5` | XIAO STM32C5 | STM32C5 | Zephyr |
 | `seeed-xiao-afruitnrf52-nrf52840` | XIAO nRF52840 (Adafruit core) | nRF52840 | Arduino |
@@ -63,6 +64,11 @@ under [`examples/`](examples/).
 The two nRF52840 variants build the same hardware against different Arduino
 cores (Adafruit nRF52 vs. ArduinoCore-mbed); pick the one matching your
 sketch's library expectations.
+
+The nRF54LM20A V2 is the same SKU as the nRF54LM20A but revision 2.0: it
+uses the nRF54LM20B PCB with the LM20A SoC, native USB CDC console, and the
+MCUboot firmware-loader flash layout. It is a separate board id so uploads
+can never select the wrong loader CDC (see `upload.cdc` in the manifest).
 
 ### Frameworks
 
@@ -101,10 +107,12 @@ pluggable module and nothing is hard-coded in the routing core. The
 predecessor remains the production line until this one is released.
 
 **What Zephyr version do the nRF54/STM32C5 boards use?**
-Vanilla Zephyr 4.4 tarballs per SoC family. Where vanilla lacks support
-(e.g. STM32C5 USB/XSPI), the gap is covered by explicit per-board fixes
-with recorded baselines that expire as upstream catches up — see
-[ADR-0003](docs/decisions/0003-fixes-mechanism.md).
+nRF54L15 uses the pinned Zephyr 4.2.1 tarball; nRF54LM20A/B and STM32C5 use
+the pinned Zephyr 4.4.2 tarball. Where vanilla lacks support (e.g. STM32C5
+USB/XSPI), the gap is covered by explicit per-board fixes with recorded
+baselines that expire as upstream catches up — see
+[ADR-0003](docs/decisions/0003-fixes-mechanism.md) and
+[ADR-0006](docs/decisions/0006-zephyr-framework-views.md).
 
 ## Documentation
 

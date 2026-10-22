@@ -21,6 +21,14 @@ if family is None:
 
 family.configure_env(env, board)
 
+# The family is the fallback for the upload protocol; a board manifest
+# or project-level `upload_protocol` always wins. This makes
+# ChipFamily.upload_protocol() an actual extension point instead of a
+# method nothing calls (board manifests that omit upload.protocol, such
+# as the ESP boards before this was made explicit, still resolve).
+if not env.subst("$UPLOAD_PROTOCOL"):
+    env.Replace(UPLOAD_PROTOCOL=family.upload_protocol(board))
+
 for hook in family.get_build_hooks():
     hook_type = hook.get("type")
     if hook_type == "pre":

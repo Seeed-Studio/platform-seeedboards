@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 .pio-ci.platformio.ini
 .pio-local.ini
+pio-logs/
+# ESP-IDF generates these per env; only the hand-written defaults belong
+# in git. Negations must follow the ignore pattern.
+sdkconfig.*
+!sdkconfig.defaults
+!sdkconfig.defaults.*
