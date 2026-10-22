@@ -6,6 +6,8 @@ description: Add a Seeed XIAO board to an existing chip family through the manif
 # Add a board to an existing family
 
 Apply `AGENTS.md` first. A board is data: one manifest plus demo lines.
+The field-by-field reference and local commands are in
+`docs/authoring.md`.
 If the flow demands code changes outside `builder/board_build/<family>/`
 or `families/<family>.py`, the board does not fit the family -- stop and
 reassess (maybe it needs the add-family skill instead).

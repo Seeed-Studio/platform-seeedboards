@@ -10,6 +10,8 @@ layering; most changes land in exactly one layer.
   symlinks to it; agents read the same rules.
 - Read the [architecture](architecture.md) section covering your change
   and the governing ADRs under [decisions/](decisions/).
+- Use the [authoring guide](authoring.md) for the board/family field
+  checklist and the local gate commands.
 
 ## The CI gate
 
@@ -34,10 +36,16 @@ matrix.
    python scripts/ci/verify_workflows.py
    ```
 2. For build-behavior changes: build the affected boards through the
-   local-checkout override, `pio run -t clean` first, with a FRESH
+   local-checkout override, with a clean environment and a FRESH
    platform cache (delete the cached platform dir — path installs
-   dedupe by name and reuse stale copies). Zephyr fixes run in a per-build
-   framework view (ADR-0006); remove `$PROJECT_CORE_DIR/zephyr-views` if a
+   dedupe by name and reuse stale copies):
+   ```bash
+   python scripts/ci/build_examples.py --framework <framework> --clean \
+       --only-env <board-env>
+   python scripts/ci/build_examples.py --framework <framework> --clean
+   ```
+   Zephyr fixes run in a per-build framework view (ADR-0006); use
+   `python scripts/ci/clean_zephyr_views.py --keep 3` to reclaim it if a
    view is suspected stale.
 3. Shared-package discipline: same-named packages from different
    upstreams collide (one version slot per name platform-wide,

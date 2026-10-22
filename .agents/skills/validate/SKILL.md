@@ -32,9 +32,12 @@ platform URLs to the local checkout and builds each env in its own
 process:
 
 ```
-python3 scripts/ci/build_examples.py --framework arduino
-python3 scripts/ci/build_examples.py --framework zephyr
-python3 scripts/ci/build_examples.py --framework espidf
+python3 scripts/ci/build_examples.py --framework arduino --clean
+python3 scripts/ci/build_examples.py --framework zephyr --clean
+python3 scripts/ci/build_examples.py --framework espidf --clean
+# one board/env while iterating:
+python3 scripts/ci/build_examples.py --framework arduino --clean \
+    --only-env seeed-xiao-samd
 ```
 
 Current scale: 38 + 10 + 5 = 53 environments. `RESULT: ALL GREEN` (exit 0)
@@ -48,7 +51,10 @@ Rules of engagement:
   and rerun.
 - Zephyr fixes run in a per-build framework view under
   `$PROJECT_CORE_DIR/zephyr-views` (ADR-0006), not in the installed
-  package. Remove that directory if a view is suspected stale.
+  package. Inspect/prune it with
+  `python3 scripts/ci/clean_zephyr_views.py --keep 3` (add `--dry-run`
+  first). If hardlinks are unavailable the build logs a warning and copies
+  the package instead.
 - First-time framework builds download gigabytes (ESP-IDF ~2 GB,
   Zephyr tarballs + west deps); budget minutes-to-tens-of-minutes and
   prefer a background run.

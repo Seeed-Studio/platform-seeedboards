@@ -75,3 +75,4 @@ naive per-build `copytree` is not acceptable.
 - `builder/board_build/zephyr/zephyr_view.py`
 - `builder/board_build/zephyr/zephyr_framework.py`
 - `builder/board_build/zephyr/zephyr_fixes.py`
+- `scripts/ci/clean_zephyr_views.py`

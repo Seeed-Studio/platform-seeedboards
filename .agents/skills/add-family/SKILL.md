@@ -7,7 +7,8 @@ description: Add a new chip family as a ChipFamily module -- subclass with famil
 
 Apply `AGENTS.md` first. A family is a pluggable module (ADR-0001):
 everything it needs lands in three places, and the zero-string core
-stays untouched.
+stays untouched. The field-by-field reference and local commands are in
+`docs/authoring.md`.
 
 ## 1. Find and study the upstream
 

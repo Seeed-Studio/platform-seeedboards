@@ -117,6 +117,7 @@ baselines that expire as upstream catches up — see
 ## Documentation
 
 - [Examples](examples/) — runnable projects for every board
+- [Authoring](docs/authoring.md) — adding a board or family, field by field
 - [Architecture](docs/architecture.md) — how the platform is put together
 - [Decision records](docs/decisions/) — binding ADRs (registry, package
   slots, fixes mechanism, validation tiers, CI merge gate)

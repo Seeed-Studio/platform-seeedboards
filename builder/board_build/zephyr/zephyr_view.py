@@ -120,10 +120,15 @@ def atomic_copy(source, destination) -> None:
         tmp.unlink(missing_ok=True)
 
 
+_HARDLINK_FALLBACK = False
+
+
 def _link_or_copy(source: str, destination: str) -> None:
+    global _HARDLINK_FALLBACK
     try:
         os.link(source, destination)
     except OSError:
+        _HARDLINK_FALLBACK = True
         shutil.copy2(source, destination)
 
 
@@ -198,6 +203,8 @@ def ensure_view(source_dir, cache_root, key: str, *, prefix: str,
 
         tmp = Path(tempfile.mkdtemp(prefix=".view-", dir=str(cache)))
         shutil.rmtree(tmp)
+        global _HARDLINK_FALLBACK
+        _HARDLINK_FALLBACK = False
         try:
             shutil.copytree(
                 source, tmp, symlinks=True,
@@ -211,6 +218,11 @@ def ensure_view(source_dir, cache_root, key: str, *, prefix: str,
         except Exception:
             shutil.rmtree(tmp, ignore_errors=True)
             raise
+        if _HARDLINK_FALLBACK:
+            log("WARNING: hardlinks are unavailable on this filesystem; "
+                "the framework view was copied (first build is slower, "
+                "disk use is higher). Move the PlatformIO core dir to a "
+                "hardlink-capable filesystem if this matters.")
         log("Zephyr framework view: %s" % target)
         return str(target)
 

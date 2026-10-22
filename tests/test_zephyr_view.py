@@ -9,6 +9,7 @@ ZEPHYR_DIR = REPO_ROOT / "builder" / "board_build" / "zephyr"
 if str(ZEPHYR_DIR) not in sys.path:
     sys.path.insert(0, str(ZEPHYR_DIR))
 
+import zephyr_view  # noqa: E402
 from zephyr_view import atomic_write_text, digest_paths, ensure_view  # noqa: E402
 import zephyr_override  # noqa: E402
 import zephyr_patch  # noqa: E402
@@ -79,3 +80,13 @@ def test_patch_leaves_source_untouched(tmp_path):
 
     assert (view / "scripts" / "patch.txt").read_text() == "new\n"
     assert target.read_text() == "old\n"
+
+def test_hardlink_fallback_warns(tmp_path, monkeypatch, capsys):
+    source = _source_package(tmp_path)
+
+    def no_link(*args, **kwargs):
+        raise OSError("hardlinks unsupported")
+
+    monkeypatch.setattr(zephyr_view.os, "link", no_link)
+    zephyr_view.ensure_view(source, tmp_path / "views", "fallback", prefix="pkg")
+    assert "WARNING: hardlinks are unavailable" in capsys.readouterr().out

@@ -57,6 +57,13 @@ def extract_envs(ini_path: Path) -> list:
     return envs
 
 
+def select_envs(envs, only_envs) -> list:
+    if not only_envs:
+        return list(envs)
+    wanted = set(only_envs)
+    return [env for env in envs if env in wanted]
+
+
 def localize_platform(ini_text: str, root: Path) -> str:
     """Rewrite repo platform URLs to the local checkout."""
     lines = []
@@ -92,6 +99,12 @@ def main(argv: list = None) -> int:
     parser.add_argument(
         "--log-dir", default=None,
         help="write one log per env under this directory (CI artifact)")
+    parser.add_argument(
+        "--clean", action="store_true",
+        help="run `pio run -t clean` before each env (local T1)")
+    parser.add_argument(
+        "--only-env", action="append", default=[], metavar="ENV",
+        help="build only this env (repeatable; across demo projects)")
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -114,7 +127,10 @@ def main(argv: list = None) -> int:
               file=sys.stderr)
         return 2
 
+    only_envs = set(args.only_env)
     failures = []
+    selected = 0
+    passed = 0
     for project in projects:
         ini_text = project.joinpath("platformio.ini").read_text(encoding="utf-8")
         if not has_repo_platform(ini_text):
@@ -122,10 +138,14 @@ def main(argv: list = None) -> int:
                   % project.name, file=sys.stderr)
             failures.append("%s:platform-url" % project.name)
             continue
+        envs = select_envs(extract_envs(project / "platformio.ini"), only_envs)
+        if not envs:
+            continue
         conf = project / ".pio-ci.platformio.ini"
         conf.write_text(localize_platform(ini_text, root), encoding="utf-8")
         try:
-            for env in extract_envs(project / "platformio.ini"):
+            for env in envs:
+                selected += 1
                 log_path = None
                 log_file = None
                 if log_dir:
@@ -138,10 +158,14 @@ def main(argv: list = None) -> int:
                     if log_file:
                         kwargs["stdout"] = log_file
                         kwargs["stderr"] = subprocess.STDOUT
-                    rc = subprocess.run(
-                        ["platformio", "run", "-d", str(project),
-                         "--project-conf", str(conf), "-e", env],
-                        **kwargs).returncode
+                    cmd = ["platformio", "run", "-d", str(project),
+                           "--project-conf", str(conf), "-e", env]
+                    clean_rc = 0
+                    if args.clean:
+                        clean_rc = subprocess.run(
+                            cmd + ["-t", "clean"], **kwargs).returncode
+                    rc = clean_rc if clean_rc else subprocess.run(
+                        cmd, **kwargs).returncode
                 finally:
                     if log_file:
                         log_file.close()
@@ -149,12 +173,20 @@ def main(argv: list = None) -> int:
                     project.name, env, "OK" if rc == 0 else "FAILED",
                     (" (log: %s)" % log_path) if rc != 0 and log_path else "",
                 ), flush=True)
-                if rc != 0:
+                if rc == 0:
+                    passed += 1
+                else:
                     failures.append("%s:%s" % (project.name, env))
         finally:
             conf.unlink(missing_ok=True)
 
-    print("RESULT:", "ALL GREEN" if not failures else "FAILURES: %s" % failures)
+    if selected == 0:
+        print("no env matched --only-env %s" % sorted(only_envs),
+              file=sys.stderr)
+        return 2
+    print("RESULT: %s (%d/%d envs)" % (
+        "ALL GREEN" if not failures else "FAILURES: %s" % failures,
+        passed, selected))
     return 1 if failures else 0
 
 

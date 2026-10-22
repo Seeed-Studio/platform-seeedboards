@@ -7,6 +7,7 @@ from build_examples import (
     find_projects,
     has_repo_platform,
     localize_platform,
+    select_envs,
     uses_framework,
 )
 
@@ -47,3 +48,8 @@ def test_uses_framework():
     assert uses_framework(text, "arduino")
     assert uses_framework(text, "zephyr")
     assert not uses_framework(text, "espidf")
+
+def test_select_envs():
+    assert select_envs(["a", "b"], []) == ["a", "b"]
+    assert select_envs(["a", "b"], ["b"]) == ["b"]
+    assert select_envs(["a"], ["missing"]) == []

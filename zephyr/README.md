@@ -13,8 +13,15 @@ view under `$PROJECT_CORE_DIR/zephyr-views/<package>-<board>-<key>`; fixes,
 board copies and build-script patches are written only into that view.
 `PIO_ZEPHYR_VIEW=0` restores the old in-place behavior for debugging and
 must not be used in CI. A new key creates a new view (first build pays the
-hardlink walk; later builds reuse it). Remove `$PROJECT_CORE_DIR/zephyr-views`
-to reclaim cache metadata; the package data is shared by hardlinks.
+hardlink walk; later builds reuse it). Inspect or prune views with:
+
+```bash
+python scripts/ci/clean_zephyr_views.py --dry-run
+python scripts/ci/clean_zephyr_views.py --keep 3
+```
+
+Hardlink-capable filesystems keep this cheap; without hardlinks the build
+logs a warning and copies the package instead.
 
 ## Layout
 
