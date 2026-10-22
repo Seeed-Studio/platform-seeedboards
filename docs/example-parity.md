@@ -14,11 +14,11 @@ board-grouped hardware samples when they can be built and maintained.
 | --- | --- | --- |
 | boards | 24 | 24 |
 | frameworks | 3 | 3 |
-| example projects | 104 | 17 |
-| example envs | 144 | 87 |
+| example projects | 104 | 27 |
+| example envs | 144 | 110 |
 | offline tests | 2 files | 66 tests / 11 files |
 
-## Ported (17 projects)
+## Ported (27 projects)
 
 | Demo | Framework | Status |
 | --- | --- | --- |
@@ -31,14 +31,18 @@ board-grouped hardware samples when they can be built and maintained.
 | `zephyr-ble`, `zephyr-adc` | Zephyr | ported, L15/LM20A/V2 |
 | `zephyr-gpio`, `zephyr-button`, `zephyr-pwm` | Zephyr | ported, L15/LM20A/V2 |
 | `zephyr-battery`, `zephyr-imu`, `zephyr-tapwake` | Zephyr | ported, L15/LM20A/V2 |
+| `zephyr-gps`, `zephyr-lowpower` | Zephyr | ported, L15/LM20A/V2 |
+| `zephyr-npm1300-register-read` | Zephyr | ported, LM20A/V2 |
+| `zephyr-rfsw` | Zephyr | ported, L15 |
+| `zephyr-ble-lbs` (central/peripheral) | Zephyr | ported, L15 |
+| expansion-base `rtc`, `oled` | Zephyr | ported, L15/LM20A/V2 |
+| `zephyr-epaper/2inch13`, `5inch83` | Zephyr | ported, L15/LM20A/V2 |
 | STM32C5 `zephyr-can-gpio-reuse` | Zephyr | ported, 1 board |
 
 ## Follow-ups (borrow when buildable)
 
-- **Zephyr demo-grouped**: `zephyr-ble-lbs`, `zephyr-dmic`,
-  `zephyr-dmic-recorder`, `zephyr-epaper`, `zephyr-expansion-base-for-xiao`
-  (buzzer / OLED / LVGL / RTC / SD card), `zephyr-gps`, `zephyr-lowpower`,
-  `zephyr-npm1300-register-read`, `zephyr-rfsw`,
+- **Zephyr demo-grouped**: `zephyr-dmic`, `zephyr-dmic-recorder`,
+  expansion-base `buzzer` / `oled-lvgl` / `sd_card`,
   `zephyr-xiao-round-display`, `xiao_nrf54lm20a_ble`.
 - **Board-grouped**: the V2, nRF54LM20B and STM32C5 sample directories
   (including `power_measure/*`) are duplicates of the above with
@@ -54,5 +58,7 @@ board-grouped hardware samples when they can be built and maintained.
   URL or `platform_packages` pins.
 - Every ported env must be clean-built locally before it enters the matrix;
   hardware upload/debug remains T3 and is never claimed from a compile.
+- Batch 3 (GPS/low-power/PMIC/RFSW/LBS/RTC/OLED/e-paper) was compiled 23/23
+  locally; Batch 2 was 20/20.
 - Keep this table updated when a follow-up lands; the counts are the
   coverage contract.

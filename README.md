@@ -30,9 +30,10 @@ build downloads the toolchain for that board's chip family; switching to
 another XIAO board later only changes the `board =` line.
 
 Working examples for every board — blink, UART, WiFi, USB HID, RMT, BLE,
-ADC, GPIO/button/PWM, battery, IMU, tap-wake and STM32C5 CAN pin reuse —
-live under [`examples/`](examples/). See the
-[examples index](examples/README.md) for the demo/board matrix.
+ADC, GPIO/button/PWM, battery/IMU/tap-wake, GPS, low-power, nPM1300, RFSW,
+BLE-LBS, RTC/OLED/e-paper and STM32C5 CAN pin reuse — live under
+[`examples/`](examples/). See the [examples index](examples/README.md) and
+[parity map](docs/example-parity.md) for coverage.
 
 ## Supported boards
 

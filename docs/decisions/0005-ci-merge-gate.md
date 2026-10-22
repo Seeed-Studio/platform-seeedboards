@@ -36,11 +36,13 @@ per board is a smoke, not a validation.
    `arduino-wifiscan` (ESP WiFi), `arduino-usb-keyboard` (ESP32-S3 USB HID),
    `arduino-rmt-blink` (ESP32-S3 RMT), `zephyr-ble`, `zephyr-adc`,
    `zephyr-gpio`, `zephyr-button`, `zephyr-pwm`, `zephyr-battery`,
-   `zephyr-imu`, `zephyr-tapwake` (nRF54), and the STM32C5 CAN GPIO-reuse
-   sample. Remaining per-protocol, per-debug, per-fix and hardware samples
-   stay release criteria, tracked in the roadmap. This amendment narrows the
-   automated merge gate, not the release bar. The predecessor's blink-only CI
-   remains rejected.
+   `zephyr-imu`, `zephyr-tapwake`, `zephyr-gps`, `zephyr-lowpower`,
+   `zephyr-npm1300-register-read`, `zephyr-rfsw`, `zephyr-ble-lbs`,
+   expansion-base RTC/OLED, both e-paper sizes, and the STM32C5 CAN
+   GPIO-reuse sample. Remaining per-protocol, per-debug, per-fix and hardware
+   samples stay release criteria, tracked in the roadmap. This amendment
+   narrows the automated merge gate, not the release bar. The predecessor's
+   blink-only CI remains rejected.
 
 3. **Cross-family guard**: any PR touching `platform.json` (any package
    pin) or a shared gate runs the FULL matrix — every family, every

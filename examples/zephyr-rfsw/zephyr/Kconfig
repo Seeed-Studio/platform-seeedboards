@@ -1,0 +1,14 @@
+source "Kconfig.zephyr"
+
+mainmenu "Application Configuration"
+
+menu "Antenna Configuration"
+
+config DEFAULT_ANTENNA_EXTERNAL
+    bool "Default to external antenna"
+    default n
+    help
+      If set, the default antenna will be the external one.
+      Otherwise, it will be the ceramic one.
+
+endmenu

@@ -1,0 +1,9 @@
+/ {
+	chosen {
+		zephyr,bt-hci = &bt_hci_controller;
+	};
+};
+
+&bt_hci_controller {
+	status = "okay";
+};

@@ -1,0 +1,4 @@
+&xiao_serial {
+	status = "okay";
+	current-speed = <9600>;
+};

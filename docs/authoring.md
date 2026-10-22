@@ -65,8 +65,11 @@ board/framework pair; the convention is blink + uart for Arduino/Zephyr and
 blink for ESP-IDF. Canonical demos currently live in `arduino-wifiscan`,
 `arduino-usb-keyboard`, `arduino-rmt-blink`, `zephyr-ble`, `zephyr-adc`,
 `zephyr-gpio`, `zephyr-button`, `zephyr-pwm`, `zephyr-battery`,
-`zephyr-imu`, `zephyr-tapwake` and the STM32C5 CAN GPIO-reuse sample.
-Board-specific hardware samples may live at `examples/<board-id>/<sample>/`.
+`zephyr-imu`, `zephyr-tapwake`, `zephyr-gps`, `zephyr-lowpower`,
+`zephyr-npm1300-register-read`, `zephyr-rfsw`, `zephyr-ble-lbs`,
+expansion-base RTC/OLED, both e-paper sizes, and the STM32C5 CAN GPIO-reuse
+sample. Board-specific hardware samples may live at
+`examples/<board-id>/<sample>/`; see `docs/example-parity.md`.
 
 ### 3. Snapshot and validation
 
