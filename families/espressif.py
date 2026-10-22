@@ -57,89 +57,6 @@ def _get_packages_dir():
     return config.get("platformio", "packages_dir")
 
 
-def _get_core_dir():
-    _, _, ProjectConfig = _pio()
-    config = ProjectConfig.get_instance()
-    return config.get("platformio", "core_dir")
-
-
-def _ensure_esp_installer(platform, packages_dir):
-    installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
-    if installer.exists():
-        return
-
-    package_data = platform.packages.get("tool-esp_install", {})
-    version = package_data.get("version")
-    if not version:
-        return
-
-    ToolPackageManager, _, _ = _pio()
-    try:
-        ToolPackageManager().install(version)
-    except Exception as e:
-        print("Warning: failed to install tool-esp_install: %s" % e)
-
-
-def _expand_and_link_esp_tool(platform, tool_name, packages_dir, core_dir):
-    ToolPackageManager, get_pythonexe_path, _ = _pio()
-    pkg_dir = packages_dir / tool_name
-    tools_json = pkg_dir / "tools.json"
-    if not tools_json.exists():
-        return False
-
-    installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
-    core_tool_dir = core_dir / "tools" / tool_name
-
-    if not (core_tool_dir / "package.json").exists():
-        if not installer.exists():
-            print("Warning: idf_tools.py not found, cannot expand %s" % tool_name)
-            return False
-
-        cmd = [
-            get_pythonexe_path(),
-            str(installer),
-            "--quiet",
-            "--non-interactive",
-            "--tools-json",
-            str(tools_json),
-            "install",
-        ]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            tail = (result.stderr or result.stdout or "").strip()[-1000:]
-            print("Warning: failed to expand %s via idf_tools.py: %s" % (tool_name, tail))
-            return False
-
-    if not (core_tool_dir / "package.json").exists():
-        return False
-
-    changed = False
-    try:
-        pkg_meta = pkg_dir / "package.json"
-        if not pkg_meta.exists():
-            ToolPackageManager().install("file://%s" % core_tool_dir)
-            changed = True
-
-        if tool_name in platform.packages:
-            linked_version = str(packages_dir / tool_name)
-            if platform.packages[tool_name].get("version") != linked_version:
-                changed = True
-            platform.packages[tool_name]["version"] = linked_version
-            platform.packages[tool_name]["optional"] = False
-    except Exception as e:
-        print("Warning: failed to link expanded tool %s: %s" % (tool_name, e))
-        return False
-
-    return changed
-
-
 class Esp32Family(ChipFamily):
     family_ids = ("esp32",)
     # Upstream pioarduino platform: installed from this locked spec into
@@ -156,7 +73,6 @@ class Esp32Family(ChipFamily):
     owned_packages = ("toolchain-xtensa-esp-elf", "toolchain-esp32ulp")
 
     def __init__(self):
-        self._tools_prepared = False
         self._python_deps_prepared = False
 
     # -- platform side --------------------------------------------------
@@ -253,7 +169,7 @@ class Esp32Family(ChipFamily):
         return None
 
     def post_configure_packages(self, platform, variables, targets):
-        return self._prepare_esp_tools(platform)
+        return self._expand_stub_tools_via_upstream(platform)
 
     def add_default_debug_tools(self, platform, board):
         from platform_cfg import esp_cfg
@@ -263,7 +179,7 @@ class Esp32Family(ChipFamily):
         from platform_cfg import esp_cfg
         esp_cfg.configure_esp_debug_session(debug_config)
 
-    # -- ESP tool expansion (moved from platform.py) --------------------
+    # -- ESP stub-package expansion -------------------------------------
 
     @staticmethod
     def _prefer_local_esp_tools(platform):
@@ -277,23 +193,59 @@ class Esp32Family(ChipFamily):
                 platform.packages[tool_name]["version"] = str(packages_dir / tool_name)
                 platform.packages[tool_name]["optional"] = False
 
-    def _prepare_esp_tools(self, platform):
-        if self._tools_prepared:
+    def _expand_stub_tools_via_upstream(self, platform):
+        """Expand stub packages through the upstream platform's installer
+        API — class-level reuse, no local copy of the expansion logic
+        (handbook 4.4).
+
+        A stub is a toolchain/uploader zip that PIO installs as
+        package.json + tools.json only (the real payload is described in
+        tools.json). pioarduino's own Espressif32Platform.install_tool()
+        knows how to expand one: it runs tool-esp_install's idf_tools.py,
+        REMOVES the stub directory, and installs the expanded payload
+        back into the packages dir — which also fixes the stub-shadowing
+        gap the old local copy of this logic had. Afterwards our manifest
+        entries are linked to the expanded local copies so the core never
+        re-downloads the stub. Returns True when our package table
+        changed and the platform should re-run its super configuration.
+        """
+        packages_dir = _get_packages_dir()
+        stub_names = [
+            name for name in _iter_required_esp_tools(platform)
+            if os.path.isfile(join(packages_dir, name, "tools.json"))
+        ]
+        if not stub_names:
             return False
 
-        packages_dir = Path(_get_packages_dir())
-        core_dir = Path(_get_core_dir())
-        if not packages_dir.exists() or not core_dir.exists():
+        upstream_dir = self._upstream_platform_dir()
+        if not os.path.isfile(join(upstream_dir, "platform.json")):
+            print("Warning: upstream '%s' platform not installed; cannot "
+                  "expand stub packages: %s"
+                  % (self.upstream_platform, ", ".join(stub_names)))
             return False
 
-        _ensure_esp_installer(platform, packages_dir)
+        try:
+            from platformio.platform.factory import PlatformFactory
+            upstream = PlatformFactory.new(upstream_dir)
+            for name in stub_names:
+                if name not in upstream.packages:
+                    print("Warning: upstream platform does not declare "
+                          "'%s'; stub left unexpanded" % name)
+                    continue
+                upstream.install_tool(name)
+        except Exception as e:
+            print("Warning: upstream stub expansion failed: %s" % e)
 
         changed = False
-        for tool_name in _iter_required_esp_tools(platform):
-            if _expand_and_link_esp_tool(platform, tool_name, packages_dir, core_dir):
-                changed = True
-
-        self._tools_prepared = True
+        for name in stub_names:
+            pkg_dir = join(packages_dir, name)
+            expanded = (os.path.isfile(join(pkg_dir, "package.json"))
+                        and not os.path.isfile(join(pkg_dir, "tools.json")))
+            if expanded and name in platform.packages:
+                if platform.packages[name].get("version") != pkg_dir:
+                    changed = True
+                platform.packages[name]["version"] = pkg_dir
+                platform.packages[name]["optional"] = False
         return changed
 
     def _ensure_esptoolpy_runtime_dependencies(self):
