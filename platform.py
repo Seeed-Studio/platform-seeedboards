@@ -116,3 +116,15 @@ class SeeedstudioPlatform(PlatformBase):
         board_id = debug_config.env_options.get("board", "")
         family = resolve_board_family(board_config, board_id)
         family.configure_debug_session(self, debug_config)
+
+    def setup_python_env(self, env):
+        """Called by upstream builders we SConscript (e.g. pioarduino's
+        builder/main.py) that expect THEIR platform object; forward to
+        the board's family adapter, which owns the upstream specifics."""
+        from families import resolve_board_family
+        board = env.BoardConfig()
+        family = resolve_board_family(board, env.subst("$BOARD"))
+        adapter = getattr(family, "setup_python_env", None)
+        if adapter is None:
+            return None, None
+        return adapter(self, env)

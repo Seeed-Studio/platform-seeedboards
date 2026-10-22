@@ -74,6 +74,7 @@ class Esp32Family(ChipFamily):
 
     def __init__(self):
         self._python_deps_prepared = False
+        self._penv_seeded = False
 
     # -- platform side --------------------------------------------------
 
@@ -105,6 +106,7 @@ class Esp32Family(ChipFamily):
         # PlatformPackageManager below — see _ensure_upstream_platform.
         if self.upstream_platform in required:
             self._ensure_upstream_platform(platform)
+        self.seed_penv_deps()
         self._prefer_local_esp_tools(platform)
         self._ensure_esptoolpy_runtime_dependencies()
 
@@ -287,7 +289,73 @@ class Esp32Family(ChipFamily):
     # -- builder side ----------------------------------------------------
 
     def build_script(self, platform, board):
-        return join(platform.get_dir(), "builder", "board_build", "esp", "esp_build.py")
+        """The board-level build script is the upstream pioarduino
+        builder/main.py itself (env assembly, upload matrix, filesystem
+        images, diagnostics). The former local board_build/esp/
+        esp_build.py was an official-v6.9.0-era copy of the same file;
+        this returns to the upstream mainline. Host-side expectations
+        the upstream builder has of its platform object are adapted by
+        setup_python_env below and the penv pre-seed."""
+        return join(self._upstream_platform_dir(), "builder", "main.py")
+
+    def setup_python_env(self, platform, env):
+        """Host adapter for the upstream builder's
+        `platform.setup_python_env(env)` call (its main.py line ~52).
+
+        Returns the already-working pair (penv python, esptool path)
+        WITHOUT running the upstream penv machinery: pioarduino's
+        setup_penv_minimal assumes it owns the shared PlatformIO penv
+        and its uv sync removed core packages (certifi, uvicorn, ...)
+        when run here. The penv is PIO core's, not ours to manage.
+        """
+        penv_python = getattr(platform, "_penv_python", None)
+        esptool_path = getattr(platform, "_esptool_path", None)
+        if not penv_python:
+            from platformio.proc import get_pythonexe_path
+            penv_python = get_pythonexe_path()
+        if not esptool_path:
+            from platformio.proc import where_is_program
+            esptool_path = where_is_program("esptool") or ""
+        if not esptool_path:
+            for candidate in (
+                join(_get_packages_dir(), "tool-esptoolpy", "esptool.py"),
+            ):
+                if os.path.isfile(candidate):
+                    esptool_path = candidate
+                    break
+        platform._penv_python = penv_python
+        platform._esptool_path = esptool_path
+        if penv_python:
+            env.Replace(PYTHONEXE=penv_python)
+        return penv_python, esptool_path
+
+    def seed_penv_deps(self):
+        """Idempotently pre-seed the penv with the build-time Python
+        packages the upstream builder imports at module level
+        (main.py: littlefs, fatfs, spiffsgen is stdlib). This replaces
+        the upstream's own penv management (see setup_python_env) with
+        a read-only dependency list — we never let upstream write to
+        the shared penv."""
+        if self._penv_seeded:
+            return
+        self._penv_seeded = True
+        _, get_pythonexe_path, _ = _pio()
+        python_exe = get_pythonexe_path()
+        if not python_exe:
+            return
+        for module, dep in (("littlefs", "littlefs-python>=0.16.0"),
+                            ("fatfs", "fatfs-ng>=0.1.14")):
+            try:
+                import_module(module)
+            except ImportError:
+                try:
+                    subprocess.run(
+                        [python_exe, "-m", "pip", "install", dep,
+                         "--disable-pip-version-check", "--no-input"],
+                        check=True)
+                except Exception as e:
+                    print("Warning: failed to install %s for upstream "
+                          "builder: %s" % (dep, e))
 
     def framework_script(self, platform, framework, board):
         """Both ESP32 frameworks load upstream pioarduino scripts
