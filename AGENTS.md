@@ -54,8 +54,9 @@ message:
 1. Offline gates (seconds):
    ```bash
    pytest tests/ -q                      # console script, never python -m pytest
-   python scripts/ci/verify_boards.py    # once implemented
-   python scripts/ci/smoke_pio_boards.py
+   python scripts/ci/verify_boards.py    # manifest snapshot + family registry
+   python scripts/ci/verify_core.py      # zero-string routing + platform.json
+   python scripts/ci/verify_zephyr_routing.py
    ```
 2. Build behavior: build the affected boards through the local-checkout
    override, `pio run -t clean` first, with a FRESH platform cache
@@ -65,6 +66,11 @@ message:
    upstreams collide; interrupted downloads leave damaged packages that
    fail builds in confusing ways. Delete and re-download on suspicion.
 4. Hardware upload/debug is never claimed without device evidence.
+
+The maintenance loops (add a board, add a family, sync an upstream,
+re-evaluate Zephyr fixes, run the tiers) are codified as skills under
+`.agents/skills/` — `.claude` symlinks there. A skill names the ADR it
+implements; change both together.
 
 ## Commit rules
 

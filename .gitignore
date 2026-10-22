@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .pio-ci.platformio.ini
+.pio-local.ini
