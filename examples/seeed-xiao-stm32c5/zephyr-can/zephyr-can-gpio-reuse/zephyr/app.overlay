@@ -1,0 +1,34 @@
+/ {
+	can_gpio_reuse_test {
+		compatible = "gpio-leds";
+
+		tp7_pb5_gpio: tp7_pb5_gpio {
+			gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>;
+			label = "TP7/PB5/FDCAN2_RX as GPIO";
+		};
+
+		tp8_pb13_gpio: tp8_pb13_gpio {
+			gpios = <&gpiob 13 GPIO_ACTIVE_HIGH>;
+			label = "TP8/PB13/FDCAN2_TX as GPIO";
+		};
+
+		can_stb_pb14_gpio: can_stb_pb14_gpio {
+			gpios = <&gpiob 14 GPIO_ACTIVE_HIGH>;
+			label = "CAN_STB/PB14";
+		};
+	};
+
+	aliases {
+		tp7-gpio = &tp7_pb5_gpio;
+		tp8-gpio = &tp8_pb13_gpio;
+		can-stb-gpio = &can_stb_pb14_gpio;
+	};
+};
+
+/*
+ * The board DTS normally maps PB5/PB13 to FDCAN2. This sample simulates a user
+ * reusing those module pins as plain GPIO, so FDCAN2 must not claim pinctrl.
+ */
+&fdcan2 {
+	status = "disabled";
+};

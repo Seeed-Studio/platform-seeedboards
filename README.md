@@ -29,8 +29,9 @@ framework = arduino
 build downloads the toolchain for that board's chip family; switching to
 another XIAO board later only changes the `board =` line.
 
-Working examples for every board — blink, UART echo, Zephyr samples — live
-under [`examples/`](examples/).
+Working examples for every board — blink, UART, WiFi scan, USB HID, BLE,
+ADC and STM32C5 CAN pin reuse — live under [`examples/`](examples/). See the
+[examples index](examples/README.md) for the demo/board matrix.
 
 ## Supported boards
 

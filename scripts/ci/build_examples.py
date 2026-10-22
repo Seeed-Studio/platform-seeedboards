@@ -105,6 +105,10 @@ def main(argv: list = None) -> int:
     parser.add_argument(
         "--only-env", action="append", default=[], metavar="ENV",
         help="build only this env (repeatable; across demo projects)")
+    parser.add_argument(
+        "--platform-dir", default=None,
+        help="platform checkout written into the generated project conf "
+             "(default: this repository; useful with a clean core dir)")
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -127,6 +131,8 @@ def main(argv: list = None) -> int:
               file=sys.stderr)
         return 2
 
+    platform_root = (Path(args.platform_dir).resolve()
+                     if args.platform_dir else root)
     only_envs = set(args.only_env)
     failures = []
     selected = 0
@@ -142,7 +148,7 @@ def main(argv: list = None) -> int:
         if not envs:
             continue
         conf = project / ".pio-ci.platformio.ini"
-        conf.write_text(localize_platform(ini_text, root), encoding="utf-8")
+        conf.write_text(localize_platform(ini_text, platform_root), encoding="utf-8")
         try:
             for env in envs:
                 selected += 1

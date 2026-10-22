@@ -32,10 +32,13 @@ per board is a smoke, not a validation.
      by the `framework =` line, never directory naming.
    **Amendment 1 (2026-10-22)** — the v3 automated gate enforces and builds
    the one-env-per-board/framework minimum (`verify_examples.py` plus the
-   per-framework workflows). Framework-canonical (`ble`/`wifi`),
-   per-protocol, per-debug and per-fix demos remain release criteria,
-   tracked in the roadmap. This amendment narrows the automated merge gate,
-   not the release bar. The predecessor's blink-only CI remains rejected.
+   per-framework workflows). The tree now ships canonical demos:
+   `arduino-wifiscan` (ESP WiFi), `arduino-usb-keyboard` (ESP32-S3 USB HID),
+   `zephyr-ble` and `zephyr-adc` (nRF54), and the STM32C5 CAN GPIO-reuse
+   sample. Remaining per-protocol, per-debug, per-fix and hardware samples
+   stay release criteria, tracked in the roadmap. This amendment narrows the
+   automated merge gate, not the release bar. The predecessor's blink-only CI
+   remains rejected.
 
 3. **Cross-family guard**: any PR touching `platform.json` (any package
    pin) or a shared gate runs the FULL matrix — every family, every

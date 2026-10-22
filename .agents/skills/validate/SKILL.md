@@ -40,7 +40,7 @@ python3 scripts/ci/build_examples.py --framework arduino --clean \
     --only-env seeed-xiao-samd
 ```
 
-Current scale: 38 + 10 + 5 = 53 environments. `RESULT: ALL GREEN` (exit 0)
+Current scale: 45 + 17 + 5 = 67 environments. `RESULT: ALL GREEN` (exit 0)
 is the only pass state.
 
 Rules of engagement:
