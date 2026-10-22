@@ -1,0 +1,21 @@
+/*
+ * Board overlay for XIAO nRF54LM20A — NPM1300 PMIC fuel gauge.
+ *
+ * The XIAO board already has pmic / pmic_charger nodes defined in its
+ * common dtsi.  The fuel-gauge sample code references the npm1300_ek
+ * shield labels (npm1300_ek_pmic, npm1300_ek_charger).  We add those
+ * labels here so the sample compiles without modification.
+ */
+
+/* Fix PMIC GPIO-I2C pins: SDA=P1.18, SCL=P1.17 */
+&pmic_i2c {
+	sda-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+	scl-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+};
+
+npm1300_ek_pmic: &pmic {
+};
+
+npm1300_ek_charger: &pmic_charger {
+	vbus-limit-microamp = <1500000>;
+};

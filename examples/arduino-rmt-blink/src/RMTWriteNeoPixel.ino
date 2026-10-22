@@ -1,0 +1,131 @@
+// Copyright 2023 Espressif Systems (Shanghai) PTE LTD
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * @brief This example demonstrates usage of RGB LED driven by RMT
+ *
+ * The output is a visual WS2812 RGB LED color moving in a 8 x 4 LED matrix
+ * Parameters can be changed by the user. In a single LED circuit, it will just blink.
+ */
+
+#include <Arduino.h>
+
+// Keep the example working across Arduino-ESP32 versions without redefining
+// SDK macros (which can cause warnings).
+#if defined(PIN_NEOPIXEL)
+static constexpr int kBuiltinRgbLedPin = PIN_NEOPIXEL;
+#else
+static constexpr int kBuiltinRgbLedPin = 48;
+#endif
+
+#if defined(RMT_WAIT_FOR_EVER)
+static constexpr auto kRmtWaitForever = RMT_WAIT_FOR_EVER;
+#elif __has_include("freertos/FreeRTOS.h")
+#include "freertos/FreeRTOS.h"
+static constexpr auto kRmtWaitForever = portMAX_DELAY;
+#else
+static constexpr uint32_t kRmtWaitForever = 0;
+#endif
+
+// `rmtInit` expects `rmt_reserve_memsize_t` (enum) in newer Arduino-ESP32.
+// Cast explicitly to avoid invalid int->enum conversion.
+static constexpr rmt_reserve_memsize_t kRmtMemSize =
+#if defined(RMT_MEM_NUM_BLOCKS_1)
+    static_cast<rmt_reserve_memsize_t>(RMT_MEM_NUM_BLOCKS_1);
+#else
+    static_cast<rmt_reserve_memsize_t>(1);
+#endif
+
+// The effect seen in ESP32C3, ESP32S2 and ESP32S3 is like a Blink of RGB LED
+//#if CONFIG_IDF_TARGET_ESP32S2
+//#define BUILTIN_RGBLED_PIN   18
+//#elif CONFIG_IDF_TARGET_ESP32S3
+//#define BUILTIN_RGBLED_PIN   48  // 48 or 38
+//#elif CONFIG_IDF_TARGET_ESP32C3
+//#define BUILTIN_RGBLED_PIN   8
+//#else
+//#define BUILTIN_RGBLED_PIN   21   // ESP32 has no builtin RGB LED
+//#endif
+
+//#define NR_OF_LEDS   8*4
+#define NR_OF_ALL_BITS 24*NR_OF_LEDS
+
+//
+// Note: This example uses Neopixel LED board, 32 LEDs chained one
+//      after another, each RGB LED has its 24 bit value
+//      for color configuration (8b for each color)
+//
+//      Bits encoded as pulses as follows:
+//
+//      "0":
+//         +-------+              +--
+//         |       |              |
+//         |       |              |
+//         |       |              |
+//      ---|       |--------------|
+//         +       +              +
+//         | 0.4us |   0.85 0us   |
+//
+//      "1":
+//         +-------------+       +--
+//         |             |       |
+//         |             |       |
+//         |             |       |
+//         |             |       |
+//      ---+             +-------+
+//         |    0.8us    | 0.4us |
+
+rmt_data_t led_data[NR_OF_ALL_BITS];
+
+void setup() {
+    Serial.begin(115200);
+    if (!rmtInit(kBuiltinRgbLedPin, RMT_TX_MODE, kRmtMemSize, 10000000)) {
+        Serial.println("init sender failed\n");
+    }
+    Serial.println("real tick set to: 100ns");
+}
+
+int color[] =  { 0x55, 0x11, 0x77 };  // Green Red Blue values
+int led_index = 0;
+
+void loop() {
+    // Init data with only one led ON
+    int led, col, bit;
+    int i=0;
+    for (led=0; led<NR_OF_LEDS; led++) {
+        for (col=0; col<3; col++ ) {
+            for (bit=0; bit<8; bit++){
+                if ( (color[col] & (1<<(7-bit))) && (led == led_index) ) {
+                    led_data[i].level0 = 1;
+                    led_data[i].duration0 = 8;
+                    led_data[i].level1 = 0;
+                    led_data[i].duration1 = 4;
+                } else {
+                    led_data[i].level0 = 1;
+                    led_data[i].duration0 = 4;
+                    led_data[i].level1 = 0;
+                    led_data[i].duration1 = 8;
+                }
+                i++;
+            }
+        }
+    }
+    // make the led travel in the pannel
+    if ((++led_index)>=NR_OF_LEDS) {
+        led_index = 0;
+    }
+    // Send the data and wait until it is done
+    rmtWrite(kBuiltinRgbLedPin, led_data, NR_OF_ALL_BITS, kRmtWaitForever);
+    delay(100);
+}

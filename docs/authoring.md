@@ -63,9 +63,10 @@ Add an `[env:<board-id>]` to every demo of each declared framework
 ...). At minimum `verify_examples.py` requires one env per
 board/framework pair; the convention is blink + uart for Arduino/Zephyr and
 blink for ESP-IDF. Canonical demos currently live in `arduino-wifiscan`,
-`arduino-usb-keyboard`, `zephyr-ble`, `zephyr-adc` and the STM32C5 CAN
-GPIO-reuse sample. Board-specific hardware samples may live at
-`examples/<board-id>/<sample>/`.
+`arduino-usb-keyboard`, `arduino-rmt-blink`, `zephyr-ble`, `zephyr-adc`,
+`zephyr-gpio`, `zephyr-button`, `zephyr-pwm`, `zephyr-battery`,
+`zephyr-imu`, `zephyr-tapwake` and the STM32C5 CAN GPIO-reuse sample.
+Board-specific hardware samples may live at `examples/<board-id>/<sample>/`.
 
 ### 3. Snapshot and validation
 

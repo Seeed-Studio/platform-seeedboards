@@ -29,8 +29,9 @@ framework = arduino
 build downloads the toolchain for that board's chip family; switching to
 another XIAO board later only changes the `board =` line.
 
-Working examples for every board — blink, UART, WiFi scan, USB HID, BLE,
-ADC and STM32C5 CAN pin reuse — live under [`examples/`](examples/). See the
+Working examples for every board — blink, UART, WiFi, USB HID, RMT, BLE,
+ADC, GPIO/button/PWM, battery, IMU, tap-wake and STM32C5 CAN pin reuse —
+live under [`examples/`](examples/). See the
 [examples index](examples/README.md) for the demo/board matrix.
 
 ## Supported boards
@@ -119,6 +120,7 @@ baselines that expire as upstream catches up — see
 
 - [Examples](examples/) — runnable projects for every board
 - [Authoring](docs/authoring.md) — adding a board or family, field by field
+- [Example parity](docs/example-parity.md) — target sample coverage map
 - [Architecture](docs/architecture.md) — how the platform is put together
 - [Decision records](docs/decisions/) — binding ADRs (registry, package
   slots, fixes mechanism, validation tiers, CI merge gate)

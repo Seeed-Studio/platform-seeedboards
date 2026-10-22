@@ -1,0 +1,145 @@
+/*
+ * Copyright (c) 2023 Nordic Semiconductor ASA
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Battery sample for XIAO nRF54L15 / nRF54LM20A.
+ *
+ * nRF54L15  — ADC-based battery voltage reading.
+ * nRF54LM20A — NPM1300 PMIC fuel gauge (voltage, current, temperature,
+ *              charge status).
+ */
+
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(battery, CONFIG_LOG_DEFAULT_LEVEL);
+
+/* ======================================================================
+ * NPM1300 Fuel Gauge path  (XIAO nRF54LM20A)
+ * ====================================================================== */
+#ifdef CONFIG_BOARD_XIAO_NRF54LM20A
+
+#include "fuel_gauge.h"
+
+#define SLEEP_TIME_MS 1000
+
+#define NPM13XX_DEVICE(dev) DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_ ## dev))
+
+static const struct device *charger = NPM13XX_DEVICE(charger);
+
+int main(void)
+{
+	if (!device_is_ready(charger)) {
+		LOG_ERR("Charger device not ready.");
+		return 0;
+	}
+
+	if (fuel_gauge_init(charger) < 0) {
+		LOG_ERR("Could not initialise fuel gauge.");
+		return 0;
+	}
+
+	LOG_INF("Fuel gauge device ok");
+
+	while (1) {
+		fuel_gauge_update(charger);
+		k_msleep(SLEEP_TIME_MS);
+	}
+
+	return 0;
+}
+
+/* ======================================================================
+ * ADC battery voltage path  (XIAO nRF54L15)
+ * ====================================================================== */
+#else
+
+#include <inttypes.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/regulator.h>
+#include <zephyr/drivers/adc.h>
+
+#if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
+	!DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
+#error "No suitable devicetree overlay specified"
+#endif
+
+#define DT_SPEC_AND_COMMA(node_id, prop, idx) \
+	ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
+
+/* Data of ADC io-channels specified in devicetree. */
+static const struct adc_dt_spec adc_channels[] = {
+	DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
+						 DT_SPEC_AND_COMMA)};
+
+static const struct device *const vbat_reg = DEVICE_DT_GET(DT_NODELABEL(vbat_pwr));
+
+#define ADC_CHANNEL_ID 7
+
+int main(void)
+{
+	int err;
+	uint16_t buf;
+	int32_t val_mv;
+	struct adc_sequence sequence = {
+		.buffer = &buf,
+		.buffer_size = sizeof(buf),
+	};
+
+	if (!device_is_ready(vbat_reg)) {
+		printf("VBAT regulator not ready\n");
+		return 0;
+	}
+
+	if (!adc_is_ready_dt(&adc_channels[ADC_CHANNEL_ID])) {
+		printf("ADC controller device %s not ready\n",
+		       adc_channels[ADC_CHANNEL_ID].dev->name);
+		return 0;
+	}
+
+	err = adc_channel_setup_dt(&adc_channels[ADC_CHANNEL_ID]);
+	if (err < 0) {
+		printf("Could not setup channel #%d (%d)\n", ADC_CHANNEL_ID, err);
+		return 0;
+	}
+
+	printf("Battery ADC started\r\n");
+
+	while (1) {
+		regulator_enable(vbat_reg);
+		k_sleep(K_MSEC(100));
+
+		(void)adc_sequence_init_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
+		err = adc_read_dt(&adc_channels[ADC_CHANNEL_ID], &sequence);
+		if (err < 0) {
+			printf("Could not read (%d)\n", err);
+			regulator_disable(vbat_reg);
+			k_sleep(K_MSEC(1000));
+			continue;
+		}
+
+		if (adc_channels[ADC_CHANNEL_ID].channel_cfg.differential) {
+			val_mv = (int32_t)((int16_t)buf);
+		} else {
+			val_mv = (int32_t)buf;
+		}
+
+		err = adc_raw_to_millivolts_dt(&adc_channels[ADC_CHANNEL_ID],
+									   &val_mv);
+		if (err < 0) {
+			printf(" value in mV not available\n");
+		} else {
+			printf("bat vol = %" PRId32 " mV\n", val_mv * 2);
+		}
+
+		regulator_disable(vbat_reg);
+		k_sleep(K_MSEC(1000));
+	}
+
+	return 0;
+}
+
+#endif /* CONFIG_BOARD_XIAO_NRF54LM20A */

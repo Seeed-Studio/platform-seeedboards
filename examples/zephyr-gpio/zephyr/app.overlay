@@ -1,0 +1,22 @@
+/ {
+    buttons {
+        compatible = "gpio-keys"; // Use "gpio-keys" for button input handling
+        xiao_button0: xiao_btn_d1 {
+            gpios = <&xiao_d 1 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+            zephyr,code = <INPUT_KEY_0>;
+        };
+    };
+
+    // Relay configuration
+    relay {
+        compatible = "gpio-leds"; // "gpio-leds" is commonly used for simple GPIO output control
+        xiao_relay0: relay_0 {
+            gpios = <&xiao_d 0 GPIO_ACTIVE_HIGH>; // Assume relay is connected to D0, active high
+        };
+    };
+
+    aliases {
+        sw1 = &xiao_button0;  // Alias for the button
+        relay0 = &xiao_relay0; // Alias for the relay
+    };
+};
