@@ -37,14 +37,14 @@ except ImportError:
 
 Import("env")
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+platform = env.PioPlatform()
+_HERE = join(platform.get_dir(), "builder", "board_build", "zephyr")
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 from zephyr_view import ensure_view, digest_paths, atomic_write_text, atomic_copy
 
 platform_name = env.subst("$PIOPLATFORM")
 board = env.BoardConfig()
-platform = env.PioPlatform()
 # Per-board routing comes from the manifest (build.zephyr.*), the single
 # source of truth -- see docs/decisions/0001-chipfamily-registry.md.
 framework_package_name = board.get("build.zephyr.package", "")
@@ -88,6 +88,11 @@ else:
         _framework_view_key(),
         prefix=framework_package_name,
     )
+
+# The upstream build script is executed by SCons, which does not define
+# __file__. Export the view path as a construction variable and let the
+# patched FRAMEWORK_DIR line below resolve it with env.subst().
+env.Replace(PIO_ZEPHYR_FRAMEWORK_DIR=framework_dir)
 
 # Copy custom board definitions into Zephyr framework boards directory
 # so that Zephyr CMake can discover them during build configuration.
@@ -273,13 +278,14 @@ def _ensure_minimal_west_workspace(framework_dir):
 
 
 def _patch_platformio_framework_dir(framework_dir):
-    """Make the upstream build script resolve FRAMEWORK_DIR from itself.
+    """Point the upstream build script's FRAMEWORK_DIR at this view.
 
     The stock script hardcodes
     ``FRAMEWORK_DIR = platform.get_package_dir("framework-zephyr-...")``.
     In a view that would point CMake back at the global package and hide
-    every fix (ADR-0006). Derive it from __file__ instead:
-    <view>/scripts/platformio/platformio-build.py -> <view>.
+    every fix (ADR-0006). SCons executes scripts through exec and does not
+    define ``__file__``, so export the view as
+    ``$PIO_ZEPHYR_FRAMEWORK_DIR`` and patch the line to env.subst(...).
     """
     build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
     if not os.path.isfile(build_py):
@@ -287,10 +293,7 @@ def _patch_platformio_framework_dir(framework_dir):
     with open(build_py, "r", encoding="utf-8") as fp:
         text = fp.read()
 
-    replacement = (
-        'FRAMEWORK_DIR = os.path.abspath(os.path.join('
-        'os.path.dirname(__file__), "..", ".."))'
-    )
+    replacement = 'FRAMEWORK_DIR = env.subst("$PIO_ZEPHYR_FRAMEWORK_DIR")'
     if replacement in text:
         return  # already patched in a reused view
 

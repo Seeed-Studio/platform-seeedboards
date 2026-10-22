@@ -36,10 +36,12 @@ naive per-build `copytree` is not acceptable.
    truncated in place: Zephyr fixes, board copies, `.west/config`, the
    framework build-script patches and the DFU module provisioning all go
    through `zephyr_view.atomic_write_text` / `atomic_copy`.
-5. The upstream `platformio-build.py` hardcodes
-   `FRAMEWORK_DIR = platform.get_package_dir(...)`; the view patches that
-   line to derive the directory from `__file__`, so CMake, signing and
-   module discovery all use the view.
+5. SCons executes scripts via `exec` and does not define `__file__`. The
+   view patches the upstream hardcoded
+   `FRAMEWORK_DIR = platform.get_package_dir(...)` line to
+   `env.subst("$PIO_ZEPHYR_FRAMEWORK_DIR")` and exports the view path as
+   that construction variable, so CMake, signing and module discovery all
+   use the view.
 6. `PIO_ZEPHYR_VIEW=0` is an explicit escape hatch for debugging. It
    restores the old in-place behavior and must not be used in CI.
 7. Views are never deleted automatically during a build. They are cache:
