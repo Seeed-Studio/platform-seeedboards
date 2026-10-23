@@ -3,6 +3,7 @@
     "arduino": {
       "ldscript": "linker_script.ld"
     },
+    "chip_family": "nrf",
     "core": "arduino",
     "cpu": "cortex-m4",
     "extra_flags": "-DSEEED_XIAO_NRF52840_PLUS -DARDUINO_ARCH_NRF52840",

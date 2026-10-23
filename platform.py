@@ -19,16 +19,9 @@
 # Modified by Seeed Studio.
 
 import os
-import subprocess
 import sys
-from pathlib import Path
 
-from platformio.public import PlatformBase, to_unix_path
-from importlib import import_module
-from platformio.package.manager.tool import ToolPackageManager
-from platformio.proc import get_pythonexe_path
-from platformio.project.config import ProjectConfig
-
+from platformio.public import PlatformBase
 
 
 IS_WINDOWS = sys.platform.startswith("win")
@@ -40,59 +33,31 @@ if IS_WINDOWS:
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-Architecture = ""
+# Family routing goes through the families/ registry keyed by each board's
+# build.chip_family manifest field — no board-id substring matching here.
+from families import resolve_board_family  # noqa: E402
 
 # Per-board Zephyr framework package name and Zephyr board.name live in each
 # board's manifest (build.zephyr.package / build.zephyr.variant). Builders read
 # build.zephyr.package directly; see get_zephyr_board_name below and
 # zephyr/README.md.
 
-class SeeedstudioPlatform(PlatformBase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._esp_tools_prepared = False
-        self._esp_python_deps_prepared = False
 
+class SeeedstudioPlatform(PlatformBase):
     def configure_default_packages(self, variables, targets):
 
-        global Architecture
         if not variables.get("board"):
             return super().configure_default_packages(variables, targets)
 
         board_name = variables.get("board")
         self._configure_zephyr_package_for_board(board_name, variables)
 
-        if "esp32" in board_name:
-            Architecture = "esp"
-        if board_name == "seeed-xiao-ra4m1":
-            Architecture = "renesas"
-        if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
-            Architecture = "rpi"
-        if "nrf" in board_name:
-            Architecture = "nrf"
-        if "samd" in board_name:
-            Architecture = "samd"
-        if "mg24" in board_name:
-            Architecture = "siliconlab"
-        if "stm32" in board_name:
-            Architecture = "stm32"
-
-        if Architecture:
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_board = getattr(board_module, f"configure_{Architecture}_default_packages")
-                configure_board(self, variables, targets)
-            except (ImportError, AttributeError) as e:
-
-                print(f"Error: {e} for board {board_name}")
-
-        if Architecture == "esp":
-            self._prefer_local_esp_tools()
-            self._ensure_esptoolpy_runtime_dependencies()
+        family = resolve_board_family(self.board_config(board_name), board_name)
+        family.configure_default_packages(self, variables, targets)
 
         result = super().configure_default_packages(variables, targets)
 
-        if Architecture == "esp" and self._prepare_esp_tools():
+        if family.post_configure_packages(self, variables, targets):
             result = super().configure_default_packages(variables, targets)
 
         return result
@@ -127,162 +92,6 @@ class SeeedstudioPlatform(PlatformBase):
         variant = self.board_config(board_name).get("build.zephyr.variant", "")
         return variant.split("/")[0].split("@")[0] if variant else ""
 
-    def _iter_required_esp_tools(self):
-        return [
-            name
-            for name, options in self.packages.items()
-            if name != "tool-esp_install"
-            and name.startswith(("tool-", "toolchain-"))
-            and not options.get("optional", True)
-        ]
-
-    def _prefer_local_esp_tools(self):
-        packages_dir = Path(self._get_packages_dir())
-        if not packages_dir.exists():
-            return
-
-        for tool_name in self._iter_required_esp_tools():
-            pkg_meta = packages_dir / tool_name / "package.json"
-            if pkg_meta.exists() and tool_name in self.packages:
-                self.packages[tool_name]["version"] = str(packages_dir / tool_name)
-                self.packages[tool_name]["optional"] = False
-
-    def _prepare_esp_tools(self):
-        if self._esp_tools_prepared:
-            return False
-
-        packages_dir = Path(self._get_packages_dir())
-        core_dir = Path(self._get_core_dir())
-        if not packages_dir.exists() or not core_dir.exists():
-            return False
-
-        self._ensure_esp_installer(packages_dir)
-
-        changed = False
-        for tool_name in self._iter_required_esp_tools():
-            if self._expand_and_link_esp_tool(tool_name, packages_dir, core_dir):
-                changed = True
-
-        self._esp_tools_prepared = True
-        return changed
-
-    def _ensure_esptoolpy_runtime_dependencies(self):
-        if self._esp_python_deps_prepared:
-            return
-
-        self._esp_python_deps_prepared = True
-
-        python_exe = get_pythonexe_path()
-        if not python_exe:
-            return
-        # esptool runs from the $PYTHONEXE (penv) python with the
-        # tool-esptoolpy dir on PYTHONPATH. That tool copy is expanded by
-        # idf_tools.py and brings no bundled Python deps, so install the
-        # optional runtime modules it imports: rich_click (CLI formatting)
-        # and intelhex (image merge / bootloader.bin generation).
-        for dep, module in (("rich_click<2", "rich_click"),
-                            ("intelhex", "intelhex")):
-            try:
-                import_module(module)
-            except ImportError:
-                try:
-                    subprocess.run(
-                        [
-                            python_exe,
-                            "-m",
-                            "pip",
-                            "install",
-                            dep,
-                            "--disable-pip-version-check",
-                            "--no-input",
-                        ],
-                        check=True,
-                    )
-                except Exception as e:
-                    print(f"Warning: failed to install {dep} for esptoolpy: {e}")
-
-    def _get_packages_dir(self):
-        config = ProjectConfig.get_instance()
-        return config.get("platformio", "packages_dir")
-
-    def _get_core_dir(self):
-        config = ProjectConfig.get_instance()
-        return config.get("platformio", "core_dir")
-
-    def _ensure_esp_installer(self, packages_dir):
-        installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
-        if installer.exists():
-            return
-
-        package_data = self.packages.get("tool-esp_install", {})
-        version = package_data.get("version")
-        if not version:
-            return
-
-        try:
-            ToolPackageManager().install(version)
-        except Exception as e:
-            print(f"Warning: failed to install tool-esp_install: {e}")
-
-    def _expand_and_link_esp_tool(self, tool_name, packages_dir, core_dir):
-        pkg_dir = packages_dir / tool_name
-        tools_json = pkg_dir / "tools.json"
-        if not tools_json.exists():
-            return False
-
-        installer = packages_dir / "tool-esp_install" / "tools" / "idf_tools.py"
-        core_tool_dir = core_dir / "tools" / tool_name
-
-        if not (core_tool_dir / "package.json").exists():
-            if not installer.exists():
-                print(f"Warning: idf_tools.py not found, cannot expand {tool_name}")
-                return False
-
-            cmd = [
-                get_pythonexe_path(),
-                str(installer),
-                "--quiet",
-                "--non-interactive",
-                "--tools-json",
-                str(tools_json),
-                "install",
-            ]
-            result = subprocess.run(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=False,
-            )
-
-            if result.returncode != 0:
-                tail = (result.stderr or result.stdout or "").strip()[-1000:]
-                print(f"Warning: failed to expand {tool_name} via idf_tools.py: {tail}")
-                return False
-
-        if not (core_tool_dir / "package.json").exists():
-            return False
-
-        changed = False
-        try:
-            pkg_meta = pkg_dir / "package.json"
-            if not pkg_meta.exists():
-                ToolPackageManager().install(f"file://{core_tool_dir}")
-                changed = True
-
-            if tool_name in self.packages:
-                linked_version = str(packages_dir / tool_name)
-                if self.packages[tool_name].get("version") != linked_version:
-                    changed = True
-                self.packages[tool_name]["version"] = str(packages_dir / tool_name)
-                self.packages[tool_name]["optional"] = False
-        except Exception as e:
-            print(f"Warning: failed to link expanded tool {tool_name}: {e}")
-            return False
-
-        return changed
-
-
     def get_boards(self, id_=None):
         result = super().get_boards(id_)
         if not result:
@@ -296,47 +105,26 @@ class SeeedstudioPlatform(PlatformBase):
 
 
     def _add_dynamic_options(self, board):
-        global Architecture
-        board_name = board.id
-        if "esp32" in board_name:
-            Architecture = "esp"
-        if board_name == "seeed-xiao-ra4m1":
-            Architecture = "renesas"
-
-        if board_name == "seeed-xiao-rp2040" or board_name == "seeed-xiao-rp2350":
-            Architecture = "rpi"
-
-        if "nrf" in board_name:
-            Architecture = "nrf"
-        if "samd" in board_name:
-            Architecture = "samd"
-        if "mg24" in board_name:
-            Architecture = "siliconlab"
-        if "stm32" in board_name:
-            Architecture = "stm32"
-
-        if Architecture:
-            # Dynamically import the board config function
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_tool = getattr(board_module, f"_add_{Architecture}_default_debug_tools")
-                return configure_tool(self, board)
-            except (ImportError, AttributeError) as e:
-                print(f"Error: in _add_dynamic_options {e} for board {board_name}")
-        else:
-            print("no config Architecture")
-            return
-
+        family = resolve_board_family(board, board.id)
+        return family.add_default_debug_tools(self, board)
 
 
     def configure_debug_session(self, debug_config):
-        global Architecture
+        board_config = getattr(debug_config, "board_config", None)
+        if board_config is None:
+            return
+        board_id = debug_config.env_options.get("board", "")
+        family = resolve_board_family(board_config, board_id)
+        family.configure_debug_session(self, debug_config)
 
-        if Architecture:
-            # Dynamically import the board config function
-            try:
-                board_module = import_module(f"platform_cfg.{Architecture}_cfg")
-                configure_debug_seesion = getattr(board_module, f"configure_{Architecture}_debug_session")
-                configure_debug_seesion(self, debug_config)
-            except (ImportError, AttributeError) as e:
-                print(f"Error: in configure_debug_session {e} for board {Architecture}")
+    def setup_python_env(self, env):
+        """Called by upstream builders we SConscript (e.g. pioarduino's
+        builder/main.py) that expect THEIR platform object; forward to
+        the board's family adapter, which owns the upstream specifics."""
+        from families import resolve_board_family
+        board = env.BoardConfig()
+        family = resolve_board_family(board, env.subst("$BOARD"))
+        adapter = getattr(family, "setup_python_env", None)
+        if adapter is None:
+            return None, None
+        return adapter(self, env)

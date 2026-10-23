@@ -4,6 +4,7 @@
       "partitions": "default_8MB.csv",
       "memory_type": "qio_opi"
     },
+    "chip_family": "esp32",
     "core": "esp32",
     "extra_flags": [
       "-DARDUINO_XIAO_ESP32S3",
