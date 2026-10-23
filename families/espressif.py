@@ -141,10 +141,19 @@ class Esp32Family(ChipFamily):
 
     def _upstream_matches_lock(self):
         """True when the installed upstream checkout is the locked commit.
-        The installed manifest's version is the upstream's own tag string
-        (e.g. '55.03.312'), which says nothing about the exact commit, so
-        compare against the VCS checkout instead."""
+
+        Primary source is the .upstream-lock marker written after a
+        successful install: it survives directory copies (offline
+        distribution, CI cache extraction), unlike the .git checkout
+        which only exists for git-clone installs. Falls back to
+        rev-parse for pre-marker installs."""
         upstream_dir = self._upstream_platform_dir()
+        locked_sha = self.upstream_version.rsplit("#", 1)[-1]
+        try:
+            with open(join(upstream_dir, ".upstream-lock"), encoding="utf-8") as fp:
+                return fp.read().strip().lower() == locked_sha.lower()
+        except OSError:
+            pass
         if not os.path.isdir(join(upstream_dir, ".git")):
             return False
         import subprocess
@@ -155,7 +164,6 @@ class Esp32Family(ChipFamily):
                 text=True, check=True)
         except (OSError, subprocess.CalledProcessError):
             return False
-        locked_sha = self.upstream_version.rsplit("#", 1)[-1]
         return result.stdout.strip().lower().startswith(locked_sha[:7].lower())
 
     def _ensure_upstream_platform(self, platform):
@@ -171,12 +179,29 @@ class Esp32Family(ChipFamily):
         reference, not a core-installable package). When the lock moves,
         a stale install is uninstalled first so the upgrade is
         maintainer-driven but automatic in effect (handbook 4.7).
+
+        Only called when this build requires an ESP32 framework script,
+        so a failed install is fatal here (fail fast in configure,
+        with the spec and remedy in the message) instead of surfacing
+        as a missing builder deep inside SCons.
         """
         if not self.upstream_version:
             return None
         upstream_dir = self._upstream_platform_dir()
         if self._upstream_matches_lock():
+            self._write_upstream_lock_marker()
             return upstream_dir
+
+        def _fail(reason):
+            sys.stderr.write(
+                "Error: this build needs the upstream '%s' platform "
+                "package (locked spec: %s) and it is not installed: %s\n"
+                "Fix: retry online (auto-installed on first build), or "
+                "pre-seed <platforms_dir>/%s from a machine that has it.\n"
+                % (self.upstream_platform, self.upstream_version, reason,
+                   self.upstream_platform))
+            sys.exit(1)
+
         try:
             from platformio.package.manager.platform import PlatformPackageManager
             pm = PlatformPackageManager()
@@ -187,12 +212,23 @@ class Esp32Family(ChipFamily):
                 pm.uninstall(self.upstream_platform, skip_dependencies=True)
             pm.install(self.upstream_version, skip_dependencies=True)
         except Exception as e:
-            print("Warning: failed to install upstream '%s' platform: %s"
-                  % (self.upstream_platform, e))
-            return None
-        if self._upstream_matches_lock():
-            return upstream_dir
-        return None
+            _fail("install failed: %s" % e)
+
+        if not self._upstream_matches_lock():
+            _fail("installed version does not match the lock")
+
+        self._write_upstream_lock_marker()
+        return upstream_dir
+
+    def _write_upstream_lock_marker(self):
+        """Persist the lock marker so copied/deployed checkouts (no
+        .git) are recognized without network access."""
+        try:
+            with open(join(self._upstream_platform_dir(), ".upstream-lock"),
+                      "w", encoding="utf-8") as fp:
+                fp.write(self.upstream_version.rsplit("#", 1)[-1])
+        except OSError as e:
+            print("Warning: could not write upstream lock marker: %s" % e)
 
     def post_configure_packages(self, platform, variables, targets):
         return self._expand_stub_tools_via_upstream(platform)

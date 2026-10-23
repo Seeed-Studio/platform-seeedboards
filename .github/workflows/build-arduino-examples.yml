@@ -52,12 +52,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Cache PlatformIO
+      - name: Cache PlatformIO (upstream platform & packages)
         uses: actions/cache@v4
         with:
           path: |
-            ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('examples/arduino-*/platformio.ini', 'platform.json', 'platform.py', 'builder/**', 'boards/**', 'platform_cfg/**', 'scripts/ci/build_arduino_examples.py', 'scripts/ci/_examples_build_lib.py') }}
+            ~/.platformio/platforms
+            ~/.platformio/packages
+          # Keyed on the package matrix and the upstream lock, NOT on
+          # platform source files: a PR touching builder code must not
+          # invalidate the multi-hundred-MB platform/package cache and
+          # force a fresh upstream git clone every run.
+          key: ${{ runner.os }}-pio-pkgs-${{ hashFiles('platform.json', 'families/espressif.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-pkgs-
+
+      - name: Cache PlatformIO (core tools)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/tools
+          key: ${{ runner.os }}-platformio-${{ hashFiles('.github/workflows/build-arduino-examples.yml') }}
 
       - name: Install PlatformIO
         run: python -m pip install --upgrade pip platformio rich-click intelhex
