@@ -82,11 +82,18 @@ class UpstreamPlatformProxy:
 
 class Esp32Family(ChipFamily):
     family_ids = ("esp32",)
-    # Upstream pioarduino platform: installed from this locked spec into
-    # the platforms dir (see _ensure_upstream_platform), and its
-    # builder/frameworks/arduino.py is SConscript-dynamically loaded —
-    # no local copy of the script. Bumping this = maintainer-driven
-    # upstream upgrade + regression.
+
+    # Host-side adapters this family mounts for the upstream builder
+    # (each depends on an upstream implementation detail — guarded by
+    # the anchor tests in tests/test_upstream_anchors.py):
+    #   1. UpstreamPlatformProxy   — upstream locates its companion
+    #      modules via env.PioPlatform().get_dir()
+    #   2. setup_python_env        — upstream main.py calls it on the
+    #      host platform object
+    #   3. _expand_stub_tools_via_upstream — upstream platform exposes
+    #      install_tool()
+    #   4. seed_penv_deps          — upstream builder imports the seeded
+    #      packages and declares them in penv_setup.python_deps
     upstream_platform = "espressif32"
     upstream_version = (
         "https://github.com/pioarduino/platform-espressif32.git"
@@ -256,6 +263,7 @@ class Esp32Family(ChipFamily):
                 fp.write(self.upstream_version.rsplit("#", 1)[-1])
         except OSError as e:
             print("Warning: could not write upstream lock marker: %s" % e)
+
 
     def post_configure_packages(self, platform, variables, targets):
         return self._expand_stub_tools_via_upstream(platform)
