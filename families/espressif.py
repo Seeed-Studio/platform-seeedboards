@@ -107,19 +107,24 @@ class Esp32Family(ChipFamily):
         "littlefs-python": "littlefs",
         "fatfs-ng": "fatfs",
         "pyyaml": "yaml",
+        # esptool runtime deps: the stub-expanded tool-esptoolpy copy
+        # brings no bundled Python deps, so rich-click (CLI formatting)
+        # and intelhex (image merge / bootloader generation) are seeded
+        # here — constraints from the upstream list, no local pin.
+        "rich-click": "rich_click",
+        "intelhex": "intelhex",
     }
-    # Upstream deps deliberately not seeded here: managed separately
-    # (rich-click, intelhex via _ensure_esptoolpy_runtime_dependencies)
-    # or pulled in transitively where needed. Listed to silence the
-    # new-dependency warning for the audited set.
+    # Upstream deps deliberately not seeded here: platform-management
+    # tooling we do not run (pioarduino), Tasmota legacy (zopfli), or
+    # transitively present. Listed to silence the new-dependency
+    # warning for the audited set.
     PENV_SEED_EXEMPT = (
-        "pioarduino", "rich-click", "intelhex", "rich", "cryptography",
-        "certifi", "ecdsa", "bitstring", "reedsolo", "esp-idf-size",
-        "esp-coredump", "pyelftools", "zopfli",
+        "pioarduino", "rich", "cryptography", "certifi", "ecdsa",
+        "bitstring", "reedsolo", "esp-idf-size", "esp-coredump",
+        "pyelftools", "zopfli",
     )
 
     def __init__(self):
-        self._python_deps_prepared = False
         self._penv_seeded = False
 
     # -- platform side --------------------------------------------------
@@ -155,7 +160,6 @@ class Esp32Family(ChipFamily):
             self._ensure_upstream_platform(platform)
         self.seed_penv_deps()
         self._prefer_local_esp_tools(platform)
-        self._ensure_esptoolpy_runtime_dependencies()
 
     def _upstream_platform_dir(self):
         from platformio.project.config import ProjectConfig
@@ -332,42 +336,6 @@ class Esp32Family(ChipFamily):
                 platform.packages[name]["version"] = pkg_dir
                 platform.packages[name]["optional"] = False
         return changed
-
-    def _ensure_esptoolpy_runtime_dependencies(self):
-        if self._python_deps_prepared:
-            return
-
-        self._python_deps_prepared = True
-
-        _, get_pythonexe_path, _ = _pio()
-        python_exe = get_pythonexe_path()
-        if not python_exe:
-            return
-        # esptool runs from the $PYTHONEXE (penv) python with the
-        # tool-esptoolpy dir on PYTHONPATH. That tool copy is expanded by
-        # idf_tools.py and brings no bundled Python deps, so install the
-        # optional runtime modules it imports: rich_click (CLI formatting)
-        # and intelhex (image merge / bootloader.bin generation).
-        for dep, module in (("rich_click<2", "rich_click"),
-                            ("intelhex", "intelhex")):
-            try:
-                import_module(module)
-            except ImportError:
-                try:
-                    subprocess.run(
-                        [
-                            python_exe,
-                            "-m",
-                            "pip",
-                            "install",
-                            dep,
-                            "--disable-pip-version-check",
-                            "--no-input",
-                        ],
-                        check=True,
-                    )
-                except Exception as e:
-                    print("Warning: failed to install %s for esptoolpy: %s" % (dep, e))
 
     # -- builder side ----------------------------------------------------
 
