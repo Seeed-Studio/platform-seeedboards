@@ -95,6 +95,29 @@ class Esp32Family(ChipFamily):
     # configure_esp_default_packages drops these for RISC-V-only MCUs.
     owned_packages = ("toolchain-xtensa-esp-elf", "toolchain-esp32ulp")
 
+    # penv packages seeded from the upstream builder's own dependency
+    # list (builder/penv_setup.py -> python_deps). Keys index that dict
+    # (pip package names); values are the import names used for the
+    # already-installed check. Version constraints come from upstream,
+    # so bumping them is not maintained here. A dependency present
+    # upstream but in neither map triggers a build-time warning so new
+    # requirements surface for an explicit decision instead of a CI
+    # failure (or worse, a silent gap).
+    PENV_SEED = {
+        "littlefs-python": "littlefs",
+        "fatfs-ng": "fatfs",
+        "pyyaml": "yaml",
+    }
+    # Upstream deps deliberately not seeded here: managed separately
+    # (rich-click, intelhex via _ensure_esptoolpy_runtime_dependencies)
+    # or pulled in transitively where needed. Listed to silence the
+    # new-dependency warning for the audited set.
+    PENV_SEED_EXEMPT = (
+        "pioarduino", "rich-click", "intelhex", "rich", "cryptography",
+        "certifi", "ecdsa", "bitstring", "reedsolo", "esp-idf-size",
+        "esp-coredump", "pyelftools", "zopfli",
+    )
+
     def __init__(self):
         self._python_deps_prepared = False
         self._penv_seeded = False
@@ -402,36 +425,61 @@ class Esp32Family(ChipFamily):
 
     def seed_penv_deps(self):
         """Idempotently pre-seed the penv with the build-time Python
-        packages the upstream builder imports at module level
-        (main.py: littlefs, fatfs, spiffsgen is stdlib). This replaces
-        the upstream's own penv management (see setup_python_env) with
-        a read-only dependency list — we never let upstream write to
-        the shared penv."""
+        packages the upstream builder imports (see PENV_SEED). Version
+        constraints are read from the upstream's own python_deps list —
+        this never runs the upstream penv machinery (see
+        setup_python_env), it only consumes its dependency declaration.
+        """
         if self._penv_seeded:
             return
         self._penv_seeded = True
+
+        upstream_deps = self._upstream_python_deps()
+        if upstream_deps is None:
+            return
+        unknown = (set(upstream_deps) - set(self.PENV_SEED)
+                   - set(self.PENV_SEED_EXEMPT))
+        if unknown:
+            print("Warning: upstream penv deps not in the seed/exempt "
+                  "maps — review and classify: %s" % ", ".join(sorted(unknown)))
+
         _, get_pythonexe_path, _ = _pio()
         python_exe = get_pythonexe_path()
         if not python_exe:
             return
-        # Third-party imports of the upstream builder closure (main.py:
-        # littlefs/fatfs; arduino.py -> component_manager: yaml). click
-        # and semantic_version are PlatformIO core dependencies and not
-        # seeded here. Verified against CI's bare runner image.
-        for module, dep in (("littlefs", "littlefs-python>=0.16.0"),
-                            ("fatfs", "fatfs-ng>=0.1.14"),
-                            ("yaml", "pyyaml")):
+        for pip_name, module in self.PENV_SEED.items():
             try:
                 import_module(module)
             except ImportError:
+                constraint = upstream_deps.get(pip_name, "")
                 try:
                     subprocess.run(
-                        [python_exe, "-m", "pip", "install", dep,
+                        [python_exe, "-m", "pip", "install",
+                         pip_name + constraint,
                          "--disable-pip-version-check", "--no-input"],
                         check=True)
                 except Exception as e:
                     print("Warning: failed to install %s for upstream "
-                          "builder: %s" % (dep, e))
+                          "builder: %s" % (pip_name, e))
+
+    def _upstream_python_deps(self):
+        """Load the upstream builder/penv_setup.py module (declarations
+        only — no top-level side effects) and return its python_deps
+        dict, or None when unavailable."""
+        import importlib.util
+        penv_setup_path = join(self._upstream_platform_dir(),
+                               "builder", "penv_setup.py")
+        if not os.path.isfile(penv_setup_path):
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "_upstream_penv_deps", penv_setup_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)  # type: ignore[attr-defined]
+            return dict(getattr(module, "python_deps", {}))
+        except Exception as e:
+            print("Warning: could not read upstream python_deps: %s" % e)
+            return None
 
     def framework_script(self, platform, framework, board):
         """Both ESP32 frameworks load upstream pioarduino scripts
