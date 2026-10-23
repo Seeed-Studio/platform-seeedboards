@@ -41,6 +41,12 @@ script = family.framework_script(platform, "arduino", board)
 if script:
     print("board %s: family '%s' arduino -> %s"
           % (board.id, family.family_ids[0], script))
-    env.SConscript(script, exports="env")
+    wrap = getattr(family, "wrap_platform", None)
+    restore = wrap(platform, env) if wrap else None
+    try:
+        env.SConscript(script, exports="env")
+    finally:
+        if wrap and restore:
+            env.PioPlatform = restore
     for hook in family.get_build_hooks("arduino"):
         hook(env, board)

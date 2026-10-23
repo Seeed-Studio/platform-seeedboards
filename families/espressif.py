@@ -57,6 +57,29 @@ def _get_packages_dir():
     return config.get("platformio", "packages_dir")
 
 
+class UpstreamPlatformProxy:
+    """Runtime shim replacing the static forwarding files.
+
+    The upstream pioarduino builders locate their own companion modules
+    through env.PioPlatform().get_dir() — the HOST platform directory —
+    (spiffsgen.py, penv_setup.py, component_manager.py, boards/<id>.py).
+    Handing them this proxy makes get_dir() resolve to the upstream
+    package so every such lookup lands inside the upstream copy, while
+    everything else (packages, install_tool, debug) forwards to the
+    real host platform.
+    """
+
+    def __init__(self, host, upstream_dir):
+        self._host = host
+        self._upstream_dir = upstream_dir
+
+    def get_dir(self):
+        return self._upstream_dir
+
+    def __getattr__(self, name):
+        return getattr(self._host, name)
+
+
 class Esp32Family(ChipFamily):
     family_ids = ("esp32",)
     # Upstream pioarduino platform: installed from this locked spec into
@@ -295,8 +318,19 @@ class Esp32Family(ChipFamily):
         esp_build.py was an official-v6.9.0-era copy of the same file;
         this returns to the upstream mainline. Host-side expectations
         the upstream builder has of its platform object are adapted by
-        setup_python_env below and the penv pre-seed."""
+        wrap_platform / setup_python_env below."""
         return join(self._upstream_platform_dir(), "builder", "main.py")
+
+    def wrap_platform(self, platform, env):
+        """Hook for the dispatchers: replace env.PioPlatform() with an
+        UpstreamPlatformProxy for the duration of the upstream script
+        (see that class). Returns the original callable so the caller
+        can restore it afterwards."""
+        original = env.PioPlatform
+        upstream_dir = self._upstream_platform_dir()
+        if os.path.isfile(join(upstream_dir, "platform.json")):
+            env.PioPlatform = lambda: UpstreamPlatformProxy(original(), upstream_dir)
+        return original
 
     def setup_python_env(self, platform, env):
         """Host adapter for the upstream builder's
