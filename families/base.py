@@ -129,19 +129,10 @@ class ChipFamily:
         configure_default_packages today)."""
         return set()
 
-    def build_flags(self, board):
-        return []
-
-    def upload_protocol(self, board):
-        return board.get("upload.protocol", "")
-
     def get_build_hooks(self, framework):
         """Hooks (callables taking (env, board)) applied after the
         framework script has run."""
         return []
-
-    def configure_env(self, env, board):
-        return None
 
     # ------------------------------------------------------------------
     # Platform-side hooks (current behavior delegates to platform_cfg/*)
