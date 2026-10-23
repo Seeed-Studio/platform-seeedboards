@@ -27,7 +27,6 @@ load; platformio and platform_cfg imports stay inside functions.
 import os
 import subprocess
 import sys
-from importlib import import_module
 from os.path import join
 from pathlib import Path
 
@@ -400,27 +399,89 @@ class Esp32Family(ChipFamily):
         setup_penv_minimal assumes it owns the shared PlatformIO penv
         and its uv sync removed core packages (certifi, uvicorn, ...)
         when run here. The penv is PIO core's, not ours to manage.
-        """
+
+        The esptool half is resolved by _resolve_esptool: the upstream
+        builder execs OBJCOPY directly (no $PYTHONEXE prefix), so it
+        must be a real executable path — never the bare program name
+        (PIO 6.2's where_is_program returns it when nothing is found)
+        nor the package's esptool.py (unpacked without the exec bit on
+        Linux)."""
         penv_python = getattr(platform, "_penv_python", None)
         esptool_path = getattr(platform, "_esptool_path", None)
         if not penv_python:
             from platformio.proc import get_pythonexe_path
             penv_python = get_pythonexe_path()
         if not esptool_path:
-            from platformio.proc import where_is_program
-            esptool_path = where_is_program("esptool") or ""
-        if not esptool_path:
-            for candidate in (
-                join(_get_packages_dir(), "tool-esptoolpy", "esptool.py"),
-            ):
-                if os.path.isfile(candidate):
-                    esptool_path = candidate
-                    break
+            esptool_path = self._resolve_esptool(penv_python)
         platform._penv_python = penv_python
         platform._esptool_path = esptool_path
         if penv_python:
             env.Replace(PYTHONEXE=penv_python)
         return penv_python, esptool_path
+
+    @staticmethod
+    def _is_usable_executable(path):
+        """True only for an existing executable FILE. Guards against
+        PIO 6.2's where_is_program() returning the bare program name
+        when lookup fails, and against names that resolve to a
+        directory (the tool-esptoolpy package root is prepended to
+        $PATH for uploader packages and contains the esptool *package
+        directory*)."""
+        return bool(path) and os.path.isfile(path) and os.access(path, os.X_OK)
+
+    def _resolve_esptool(self, penv_python):
+        """Pick the esptool executable handed to the upstream builder.
+
+        Preference order:
+        1. an esptool entry point already on $PATH (e.g. installed in
+           the penv) — used as-is;
+        2. a generated launcher that runs tool-esptoolpy's esptool.py
+           under the penv python (whose deps seed_penv_deps provides).
+
+        Both keep the upstream contract of a single exec'able path;
+        returning "" only when neither can be produced."""
+        from platformio.proc import where_is_program
+        candidate = where_is_program("esptool")
+        if self._is_usable_executable(candidate):
+            return candidate
+        esptool_py = join(_get_packages_dir(), "tool-esptoolpy", "esptool.py")
+        if not os.path.isfile(esptool_py) or not penv_python:
+            return ""
+        return self._write_esptool_wrapper(esptool_py, penv_python)
+
+    @staticmethod
+    def _esptool_wrapper_path():
+        from platformio.project.config import ProjectConfig
+        core_dir = ProjectConfig.get_instance().get("platformio", "core_dir")
+        wrapper = "esptool.cmd" if sys.platform == "win32" else "esptool"
+        return join(core_dir, ".cache", "esptool-wrapper", wrapper)
+
+    def _write_esptool_wrapper(self, esptool_py, penv_python):
+        """(Re)create the esptool launcher under the core cache dir.
+
+        Rewritten whenever the embedded paths change, so package or
+        penv moves invalidate it automatically."""
+        if sys.platform == "win32":
+            body = '@"%s" "%s" %%*\r\n' % (penv_python, esptool_py)
+        else:
+            body = '#!/bin/sh\nexec "%s" "%s" "$@"\n' % (penv_python, esptool_py)
+        wrapper = self._esptool_wrapper_path()
+        try:
+            os.makedirs(os.path.dirname(wrapper), exist_ok=True)
+            try:
+                with open(wrapper, encoding="utf-8", errors="replace") as fp:
+                    if fp.read() == body:
+                        return wrapper
+            except OSError:
+                pass  # not created yet — write it below
+            with open(wrapper, "w", encoding="utf-8", newline="") as fp:
+                fp.write(body)
+            os.chmod(wrapper, 0o755)
+        except OSError as e:
+            print("Warning: could not write esptool wrapper %s: %s"
+                  % (wrapper, e))
+            return ""
+        return wrapper
 
     def seed_penv_deps(self):
         """Idempotently pre-seed the penv with the build-time Python
@@ -442,19 +503,32 @@ class Esp32Family(ChipFamily):
         if not python_exe:
             return
         for pip_name, module in self.PENV_SEED.items():
+            # Probe the PENV, not this PIO process: the host
+            # interpreter may already have the module (preseeded on CI,
+            # or a plain `pip install platformio` env) while the penv
+            # that actually runs the upstream builder's tools does not.
+            if self._penv_can_import(python_exe, module):
+                continue
+            constraint = upstream_deps.get(pip_name, "")
             try:
-                import_module(module)
-            except ImportError:
-                constraint = upstream_deps.get(pip_name, "")
-                try:
-                    subprocess.run(
-                        [python_exe, "-m", "pip", "install",
-                         pip_name + constraint,
-                         "--disable-pip-version-check", "--no-input"],
-                        check=True)
-                except Exception as e:
-                    print("Warning: failed to install %s for upstream "
-                          "builder: %s" % (pip_name, e))
+                subprocess.run(
+                    [python_exe, "-m", "pip", "install",
+                     pip_name + constraint,
+                     "--disable-pip-version-check", "--no-input"],
+                    check=True)
+            except Exception as e:
+                print("Warning: failed to install %s for upstream "
+                      "builder: %s" % (pip_name, e))
+
+    @staticmethod
+    def _penv_can_import(python_exe, module):
+        try:
+            result = subprocess.run(
+                [python_exe, "-c", "import %s" % module],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError:
+            return False
+        return result.returncode == 0
 
     def _upstream_python_deps(self):
         """Read the installed upstream python_deps declaration (ast

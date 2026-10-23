@@ -129,3 +129,101 @@ def test_builder_script_mapping_is_family_owned():
     # stm32 has no Arduino route even though the board exists
     family = ChipFamily.get("stm32")
     assert family.framework_script(platform, "arduino", None) is None
+
+
+class _Env:
+    def __init__(self):
+        self.replaced = {}
+
+    def Replace(self, **kwargs):
+        self.replaced.update(kwargs)
+
+
+class _Platform:
+    pass
+
+
+def test_setup_python_env_never_returns_bare_esptool(monkeypatch, tmp_path):
+    """PIO 6.2's where_is_program() returns the BARE program name when
+    lookup fails, and the tool-esptoolpy package root (prepended to
+    $PATH for uploader packages) contains an `esptool` DIRECTORY — the
+    upstream builder execs OBJCOPY directly, so a bare name made dash
+    execve that directory and die with `esptool: Permission denied` in
+    CI. Whatever the PATH lookup says, the returned path must be a
+    real executable file (here: the generated penv-python wrapper)."""
+    import os
+
+    from families import espressif as esp_mod
+
+    packages = tmp_path / "packages"
+    (packages / "tool-esptoolpy").mkdir(parents=True)
+    esptool_py = packages / "tool-esptoolpy" / "esptool.py"
+    esptool_py.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    wrapper = tmp_path / "esptool-wrapper" / (
+        "esptool.cmd" if sys.platform == "win32" else "esptool")
+
+    monkeypatch.setattr(esp_mod, "_get_packages_dir", lambda: str(packages))
+    monkeypatch.setattr(
+        esp_mod.Esp32Family, "_esptool_wrapper_path",
+        staticmethod(lambda: str(wrapper)))
+    # PIO 6.2 not-found behavior: the bare program name comes back
+    monkeypatch.setattr("platformio.proc.where_is_program", lambda p: p)
+
+    penv_python, esptool_path = ChipFamily.get("esp32").setup_python_env(
+        _Platform(), _Env())
+
+    assert penv_python
+    assert esptool_path
+    assert esptool_path != "esptool"
+    assert os.path.isfile(esptool_path)
+    assert not os.path.isdir(esptool_path)
+    body = wrapper.read_text(encoding="utf-8")
+    assert str(esptool_py) in body
+    assert penv_python in body
+
+
+def test_setup_python_env_prefers_real_path_entry_point(monkeypatch, tmp_path):
+    """An esptool actually on $PATH (e.g. installed in the penv) wins
+    and is returned as-is — no wrapper is written."""
+    import os
+
+    from families import espressif as esp_mod
+
+    entry = tmp_path / "bin" / "esptool"
+    entry.parent.mkdir()
+    entry.write_text("#!/bin/sh\n", encoding="utf-8")
+    if sys.platform != "win32":
+        entry.chmod(0o755)
+    monkeypatch.setattr(
+        "platformio.proc.where_is_program", lambda p: str(entry))
+    monkeypatch.setattr(
+        esp_mod.Esp32Family, "_esptool_wrapper_path",
+        staticmethod(lambda: pytest.fail("wrapper must not be written")))
+
+    _, esptool_path = ChipFamily.get("esp32").setup_python_env(
+        _Platform(), _Env())
+    assert os.path.normpath(esptool_path) == os.path.normpath(str(entry))
+
+
+def test_is_usable_executable_rejects_bare_names_and_dirs(tmp_path):
+    from families.espressif import Esp32Family
+
+    assert not Esp32Family._is_usable_executable("esptool")
+    assert not Esp32Family._is_usable_executable("")  # noqa: PLC1901
+    assert not Esp32Family._is_usable_executable(str(tmp_path))  # directory
+    real = tmp_path / "prog"
+    real.write_text("#!/bin/sh\n", encoding="utf-8")
+    if sys.platform != "win32":
+        real.chmod(0o755)
+    assert Esp32Family._is_usable_executable(str(real))
+
+
+def test_penv_can_import_probes_the_target_interpreter():
+    """The seed check must run inside the penv interpreter — probing
+    the PIO host process let a CI-preseeded system python mask a penv
+    that was missing the package for real."""
+    from families.espressif import Esp32Family
+
+    assert Esp32Family._penv_can_import(sys.executable, "json")
+    assert not Esp32Family._penv_can_import(
+        sys.executable, "no_such_module_for_sure")
