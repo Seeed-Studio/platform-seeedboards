@@ -414,8 +414,13 @@ class Esp32Family(ChipFamily):
         python_exe = get_pythonexe_path()
         if not python_exe:
             return
+        # Third-party imports of the upstream builder closure (main.py:
+        # littlefs/fatfs; arduino.py -> component_manager: yaml). click
+        # and semantic_version are PlatformIO core dependencies and not
+        # seeded here. Verified against CI's bare runner image.
         for module, dep in (("littlefs", "littlefs-python>=0.16.0"),
-                            ("fatfs", "fatfs-ng>=0.1.14")):
+                            ("fatfs", "fatfs-ng>=0.1.14"),
+                            ("yaml", "pyyaml")):
             try:
                 import_module(module)
             except ImportError:
