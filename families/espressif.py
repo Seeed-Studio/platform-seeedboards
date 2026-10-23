@@ -439,23 +439,35 @@ class Esp32Family(ChipFamily):
                           "builder: %s" % (pip_name, e))
 
     def _upstream_python_deps(self):
-        """Load the upstream builder/penv_setup.py module (declarations
-        only — no top-level side effects) and return its python_deps
-        dict, or None when unavailable."""
-        import importlib.util
-        penv_setup_path = join(self._upstream_platform_dir(),
-                               "builder", "penv_setup.py")
-        if not os.path.isfile(penv_setup_path):
-            return None
+        """Extract the upstream python_deps declaration WITHOUT
+        executing the file: parse the AST and literal-eval the
+        assignment. Running upstream code at configure time — even
+        "just" module level — is the failure mode the adapters exist
+        to prevent (the penv-sync incident); if upstream ever moves to
+        a non-literal declaration this returns None and seeding
+        degrades with a warning instead of executing anything."""
+        import ast
+        path = join(self._upstream_platform_dir(), "builder", "penv_setup.py")
         try:
-            spec = importlib.util.spec_from_file_location(
-                "_upstream_penv_deps", penv_setup_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)  # type: ignore[attr-defined]
-            return dict(getattr(module, "python_deps", {}))
-        except Exception as e:
-            print("Warning: could not read upstream python_deps: %s" % e)
+            with open(path, encoding="utf-8") as fp:
+                tree = ast.parse(fp.read(), filename=path)
+        except (OSError, SyntaxError, ValueError) as e:
+            print("Warning: could not parse upstream penv_setup.py: %s" % e)
             return None
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "python_deps":
+                    try:
+                        return dict(ast.literal_eval(node.value))
+                    except ValueError:
+                        print("Warning: upstream python_deps is no longer "
+                              "a literal dict; penv seeding is disabled")
+                        return None
+        print("Warning: upstream python_deps assignment not found; "
+              "penv seeding is disabled")
+        return None
 
     def framework_script(self, platform, framework, board):
         """Both ESP32 frameworks load upstream pioarduino scripts
