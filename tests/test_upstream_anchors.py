@@ -67,3 +67,26 @@ def test_upstream_anchor(path, pattern, what):
         "Re-audit the adapter list in Esp32Family (families/espressif.py)."
         % (_LOCK_SHA[:7], path, what, pattern)
     )
+
+
+def test_penv_deps_fully_classified():
+    """Every upstream python_deps key must be classified (PENV_SEED or
+    PENV_SEED_EXEMPT) and our maps must carry nothing the upstream list
+    dropped — exact-set match. A lock bump that adds an upstream
+    dependency fails here, forcing an explicit seed/exempt decision."""
+    from families.espressif import _parse_python_deps
+    source = _fetch("builder/penv_setup.py")
+    upstream = set(_parse_python_deps(source))
+    ours = set(_ESP32.PENV_SEED) | set(_ESP32.PENV_SEED_EXEMPT)
+    assert upstream, "python_deps not parseable at the locked commit"
+    unclassified = upstream - ours
+    stale = ours - upstream
+    assert not unclassified, (
+        "Unclassified upstream penv deps (add to PENV_SEED or "
+        "PENV_SEED_EXEMPT in families/espressif.py): %s"
+        % sorted(unclassified)
+    )
+    assert not stale, (
+        "PENV maps carry deps the upstream list no longer declares "
+        "(remove from families/espressif.py): %s" % sorted(stale)
+    )

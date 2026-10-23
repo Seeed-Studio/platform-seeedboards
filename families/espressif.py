@@ -57,6 +57,29 @@ def _get_packages_dir():
     return config.get("platformio", "packages_dir")
 
 
+def _parse_python_deps(source):
+    """Extract the python_deps dict literal from penv_setup.py source
+    WITHOUT executing it (ast only). Returns {} when absent or not a
+    literal dict."""
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id == "python_deps":
+                try:
+                    return dict(ast.literal_eval(node.value))
+                except ValueError:
+                    return {}
+    return {}
+
+
+
+
 class UpstreamPlatformProxy:
     """Runtime shim replacing the static forwarding files.
 
@@ -106,10 +129,10 @@ class Esp32Family(ChipFamily):
     # list (builder/penv_setup.py -> python_deps). Keys index that dict
     # (pip package names); values are the import names used for the
     # already-installed check. Version constraints come from upstream,
-    # so bumping them is not maintained here. A dependency present
-    # upstream but in neither map triggers a build-time warning so new
-    # requirements surface for an explicit decision instead of a CI
-    # failure (or worse, a silent gap).
+    # so bumping them is not maintained here. Full classification of
+    # the upstream list (every upstream key in SEED or EXEMPT, nothing
+    # stale on our side) is asserted by tests/test_upstream_anchors.py,
+    # so a lock bump with new dependencies turns the PR red.
     PENV_SEED = {
         "littlefs-python": "littlefs",
         "fatfs-ng": "fatfs",
@@ -123,8 +146,8 @@ class Esp32Family(ChipFamily):
     }
     # Upstream deps deliberately not seeded here: platform-management
     # tooling we do not run (pioarduino), Tasmota legacy (zopfli), or
-    # transitively present. Listed to silence the new-dependency
-    # warning for the audited set.
+    # transitively present. Both maps together must cover the upstream
+    # list exactly (asserted in tests/test_upstream_anchors.py).
     PENV_SEED_EXEMPT = (
         "pioarduino", "rich", "cryptography", "certifi", "ecdsa",
         "bitstring", "reedsolo", "esp-idf-size", "esp-coredump",
@@ -413,11 +436,6 @@ class Esp32Family(ChipFamily):
         upstream_deps = self._upstream_python_deps()
         if upstream_deps is None:
             return
-        unknown = (set(upstream_deps) - set(self.PENV_SEED)
-                   - set(self.PENV_SEED_EXEMPT))
-        if unknown:
-            print("Warning: upstream penv deps not in the seed/exempt "
-                  "maps — review and classify: %s" % ", ".join(sorted(unknown)))
 
         _, get_pythonexe_path, _ = _pio()
         python_exe = get_pythonexe_path()
@@ -439,21 +457,16 @@ class Esp32Family(ChipFamily):
                           "builder: %s" % (pip_name, e))
 
     def _upstream_python_deps(self):
-        """Extract the upstream python_deps declaration WITHOUT
-        executing the file: parse the AST and literal-eval the
-        assignment. Running upstream code at configure time — even
-        "just" module level — is the failure mode the adapters exist
-        to prevent (the penv-sync incident); if upstream ever moves to
-        a non-literal declaration this returns None and seeding
-        degrades with a warning instead of executing anything."""
-        import ast
-        path = join(self._upstream_platform_dir(), "builder", "penv_setup.py")
+        """Read the installed upstream python_deps declaration (ast
+        only, never executed — see _parse_python_deps)."""
         try:
-            with open(path, encoding="utf-8") as fp:
-                tree = ast.parse(fp.read(), filename=path)
-        except (OSError, SyntaxError, ValueError) as e:
-            print("Warning: could not parse upstream penv_setup.py: %s" % e)
+            with open(join(self._upstream_platform_dir(),
+                           "builder", "penv_setup.py"),
+                      encoding="utf-8") as fp:
+                return _parse_python_deps(fp.read()) or None
+        except OSError:
             return None
+
         for node in tree.body:
             if not isinstance(node, ast.Assign):
                 continue
