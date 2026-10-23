@@ -102,13 +102,14 @@ class Esp32Family(ChipFamily):
     # -- platform side --------------------------------------------------
 
     def required_packages(self, board):
-        """Activate the upstream platform package whenever the Arduino
-        framework is requested: its builder script is the entry point."""
+        """Activate the upstream platform package whenever either ESP32
+        framework is requested: both load their builder script from it
+        (an espidf-first board like the S31 would otherwise fail on the
+        first build)."""
         frameworks = board.get("frameworks", []) if board is not None else []
-        packages = set()
-        if "arduino" in frameworks:
-            packages.add(self.upstream_platform)
-        return packages
+        if {"arduino", "espidf"} & set(frameworks):
+            return {self.upstream_platform}
+        return set()
 
     def configure_default_packages(self, platform, variables, targets):
         from platform_cfg import esp_cfg
