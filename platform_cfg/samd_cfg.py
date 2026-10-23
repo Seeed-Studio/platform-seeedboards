@@ -6,23 +6,15 @@ def configure_samd_default_packages(self, variables, targets):
     if not variables.get("board"):
         return super().configure_default_packages(variables, targets)
     board = self.board_config(variables.get("board"))
-    upload_protocol = variables.get(
-        "upload_protocol", board.get("upload.protocol", "")
-    )
-    disabled_pkgs = []
-    upload_tool = "tool-openocd"
-    if upload_protocol == "sam-ba":
-        upload_tool = "tool-bossac"
-    elif upload_protocol == "jlink":
-        upload_tool = "tool-jlink"
 
-    if upload_tool:
-        for name, opts in self.packages.items():
-            if "type" not in opts or opts["type"] != "uploader":
-                continue
-            if name != upload_tool:
-                disabled_pkgs.append(name)
-
+    # Uploader pruning removed: the old code collected every type=uploader
+    # package except the one selected for this board and deleted the rest,
+    # but samd's own uploaders (tool-bossac / tool-jlink) carry no type
+    # field, so it deleted esp/renesas/nrf uploaders from the shared
+    # self.packages dict too. Those packages are optional and never
+    # install for samd builds (would-install set verified identical
+    # without the loop), so deletion bought nothing while breaking later
+    # in-process configuration of those families.
 
     self.packages["framework-arduino-samd-seeed"]["optional"] = False
     self.packages["toolchain-gccarmnoneeabi"]["optional"] = False
@@ -31,15 +23,6 @@ def configure_samd_default_packages(self, variables, targets):
 
     self.packages["framework-cmsis"]["optional"] = False
     self.packages["framework-cmsis"]["version"] = "~2.50400.0"
-
-    print("optional is:",self.packages["framework-cmsis"]["optional"])
-    print("optional is:",self.packages["framework-cmsis"]["version"])
-    
-    for name in disabled_pkgs:
-        # OpenOCD should be available when debugging
-        if name == "tool-openocd" and variables.get("build_type", "") == "debug":
-            continue
-        del self.packages[name]
 
 
 
