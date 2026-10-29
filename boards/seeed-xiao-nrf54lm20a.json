@@ -1,11 +1,11 @@
 {
     "build": {
+      "chip_family": "nrf",
       "cpu": "cortex-m33",
       "f_cpu": "128000000L",
       "mcu": "nrf54lm20a",
       "zephyr": {
-        "variant": "xiao_nrf54lm20a/nrf54lm20a/cpuapp",
-        "package": "framework-zephyr-nrf54lm20"
+        "variant": "xiao_nrf54lm20a/nrf54lm20a/cpuapp"
      }
     },
     "connectivity": [
@@ -16,7 +16,7 @@
         "cmsis-dap"
       ],
       "jlink_device": "nRF54LM20A_M33",
-      "openocd_target": "$PROJECT_CORE_DIR/platforms/\"$PIOPLATFORM\"/builder/board_build/nrf/nrf54lm20a.cfg",
+      "openocd_target": "$PROJECT_CORE_DIR/platforms/\"$PIOPLATFORM\"/builder/families/nordic/nrf54lm20a.cfg",
       "svd_path": "nrf54lm20a.svd"
     },
     "frameworks": [

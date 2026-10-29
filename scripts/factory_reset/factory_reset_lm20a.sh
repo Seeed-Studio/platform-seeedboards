@@ -7,7 +7,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 FIRMWARE="$SCRIPT_DIR/firmware_lm20a_blink.hex"
-OPENOCD_CFG="$SCRIPT_DIR/../../builder/board_build/nrf/nrf54lm20a.cfg"
+OPENOCD_CFG="$SCRIPT_DIR/../../builder/families/nordic/nrf54lm20a.cfg"
 
 if [ "$#" -gt 1 ]; then
     echo "Usage: $0 [probe-id]" >&2
