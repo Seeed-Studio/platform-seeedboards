@@ -26,13 +26,13 @@ This repository is the source of the Seeed Studio PlatformIO platform. The Git r
 | PlatformIO board capabilities | `boards/<board-id>.json` |
 | Zephyr board definitions | `zephyr/<family>/boards/seeed/<board>/` |
 | Family package/debug defaults | `platform_cfg/` |
-| Family build, artifact, and upload adaptation | `builder/board_build/<family>/` |
+| Family build, artifact, and upload adaptation | `builder/families/<family>/` |
 | Generic tool code with no chip-family knowledge | `builder/tools/` |
 | Framework integration and version-specific compatibility | `builder/frameworks/`, `zephyr/` |
 | User-facing regression coverage | `examples/`, `scripts/ci/`, `.github/workflows/` |
 
 - Keep a change in its owning layer. Do not solve a board-specific problem by adding a board-name special case to a generic builder when board metadata, a profile, or a Zephyr board definition owns the value.
-- `builder/tools/` admits only utilities that know nothing about a chip family, vendor, or board (today: the generic UF2 helpers `uf2conv.py`/`uf2upload.py`). Code bound to a family — VID:PID tables, upload semantics, manifest schema — belongs in `builder/board_build/<family>/` beside the family builder that invokes it.
+- `builder/tools/` admits only utilities that know nothing about a chip family, vendor, or board (today: the generic UF2 helpers `uf2conv.py`/`uf2upload.py`). Code bound to a family — VID:PID tables, upload semantics, manifest schema — belongs in `builder/families/<family>/` beside the family builder that invokes it.
 - Each `zephyr/<family>` is a standalone Zephyr board root, and `zephyr/nrf` is the Board Root the wiki tells nRF Connect users to add. It may only contain boards whose SoC and drivers exist unpatched in the target SDK; a board that needs `zephyr/fixes.yml` fixes belongs in its own family root (e.g. `zephyr/stm32`) and reaches the framework only via the builder copy step. See [`.agents/notes/implemented/2026-10-08-zephyr-family-board-roots.md`](.agents/notes/implemented/2026-10-08-zephyr-family-board-roots.md).
 - Preserve existing board IDs, example paths, framework choices, upload/debug behavior, package versions, and firmware formats unless the requested change explicitly alters that contract.
 - Do not add speculative board, framework, package, or compatibility behavior without a current consumer and representative validation.

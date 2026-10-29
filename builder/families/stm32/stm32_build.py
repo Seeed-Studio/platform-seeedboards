@@ -7,7 +7,6 @@ from SCons.Script import ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild, Builder, 
 env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
-zephyr_package_name = board.get("build.zephyr.package", "")
 
 env.Replace(
     AR="arm-none-eabi-ar",
@@ -62,7 +61,7 @@ if not env.get("PIOFRAMEWORK"):
 if "zephyr" in env.get("PIOFRAMEWORK", []):
     env.SConscript(
         join(
-            platform.get_package_dir(zephyr_package_name),
+            platform.get_package_dir("framework-zephyr"),
             "scripts",
             "platformio",
             "platformio-build-pre.py",

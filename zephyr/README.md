@@ -74,29 +74,28 @@ entries auto-expire after a Zephyr upgrade, forcing re-evaluation.
 No Python code changes are needed — board-level data lives in
 `boards/<board-id>.json`:
 
-1. Declare two fields under `build.zephyr` in `boards/<board-id>.json`:
-   `package` (the framework-zephyr package this board builds against, e.g.
-   `framework-zephyr-nrf54lm20`) and `variant` (in `board[@revision]/soc/...`
-   form, e.g. `xiao_nrf54lm20a@2.0.0/nrf54lm20a/cpuapp`). The first
-   component of the variant (before `/` and `@`) is the board.name — the key
-   of this directory's fixes mechanism.
+1. Declare `build.zephyr.variant` in `boards/<board-id>.json` (in
+   `board[@revision]/soc/...` form, e.g.
+   `xiao_nrf54lm20a@2.0.0/nrf54lm20a/cpuapp`). The first component of the
+   variant (before `/` and `@`) is the board.name — the key of this
+   directory's fixes mechanism. All boards build against the single
+   `framework-zephyr` package pinned in `platform.json`; there is no
+   per-board package field.
 2. Create `zephyr/patches/<board.name>/` and `zephyr/overrides/<board.name>/`
    (only if the board has fixes).
 3. Add a `boards[<board.name>]` section in `fixes.yml`.
 
-`scripts/ci/verify_board_manifests.py` validates in CI that these fields are
-present (a missing declaration fails the check instead of silently falling
-back to the default package) and cross-checks that every `fixes.yml` key
-matches a manifest-derived board name.
+`scripts/ci/verify_board_manifests.py` validates in CI that the variant
+field is present (a missing declaration fails the check instead of silently
+producing a board with no fixes key) and cross-checks that every `fixes.yml`
+key matches a manifest-derived board name.
 
-> **Package sharing note**: `seeed-xiao-stm32c5` declares
-> `framework-zephyr-nrf54lm20` directly — it uses the **exact same** Zephyr
-> 4.4.0 tarball as nrf54lm20 (identical content), so no separate
-> `framework-zephyr-stm32c5` package is shipped; even if one were shipped,
-> PlatformIO would URL-dedupe an identically-versioned package into the
-> nrf54lm20 directory, leaving only a misleading name behind. STM32C5
-> board-level differences (pinctrl via the hal_stm32 west module;
-> udc/xspi/adc overrides) are injected per board via `fixes.yml`.
+> **Single package note**: every Zephyr board — including
+> `seeed-xiao-stm32c5` — builds against the same pinned `framework-zephyr`
+> tarball from `platform.json`; Zephyr version bumps are platform-level
+> decisions, not per-board ones. Board-level differences (pinctrl via the
+> hal_stm32 west module; udc/xspi/adc overrides) are injected per board via
+> `fixes.yml`.
 
 ## Adapting to a new Zephyr version (framework package upgrade)
 

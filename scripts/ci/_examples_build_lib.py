@@ -230,7 +230,7 @@ def collect_firmware(
         hex_ = bdir / "firmware.hex"
         # MCUboot-booted boards produce no plain firmware.hex; their flashable
         # output is the imgtool-signed slot0 image declared by the nRF builder
-        # (builder/board_build/nrf/nrf_build.py: $BUILD_DIR/zephyr/
+        # (builder/families/nordic/upload.py: $BUILD_DIR/zephyr/
         # zephyr.signed.bin).
         signed = bdir / "zephyr" / "zephyr.signed.bin"
         src = (
