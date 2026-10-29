@@ -87,7 +87,7 @@ def _add_renesas_default_debug_tools(self, board):
                 "-f",
                 "interface/cmsis-dap.cfg",
                 "-f",
-                "%s/builder/board_build/renesas/ra4m1.cfg" % parent_dir,
+                "%s/builder/families/renesas/ra4m1.cfg" % parent_dir,
                 "-c",
                 "cmsis_dap_vid_pid %s %s" % ("0x0D28", "0x0204")
             ]

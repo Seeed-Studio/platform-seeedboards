@@ -12,8 +12,8 @@ script receives the Ctrl+C event itself and dies immediately, taking the
 nrfutil child with it -- the same mechanism that makes the STM32 UF2
 uploader (uf2upload.py) interruptible.
 
-Ported from DfuUpload1200 and its helpers in
-builder/board_build/nrf/nrf_build.py; the busy-port handling and the
+Ported from DfuUpload1200 and its helpers in the retired
+nrf_build.py; the busy-port handling and the
 9600-bps line-coding prime before the 1200-bps touch come from PR #100.
 
 Board CDC identities come from the manifest's upload.cdc:

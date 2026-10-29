@@ -3,6 +3,7 @@
     "arduino": {
       "ldscript": "nrf52840_s140_v7.ld"
     },
+    "chip_family": "nrf",
     "core": "nRF5",
     "cpu": "cortex-m4",
     "extra_flags": "-DARDUINO_Seeed_XIAO_nRF52840_Sense_Plus -DNRF52840_XXAA -DSEEED_XIAO_NRF52840_SENSE_PLUS",
