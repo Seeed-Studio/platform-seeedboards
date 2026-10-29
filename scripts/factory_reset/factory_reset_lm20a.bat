@@ -7,7 +7,7 @@ REM It reuses PlatformIO's tool-openocd package; it does not install pyOCD.
 
 set "SCRIPT_DIR=%~dp0"
 set "FIRMWARE=%SCRIPT_DIR%firmware_lm20a_blink.hex"
-set "OPENOCD_CFG=%SCRIPT_DIR%..\..\builder\board_build\nrf\nrf54lm20a.cfg"
+set "OPENOCD_CFG=%SCRIPT_DIR%..\..\builder\families\nordic\nrf54lm20a.cfg"
 
 if not exist "%FIRMWARE%" (
     echo [ERROR] Recovery firmware not found: %FIRMWARE%

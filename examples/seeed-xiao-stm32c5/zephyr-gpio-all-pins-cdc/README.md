@@ -1,12 +1,14 @@
 # XIAO STM32C5 GPIO All Pins CDC Test
 
 USB CDC is used as the command and log port. The test drives XIAO header pins
-D0-D15 as independent GPIO outputs.
+D0-D14 and D18 as independent GPIO outputs. The D18 pad (PB14/CAN_STB) is
+labeled D15 on boards before the re-spin renamed the net and silkscreen; both
+`d18` and `d15` select the same pad.
 
 ## Default State
 
 - D0-D14: LOW
-- D15/PB14/CAN_STB: HIGH
+- D18/PB14/CAN_STB: HIGH
 
 ## Commands
 
@@ -18,7 +20,7 @@ set d0 1
 set d0 0
 toggle d0
 solo d0
-solo d15 0
+solo d18 0
 all 0
 all 1
 idle

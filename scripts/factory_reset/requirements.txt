@@ -16,7 +16,7 @@
 # Seeed-Studio/platform-seeedboards#69.
 #
 # KEEP IN SYNC with _ensure_pyocd_installed() in
-# builder/board_build/nrf/nrf_build.py, which pins the same version
+# builder/families/nordic/upload.py, which pins the same version
 # for the PlatformIO upload path.
 pyocd==0.45.1
 libusb
