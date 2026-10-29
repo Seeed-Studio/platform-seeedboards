@@ -1,5 +1,6 @@
 {
     "build": {
+      "chip_family": "nrf",
       "cpu": "cortex-m33",
       "f_cpu": "128000000L",
       "mcu": "nrf54l15",

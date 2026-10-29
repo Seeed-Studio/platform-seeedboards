@@ -15,6 +15,8 @@ silent misconfiguration or an obscure build/upload error downstream:
         build.zephyr.variant, before '/' and '@') is non-empty
   R6  (optional, needs PyYAML) every key under zephyr/fixes.yml `boards:`
         must equal some manifest's derived board.name
+  R7  build.chip_family required on every board, value must match a
+        registered families.ChipFamily family_id
 
 Stdlib only; R6 degrades gracefully when PyYAML is absent.
 """
@@ -52,7 +54,19 @@ def _derive_board_name(variant: str) -> str:
     return variant.split("/")[0].split("@")[0] if variant else ""
 
 
-def _check_manifest(path: Path) -> tuple[list[str], str | None]:
+def _valid_chip_families() -> set[str] | None:
+    """Registered ChipFamily ids from the families/ registry (stdlib-only
+    import chain). None -> registry unavailable, degrade to presence check."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    try:
+        from families import ChipFamily  # type: ignore
+    except ImportError:
+        return None
+    return set(ChipFamily.registered_ids())
+
+
+def _check_manifest(path: Path, valid_families: set[str] | None = None) -> tuple[list[str], str | None]:
     """Return (errors, derived_board_name_or_None) for one manifest."""
     errors: list[str] = []
     derived: str | None = None
@@ -72,6 +86,18 @@ def _check_manifest(path: Path) -> tuple[list[str], str | None]:
     frameworks = data.get("frameworks", [])
     if not isinstance(frameworks, list):
         frameworks = []
+
+    # R7: chip_family routing key (single source of truth: the registry)
+    chip_family = _get(data, "build.chip_family", "")
+    if not isinstance(chip_family, str) or not chip_family:
+        errors.append(
+            f"ERROR {rel} [chip-family]: build.chip_family is required "
+            f"(routes the families/ registry; no substring fallback)")
+    elif valid_families is not None and chip_family not in valid_families:
+        errors.append(
+            f"ERROR {rel} [chip-family]: build.chip_family '{chip_family}' "
+            f"matches no registered family; valid: "
+            f"{', '.join(sorted(valid_families))}")
 
     # R1: zephyr
     if "zephyr" in frameworks:
@@ -170,10 +196,11 @@ def main() -> int:
 
     all_errors: list[str] = []
     derived_names: set[str] = set()
+    valid_families = _valid_chip_families()
     checked = 0
     for path in sorted(boards_dir.glob("*.json")):
         checked += 1
-        errs, derived = _check_manifest(path)
+        errs, derived = _check_manifest(path, valid_families)
         all_errors.extend(errs)
         if derived:
             derived_names.add(derived)
