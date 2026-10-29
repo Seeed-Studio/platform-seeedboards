@@ -16,7 +16,7 @@
     "type": "git",
     "url": "https://github.com/Seeed-Studio/platform-seeedboards.git"
   },
-  "version": "1.1.2",
+  "version": "1.2.0",
   "frameworks": {
     "arduino": {
       "script": "builder/frameworks/arduino.py"
@@ -26,7 +26,7 @@
       "script": "builder/frameworks/espidf.py"
     },
     "zephyr": {
-      "package": "framework-zephyr-nrf54lm20",
+      "package": "framework-zephyr",
       "script": "builder/frameworks/zephyr.py"
     }
   },
@@ -239,23 +239,11 @@
         "~2.50400.0"
       ]
     },
-    "framework-zephyr-nrf54l15": {
+    "framework-zephyr": {
       "type": "framework",
       "optional": true,
       "owner": "platformio",
-      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40201.251021/framework-zephyr-3.40201.251021.tar.gz",
-      "optionalVersions": [
-        "~3.40201.251021"
-      ]
-    },
-    "framework-zephyr-nrf54lm20": {
-      "type": "framework",
-      "optional": true,
-      "owner": "platformio",
-      "version": "https://dl.registry.platformio.org/download/platformio/tool/framework-zephyr/3.40400.260428/framework-zephyr-3.40400.260428.tar.gz",
-      "optionalVersions": [
-        "3.40400.260428"
-      ]
+      "version": "3.40400.260428"
     },
     "tool-adafruit-nrfutil": {
       "owner": "platformio",

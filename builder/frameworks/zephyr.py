@@ -41,20 +41,25 @@ Import("env")
 platform_name = env.subst("$PIOPLATFORM")
 board_name = env.get("BOARD", "")
 platform = env.PioPlatform()
-framework_package_name = env.BoardConfig().get("build.zephyr.package", "")
+platform_dir = platform.get_dir()
 framework_version = None
 
-if board_name and "nrf" in board_name:
+# Family-driven PIOPLATFORM override (replaces board-name substring
+# checks): Zephyr's build expects the vendor platform name; ours is
+# restored after the framework script below runs.
+if platform_dir not in sys.path:
+    # tail-append only: the repo root must never shadow stdlib `platform`
+    sys.path.append(platform_dir)
+from families import resolve_board_family
+
+_family = resolve_board_family(env.BoardConfig(), board_name)
+_zephyr_platform_override = _family.zephyr_pioplatform()
+if _zephyr_platform_override:
     env.Replace(
-        PIOPLATFORM="nordicnrf52"
-    )
-if board_name and "stm32" in board_name:
-    env.Replace(
-        PIOPLATFORM="ststm32"
+        PIOPLATFORM=_zephyr_platform_override
     )
 # Clone hal_nordic package from west.yaml if not present
-framework_dir = platform.get_package_dir(framework_package_name)
-platform_dir = platform.get_dir()
+framework_dir = platform.get_package_dir("framework-zephyr")
 west_yml_path = join(framework_dir, "west.yml")
 hal_nordic_dir = join(framework_dir, "_pio", "modules", "hal", "nordic")
 
@@ -92,7 +97,7 @@ def _get_framework_version():
     parts = raw_version.split(".")
     if len(parts) < 2 or not parts[1].isdigit():
         raise RuntimeError(
-            f"Unexpected {framework_package_name} version: {raw_version}"
+            f"Unexpected framework-zephyr version: {raw_version}"
         )
 
     encoded = parts[1].zfill(5)
@@ -354,33 +359,6 @@ def _patch_platformio_object_naming(framework_dir):
     if old_else in text and new_else not in text:
         text = text.replace(old_else, new_else)
         changed = True
-    if changed:
-        with open(build_py, "w", encoding="utf-8") as fp:
-            fp.write(text)
-
-
-def _patch_platformio_framework_package_name(framework_dir, framework_package_name):
-    """Make PlatformIO's bundled Zephyr script use the selected package name."""
-    build_py = join(framework_dir, "scripts", "platformio", "platformio-build.py")
-    if not os.path.isfile(build_py):
-        return
-
-    with open(build_py, "r", encoding="utf-8") as fp:
-        text = fp.read()
-
-    replacements = {
-        'platform.get_package_dir("framework-zephyr")': f'platform.get_package_dir("{framework_package_name}")',
-        'platform.get_package_version("framework-zephyr")': f'platform.get_package_version("{framework_package_name}")',
-        'platform.get_package("framework-zephyr")': f'platform.get_package("{framework_package_name}")',
-        'config["name"].replace("framework-zephyr", "")': f'config["name"].replace("{framework_package_name}", "")',
-    }
-
-    changed = False
-    for needle, replacement in replacements.items():
-        if needle in text and replacement not in text:
-            text = text.replace(needle, replacement)
-            changed = True
-
     if changed:
         with open(build_py, "w", encoding="utf-8") as fp:
             fp.write(text)
@@ -952,7 +930,6 @@ _ensure_minimal_west_workspace(framework_dir)
 _preinstall_west_deps(framework_dir, env.subst("$PIOPLATFORM"))
 _patch_platformio_path_handling(framework_dir)
 _patch_platformio_object_naming(framework_dir)
-_patch_platformio_framework_package_name(framework_dir, framework_package_name)
 _patch_platformio_mcuboot_signing(framework_dir)
 _patch_platformio_prebuilt_lib_linking(framework_dir)
 _patch_platformio_extra_modules(framework_dir)
@@ -998,12 +975,8 @@ apply_all(platform_dir, framework_dir,
 
 SConscript(
     join(framework_dir, "scripts", "platformio", "platformio-build.py"), exports="env")
-    
-if board_name and "nrf" in board_name:
-    env.Replace(
-        PIOPLATFORM=platform_name
-    )
-if board_name and "stm32" in board_name:
+
+if _zephyr_platform_override:
     env.Replace(
         PIOPLATFORM=platform_name
     )

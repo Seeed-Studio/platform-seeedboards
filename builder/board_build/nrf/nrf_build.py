@@ -66,7 +66,6 @@ env = DefaultEnvironment()
 platform = env.PioPlatform()
 board = env.BoardConfig()
 variant = board.get("build.variant", "")
-zephyr_package_name = board.get("build.zephyr.package", "")
 
 
 def _get_dfu_upload_offset(board_config):
@@ -367,7 +366,7 @@ if not env.get("PIOFRAMEWORK"):
 if "zephyr" in env.get("PIOFRAMEWORK", []):
     env.SConscript(
         join(platform.get_package_dir(
-            zephyr_package_name), "scripts", "platformio", "platformio-build-pre.py"),
+            "framework-zephyr"), "scripts", "platformio", "platformio-build-pre.py"),
         exports={"env": env}
     )
 
