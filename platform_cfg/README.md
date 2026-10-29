@@ -34,8 +34,9 @@ platform class.
 Keep this layer thin and put data where it belongs:
 
 - **Board-intrinsic, static facts** belong in the board manifest
-  (`boards/*.json`): `build.mcu`, `build.bsp.name`, `build.zephyr.package`,
-  `upload.cdc.*`, ... — anything a board can declare once and forever.
+  (`boards/*.json`): `build.mcu`, `build.bsp.name`,
+  `build.zephyr.variant`, `upload.cdc.*`, ... — anything a board can
+  declare once and forever.
 - **Session-dependent rules** belong here: the chosen framework, the
   active targets, `upload_protocol`, user variables. A static manifest
   cannot express "only when ...".

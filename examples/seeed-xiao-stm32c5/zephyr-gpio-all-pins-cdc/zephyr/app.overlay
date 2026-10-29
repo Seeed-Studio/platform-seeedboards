@@ -1,9 +1,9 @@
 /*
  * GPIO all-pins test.
  *
- * USB CDC stays active on PA11/PA12. Header pins D0-D15 are released from
- * board default peripherals and exposed as gpio-leds entries for convenient
- * gpio_dt_spec lookup.
+ * USB CDC stays active on PA11/PA12. Header pins D0-D14 and D18 (PB14,
+ * silkscreen renamed from D15) are released from board default peripherals
+ * and exposed as gpio-leds entries for convenient gpio_dt_spec lookup.
  */
 
 / {
@@ -51,8 +51,8 @@
 		};
 
 		gpio_d8: gpio_d8 {
-			gpios = <&gpioa 15 GPIO_ACTIVE_HIGH>;
-			label = "D8/PA15";
+			gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>;
+			label = "D8/PE2";
 		};
 
 		gpio_d9: gpio_d9 {
@@ -85,9 +85,9 @@
 			label = "D14/PB13";
 		};
 
-		gpio_d15: gpio_d15 {
+		gpio_d18: gpio_d18 {
 			gpios = <&gpiob 14 GPIO_ACTIVE_HIGH>;
-			label = "D15/PB14/CAN_STB";
+			label = "D18/PB14/CAN_STB";
 		};
 
 		gpio_swdio: gpio_swdio {
@@ -122,7 +122,7 @@
 		gpio-d12 = &gpio_d12;
 		gpio-d13 = &gpio_d13;
 		gpio-d14 = &gpio_d14;
-		gpio-d15 = &gpio_d15;
+		gpio-d18 = &gpio_d18;
 		gpio-swdio = &gpio_swdio;
 		gpio-swclk = &gpio_swclk;
 		gpio-boot0 = &gpio_boot0;
