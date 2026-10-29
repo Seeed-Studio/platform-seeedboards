@@ -14,7 +14,9 @@ def configure_stm32_default_packages(self, variables, targets):
         if "zephyr" in frameworks:
             for package_name in ("tool-cmake", "tool-dtc", "tool-ninja"):
                 self.packages[package_name]["optional"] = False
-            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.80201.0"
+            # framework-zephyr 4.4 needs the asm "inline" qualifier
+            # (GCC >= 9); 12.3 is what upstream ststm32 pins for Zephyr.
+            self.packages["toolchain-gccarmnoneeabi"]["version"] = "~1.120301.0"
             if not IS_WINDOWS:
                 self.packages["tool-gperf"]["optional"] = False
 
