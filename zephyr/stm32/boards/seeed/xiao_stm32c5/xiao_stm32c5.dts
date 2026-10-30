@@ -81,7 +81,7 @@
 	};
 
 	/*
-	 * CAN transceiver: the standby pin (CAN_STB = PB14, XIAO D15) is
+	 * CAN transceiver: the standby pin (CAN_STB = PB14, XIAO D18) is
 	 * driven LOW (inactive) during normal operation and HIGH (active)
 	 * when the CAN bus is idle/disabled to reduce power consumption.
 	 */
@@ -183,6 +183,20 @@
 			compatible = "zephyr,cdc-acm-uart";
 			label = "Zephyr USB CDC-ACM";
 		};
+	};
+
+	/*
+	 * TinyUF2 double-tap register: the bootloader reserves the last 4
+	 * bytes of SRAM1 (_board_dfu_dbl_tap = ORIGIN + LENGTH - 4 =
+	 * 0x2003FFFC) and checks it for DBL_TAP_MAGIC on boot. The
+	 * cdc_touch_dfu module writes the magic here on a 1200-bps touch;
+	 * the address survives a soft reset (only power-on clears SRAM).
+	 * Described as a node (uf2_dbl_tap label) so the module carries no
+	 * per-board constant; a board without this node takes the retention
+	 * boot-mode backend instead.
+	 */
+	uf2_dbl_tap: uf2-dbl-tap@2003fffc {
+		reg = <0x2003fffc 0x4>;
 	};
 
 	chosen {

@@ -7,6 +7,7 @@
                 "usb_pid": "0x0058"
             }
         },
+        "chip_family": "rpi",
         "core": "earlephilhower",
         "cpu": "cortex-m33",
         "extra_flags": "-DARDUINO_SEEED_XIAO_RP2350 -DARDUINO_ARCH_RP2040 -DUSBD_MAX_POWER_MA=250 ",

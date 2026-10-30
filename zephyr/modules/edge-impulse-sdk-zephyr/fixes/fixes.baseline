@@ -1,0 +1,4 @@
+# Pristine sha256 (pinned revision 69a6b8f, v1.88.1) of the files the
+# two patches in this directory are cut against.
+edge-impulse-sdk/cmake/zephyr/CMakeLists.txt 19541bbf0eecedc320179c6c371a58075bd5da9294e724e76682c8899a44deb7
+edge-impulse-sdk/cmake/utils.cmake 13dc67f877320f86d5e5d8729981932d3a95e4af2de82807220b1acafacd294e

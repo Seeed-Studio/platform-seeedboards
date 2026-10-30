@@ -1,0 +1,5 @@
+# Pristine framework-zephyr 3.40400.260428 sha256 of the engine script
+# every patch under this directory is cut against (a patch's target of
+# record is its own +++ header; the file names are labels). A mismatch
+# at apply time means the package changed -- re-evaluate each patch.
+scripts/platformio/platformio-build.py 49741b887efb67252b6d7bb7be80ace7ac448f5888ae8513ab0e491b958e28d3

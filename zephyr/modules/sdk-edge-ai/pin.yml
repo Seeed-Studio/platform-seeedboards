@@ -1,0 +1,13 @@
+# Provisioning descriptor for the external sdk-edge-ai module (stub dir).
+# Nordic Edge AI Add-on v2.1.0: prebuilt Axon NPU driver + nRF EdgeAI
+# runtime archives. Opt-in per sample via prj.conf.
+remote: https://github.com/nrfconnect/sdk-edge-ai.git
+revision: 3733b1b87c41fb560be1f2a2de646b4e405f156d  # v2.1.0
+override_env: XIAO_EDGE_AI_DIR
+label: sdk-edge-ai
+gate:
+  families: [nrf]
+  prj_conf_tokens:
+    - CONFIG_NRF_EDGEAI=y
+    - CONFIG_NRF_AXON=y
+    - CONFIG_DATA_FWD_PROTO=y

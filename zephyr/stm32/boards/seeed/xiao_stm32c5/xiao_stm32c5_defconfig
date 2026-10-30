@@ -18,13 +18,13 @@ CONFIG_INIT_ARCH_HW_AT_BOOT=y
 
 # USB device stack (new stack / UDC). The STM32C5 USB DRD FS peripheral is
 # driven by the standard udc_stm32.c driver, whose STM32C5 HAL2 backport
-# (upstream PR #105957, post-4.4.0) is carried as an override registered
-# in zephyr/fixes.yml (udc-stm32-hal2). The 1200-bps UF2 trigger rides on
-# top of this.
+# (upstream PR #105957, post-4.4.0) is carried as a fix in this board's
+# fixes/ directory. The board's board.c brings up USB and the CDC ACM
+# class automatically at boot; the cdc_touch_dfu module rides on top and
+# registers the 1200-bps line-coding callback.
 CONFIG_USB_DEVICE_STACK_NEXT=y
 
 # CDC ACM class (virtual serial port) + line control (baudrate read, used by
-# the 1200-bps UF2 trigger). The uf2_dfu_reset module brings up USB and
-# registers the line-coding callback automatically at boot.
+# the 1200-bps bootloader trigger).
 CONFIG_USBD_CDC_ACM_CLASS=y
 CONFIG_UART_LINE_CTRL=y

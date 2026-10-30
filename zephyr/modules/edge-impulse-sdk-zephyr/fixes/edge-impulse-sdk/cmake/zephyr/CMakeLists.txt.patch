@@ -1,0 +1,22 @@
+# Edge Impulse SDK fix 1/2: exclude espressif sources from the ARM build
+# Why: the ARM branch globs "*.s" under the whole SDK; on case-insensitive
+#   Windows that also matches the ESP32 Xtensa "*.S" files
+#   (porting/espressif/ESP-NN) -- wrong-target assembly for Cortex-M and
+#   object paths beyond MAX_PATH (260). Mirrors the upstream ESP32 branch.
+# Upstream: https://github.com/edgeimpulse/edge-impulse-sdk-zephyr (pinned
+#   revision 69a6b8f, v1.88.1).
+# Exit: upstream excludes non-target arch trees itself.
+--- a/edge-impulse-sdk/cmake/zephyr/CMakeLists.txt
++++ b/edge-impulse-sdk/cmake/zephyr/CMakeLists.txt
+@@ -47,7 +47,10 @@
+ 
+         RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}" "*.cpp")
+         RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}" "*.cc")
+-        RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}" "*.s")
++        # XIAO: exclude the Espressif (ESP32) tree so its Xtensa .S is
++        # not built for ARM (Windows "*.s" matches "*.S") and the
++        # object path stays under Windows MAX_PATH (260).
++        RECURSIVE_FIND_FILE_EXCLUDE_DIR(EI_SOURCE_FILES "${EI_SDK_FOLDER}" "espressif" "*.s")
+         RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}/CMSIS/DSP/Source/TransformFunctions" "*.c")
+         RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}/CMSIS/DSP/Source/CommonTables" "*.c")
+         RECURSIVE_FIND_FILE_APPEND(EI_SOURCE_FILES "${EI_SDK_FOLDER}/CMSIS/DSP/Source/BasicMathFunctions" "*.c")

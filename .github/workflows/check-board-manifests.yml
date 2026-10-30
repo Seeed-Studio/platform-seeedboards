@@ -7,19 +7,21 @@ on:
       - '.github/workflows/check-board-manifests.yml'
       - 'boards/**'
       - 'platform.py'
-      - 'platform_cfg/**'
+      - 'families/**'
       - 'builder/**'
-      - 'zephyr/fixes.yml'
+      - 'zephyr/**'
       - 'scripts/ci/verify_board_manifests.py'
+      - 'scripts/ci/verify_zephyr_routing.py'
   pull_request:
     paths:
       - '.github/workflows/check-board-manifests.yml'
       - 'boards/**'
       - 'platform.py'
-      - 'platform_cfg/**'
+      - 'families/**'
       - 'builder/**'
-      - 'zephyr/fixes.yml'
+      - 'zephyr/**'
       - 'scripts/ci/verify_board_manifests.py'
+      - 'scripts/ci/verify_zephyr_routing.py'
   workflow_dispatch:
 
 jobs:
@@ -37,10 +39,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Optional dependency: enables the R6 fixes.yml cross-check. The
-      # checker degrades gracefully when PyYAML is absent.
-      - name: Install PyYAML
-        run: python -m pip install pyyaml
-
       - name: Verify board manifests
         run: python scripts/ci/verify_board_manifests.py
+
+      - name: Verify zephyr routing and fixes layout
+        run: python scripts/ci/verify_zephyr_routing.py

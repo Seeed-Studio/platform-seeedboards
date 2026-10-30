@@ -1,0 +1,21 @@
+# Edge Impulse SDK fix 2/2: EXCLUDE_DIR macro path-separator handling
+# Why: the macro matches ".*\/<dir>\/.*" with forward slashes, which never
+#   matches Windows backslash paths, so every EXCLUDE_DIR call (incl. the
+#   espressif exclusion above) silently no-ops on Windows.
+# Upstream: https://github.com/edgeimpulse/edge-impulse-sdk-zephyr (pinned
+#   revision 69a6b8f, v1.88.1).
+# Exit: upstream normalises path separators.
+--- a/edge-impulse-sdk/cmake/utils.cmake
++++ b/edge-impulse-sdk/cmake/utils.cmake
+@@ -23,7 +23,10 @@
+     FILE(GLOB_RECURSE new_list "${dir}/${pattern}")
+     SET(dir_list "")
+     FOREACH(file_path ${new_list})
+-    IF (file_path MATCHES ".*\/${exclude_dir}\/.*")
++    # XIAO: the regex matches forward slashes only; normalise Windows
++    # backslash paths or every exclude silently no-ops.
++    STRING(REPLACE "\\" "/" _fp_norm "${file_path}")
++    IF (_fp_norm MATCHES ".*/${exclude_dir}/.*")
+         continue()
+         endif()
+         SET(dir_list ${dir_list} ${file_path})

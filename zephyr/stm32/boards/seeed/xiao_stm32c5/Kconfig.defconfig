@@ -14,4 +14,27 @@ config ROM_START_OFFSET
 	default 0x8000 if BOOTLOADER_MCUBOOT
 	default 0
 
+# USB identity for board.c's USBD_DEVICE_DEFINE. Same values the TinyUF2
+# bootloader enumerates with and boards/seeed-xiao-stm32c5.json declares
+# as hwids, so the host sees a consistent identity across app and
+# bootloader.
+config XIAO_STM32C5_USB_VID
+	hex
+	default 0x2886
+
+config XIAO_STM32C5_USB_PID
+	hex
+	default 0x00C5
+
+# Board-owned USB bring-up (board.c): derive it instead of keying the C
+# code on USB_DEVICE_STACK_NEXT alone. Samples that own their whole USB
+# stack -- gs_usb builds, which create a second context on the same
+# zephyr_udc0 -- must keep the board context out entirely; USBD_GS_USB is
+# the existing conflict signal (the CONSOLE/UART_CONSOLE defaults above
+# key on it for the same reason). No prompt: purely derived, a gsusb
+# build turns it off with zero sample changes.
+config XIAO_STM32C5_USB_AUTOBRINGUP
+	bool
+	default y if USB_DEVICE_STACK_NEXT && !USBD_GS_USB
+
 endif # BOARD_XIAO_STM32C5

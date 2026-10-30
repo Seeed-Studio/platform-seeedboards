@@ -1,0 +1,50 @@
+# Zephyr engine patch 2/5: disambiguate duplicate source basenames
+# Host function: compile_source_files()
+# Why: Zephyr 4.4's LVGL tree carries duplicate vg_lite_matrix.c files in
+#   different folders; stock object naming collapses them onto one .o.
+#   Duplicate basenames get a relative-path-qualified object path instead.
+# Upstream: none (PlatformIO framework-zephyr package scripts).
+# Exit: upstream deduplicates object names.
+--- a/scripts/platformio/platformio-build.py
++++ b/scripts/platformio/platformio-build.py
+@@ -977,6 +977,17 @@
+ ):
+     build_envs = prepare_build_envs(config, default_env)
+     objects = []
++    duplicate_basenames = set()
++    basename_count = {}
++    for source in config.get("sources", []):
++        source_path = source.get("path")
++        if not source_path or source_path.endswith(".rule"):
++            continue
++        if not os.path.isabs(source_path):
++            source_path = os.path.join(PROJECT_DIR, "zephyr", source_path)
++        base = os.path.basename(source_path)
++        basename_count[base] = basename_count.get(base, 0) + 1
++    duplicate_basenames = {k for k, v in basename_count.items() if v > 1}
+     for source in config.get("sources", []):
+         if source["path"].endswith(".rule"):
+             continue
+@@ -1001,9 +1012,19 @@
+                     obj_path_temp, os.path.relpath(src_path, local_path)
+                 )
+             else:
+-                obj_path = os.path.join(
+-                    obj_path_temp, os.path.basename(src_path)
+-                )
++                base_name = os.path.basename(src_path)
++                if base_name in duplicate_basenames:
++                    framework_root = FRAMEWORK_DIR
++                    if src_path.startswith(framework_root):
++                        unique_rel = os.path.relpath(src_path, framework_root)
++                    else:
++                        unique_rel = os.path.join(
++                            os.path.basename(os.path.dirname(src_path)),
++                            base_name,
++                        )
++                    obj_path = os.path.join(obj_path_temp, unique_rel)
++                else:
++                    obj_path = os.path.join(obj_path_temp, base_name)
+ 
+             objects.append(
+                 build_envs[compile_group_idx].StaticObject(

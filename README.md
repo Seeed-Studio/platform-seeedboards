@@ -143,7 +143,7 @@ Zephyr board definitions are organized as per-family board roots,
 | Family root | Boards | Usable as a Zephyr board root |
 | --- | --- | --- |
 | `zephyr/nrf` | `xiao_nrf54l15`, `xiao_nrf54lm20a`, `xiao_nrf54lm20b` | Yes — SoCs are present in NCS and upstream Zephyr |
-| `zephyr/stm32` | `xiao_stm32c5` | No — PlatformIO builds only; STM32C5 SoC/driver support is carried by this platform's fixes (`zephyr/fixes.yml`), not by upstream SDKs |
+| `zephyr/stm32` | `xiao_stm32c5` | No — PlatformIO builds only; STM32C5 SoC/driver support is carried by this platform's board fixes directory (`zephyr/stm32/boards/seeed/xiao_stm32c5/fixes/`), not by upstream SDKs |
 
 ### Using the boards with nRF Connect SDK (NCS)
 

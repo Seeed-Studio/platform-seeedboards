@@ -1,0 +1,217 @@
+# SPDX-License-Identifier: Apache-2.0
+"""
+Zephyr framework fixes applier (directory convention -- no registry).
+
+Every file under
+
+    zephyr/fixes/                                (framework level: every board)
+    zephyr/<family>/boards/seeed/<board>/fixes/   (board level: that board)
+
+is a fix for the installed framework-zephyr package; the directory IS the
+registration:
+
+    <framework-relative-path>          full-file override
+    <framework-relative-path>.patch    unified-diff patch (idempotent)
+    fixes.baseline                     "<target> <sha256>" of the pristine
+                                       upstream file this fix was cut against
+
+Framework-level fixes (engine patches under zephyr/fixes/scripts/) apply
+first, board-level fixes on top, so a board fix may re-shape a framework
+file by landing after it.
+
+Content gating replaces version strings: before a fix lands (or when a
+patch hunk fails to match), the framework package's file is compared against
+the recorded baseline -- a mismatch means the tarball changed under us and
+the fix must be re-evaluated. Patch hunk mismatches raise, enriched with
+baseline context when available; override drift fails equally hard (a
+whole-file copy over an unknown tree is the most destructive silent
+failure there is), symmetric with the patch path.
+
+Executors are the unchanged pure modules patch / override.
+The board's family root is discovered by glob (zephyr/*/boards/*), the same
+convention the builder uses for board dirs -- adding a family requires no
+change here either.
+Interface (call site in builder/frameworks/zephyr/main.py is unchanged):
+    apply_all(platform_dir, framework_dir, zephyr_board, version=None)
+"""
+
+import glob
+import hashlib
+import os
+import re
+from os.path import dirname, join
+
+# Executors live next to this module.
+_HERE = dirname(__file__)
+if _HERE not in os.sys.path:
+    os.sys.path.insert(0, _HERE)
+
+import override  # noqa: E402
+import patch  # noqa: E402
+
+BASELINE_NAME = "fixes.baseline"
+PATCH_SUFFIX = ".patch"
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
+# Local droppings an OS or editor writes next to sources (macOS .DS_Store,
+# vim's xxx.c~, patch's .rej/.orig). os.walk reads the disk, not the git
+# index, so untracked junk would otherwise be copied into the framework
+# package as an "override" at its relative path. Committed artifacts are
+# still rejected by the offline gate (no fixes.baseline entry); this skip
+# only covers developer-local builds.
+_ARTIFACT_SUFFIXES = ("~", ".orig", ".rej", ".bak")
+
+
+FRAMEWORK_FIXES_DIR = ("zephyr", "fixes")
+
+
+def apply_all(platform_dir, framework_dir, zephyr_board, version=None):
+    """Apply framework-level fixes (zephyr/fixes/), then this board's fixes
+    under zephyr/<family>/boards/seeed/<zephyr_board>/fixes/.
+
+    Boards without a board-level fixes/ directory get the framework level
+    only (nRF54 boards ship none).
+    """
+    apply_fixes_dir(
+        join(platform_dir, *FRAMEWORK_FIXES_DIR), framework_dir,
+        "framework (all boards)", version)
+    matches = sorted(glob.glob(
+        join(platform_dir, "zephyr", "*", "boards", "*", zephyr_board, "fixes")))
+    fixes_dir = matches[0] if matches else None
+    if not fixes_dir or not os.path.isdir(fixes_dir):
+        return  # this board ships no local fixes
+    apply_fixes_dir(fixes_dir, framework_dir, zephyr_board, version)
+
+
+def apply_fixes_dir(fixes_dir, target_root, label, version=None):
+    """Apply one fixes/ directory (v2 convention) onto target_root.
+
+    target_root is the framework-zephyr package for framework/board-level
+    fixes, or a module tree for a module's own fixes/ (applied right after
+    the module lands in the cache). label names the source in logs.
+    """
+    if not os.path.isdir(fixes_dir):
+        return
+    baseline = _load_baseline(fixes_dir)
+    applied = []
+    no_baseline = []
+
+    for src in _iter_fix_files(fixes_dir):
+        # os.path.relpath yields "\" separators on Windows; fixes.baseline
+        # keys and framework-package paths are "/"-separated -- normalize
+        # or every target looks unmatched on Windows (baseline gating dead).
+        rel = os.path.relpath(src, fixes_dir).replace(os.sep, "/")
+        if rel.endswith(PATCH_SUFFIX):
+            # The patch's own +++ header is the target of record (a patch
+            # file's name is just a label; several patches may edit the
+            # same file). Baseline keys use that target, not the name.
+            target = patch.patch_target(src)
+            if not target:
+                raise RuntimeError("patch has no +++ target header: %s" % src)
+        else:
+            target = rel
+        expected = baseline.get(target)
+
+        if rel.endswith(PATCH_SUFFIX):
+            _apply_patch_with_context(src, target_root, target, expected)
+        else:
+            override.apply_override(src, target_root, target, expected)
+
+        applied.append(target)
+        if not expected:
+            no_baseline.append(target)
+
+    stale = sorted(set(baseline) - set(applied))
+    if stale:
+        print(
+            "WARNING: fixes.baseline lists targets with no fix file under "
+            "%s: %s" % (fixes_dir, ", ".join(stale))
+        )
+    if no_baseline:
+        print(
+            "WARNING: no fixes.baseline entry for %s -- record the pristine "
+            "upstream sha256 so framework upgrades are detected" % ", ".join(no_baseline)
+        )
+    print(
+        "Applied %d Zephyr fix(es) for %s (Zephyr %s)"
+        % (len(applied), label, version)
+    )
+
+
+def _iter_fix_files(fixes_dir):
+    for root, dirs, files in os.walk(fixes_dir):
+        dirs.sort()
+        for fname in sorted(files):
+            if fname == BASELINE_NAME:
+                continue
+            if fname.startswith(".") or fname.endswith(_ARTIFACT_SUFFIXES):
+                print("Skipping non-fix artifact: %s" % join(root, fname))
+                continue
+            yield join(root, fname)
+
+
+def _load_baseline(fixes_dir):
+    baseline = {}
+    path = join(fixes_dir, BASELINE_NAME)
+    if not os.path.isfile(path):
+        return baseline
+    with open(path, "r", encoding="utf-8") as fp:
+        for line in fp:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 1)
+            if len(parts) == 2 and _SHA256_RE.fullmatch(parts[1].strip()):
+                baseline[parts[0]] = parts[1].strip()
+            else:
+                # An invalid line (trailing comment, truncated sha, missing
+                # sha) must not become a never-matching expected value: it
+                # would fire a false "framework package may have been
+                # upgraded" warning on every build against a pristine
+                # package. Degrade to "no baseline" instead.
+                print(
+                    "WARNING: invalid fixes.baseline line %r (expected "
+                    "'<target> <64 lowercase hex sha256>') -- ignoring" % line
+                )
+    return baseline
+
+
+def _apply_patch_with_context(src_patch, framework_dir, target, expected_sha):
+    try:
+        stats = patch.apply_patch(src_patch, framework_dir, target)
+    except RuntimeError as exc:
+        detail = str(exc)
+        dst = join(framework_dir, target)
+        if expected_sha and os.path.isfile(dst):
+            actual = _sha256(dst)
+            if actual != expected_sha:
+                detail += (
+                    "; baseline drift: %s hashes %s, expected pristine %s -- "
+                    "the framework package likely changed, re-evaluate this fix"
+                    % (target, actual[:12], expected_sha[:12])
+                )
+        raise RuntimeError(detail)
+
+    # A deletion-only hunk that missed reports "already-applied-deletion":
+    # at the patch layer that is indistinguishable from a real re-run. With
+    # a baseline we can disambiguate -- a target that still hashes pristine
+    # was never patched by anything, so the deletion can never have landed:
+    # the patch itself does not match the tree it claims to be cut against.
+    # (Today's four engine patches each carry an add-present hunk that
+    # would fail first; this guards a future deletion-only patch.)
+    if (stats.get("applied") == 0
+            and stats.get("already-applied-deletion", 0) > 0
+            and expected_sha):
+        dst = join(framework_dir, target)
+        if os.path.isfile(dst) and _sha256(dst) == expected_sha:
+            raise RuntimeError(
+                "deletion hunk not found while target still pristine -- "
+                "patch/baseline mismatch: %s" % target)
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as fp:
+        for chunk in iter(lambda: fp.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

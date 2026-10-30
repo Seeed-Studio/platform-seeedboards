@@ -1,0 +1,12 @@
+# Provisioning descriptor for the external edge-impulse-sdk-zephyr module
+# (stub dir). Edge Impulse SDK v1.88.1; needed by hello_ei-class samples
+# (CONFIG_EDGE_IMPULSE_SDK=y). fixes/ (auto-discovered) carries two cmake
+# corrections the pinned tree needs on Windows/ARM (see its fixes.baseline).
+remote: https://github.com/edgeimpulse/edge-impulse-sdk-zephyr.git
+revision: 69a6b8fcc23515b9d148c9a1459cb53d5efe4801  # v1.88.1
+override_env: XIAO_EDGE_IMPULSE_DIR
+label: edge-impulse-sdk-zephyr
+gate:
+  families: [nrf]
+  prj_conf_tokens:
+    - CONFIG_EDGE_IMPULSE_SDK=y

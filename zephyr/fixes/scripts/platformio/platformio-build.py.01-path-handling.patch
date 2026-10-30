@@ -1,0 +1,38 @@
+# Zephyr engine patch 1/5: PATH handling + pip flags
+# Host functions: populate_zephyr_env_vars() [PATH append], install_python_deps()
+# Why: the stock env builder replaces PATH with only the additional package
+#   dirs, dropping the system PATH (git, west helpers) from child processes;
+#   and the stock pip invocations are slow/noisy (wheel cache, version ping).
+# Upstream: none (PlatformIO framework-zephyr package scripts).
+# Exit: upstream ships equivalent behaviour.
+--- a/scripts/platformio/platformio-build.py
++++ b/scripts/platformio/platformio-build.py
+@@ -119,7 +119,9 @@
+     if not IS_WINDOWS:
+         additional_packages.append(platform.get_package_dir("tool-gperf"))
+ 
+-    zephyr_env["PATH"] = os.pathsep.join(additional_packages)
++    zephyr_env["PATH"] = os.pathsep.join(
++        additional_packages + [zephyr_env.get("PATH", "")]
++    )
+ 
+ 
+ def is_proper_zephyr_project():
+@@ -1683,7 +1685,7 @@
+     if IS_WINDOWS and "windows-curses" not in installed_packages:
+         env.Execute(
+             env.VerboseAction(
+-                '"%s" -m pip install windows-curses' % python_exe_path,
++                '"%s" -m pip install --no-cache-dir --disable-pip-version-check windows-curses' % python_exe_path,
+                 "Installing windows-curses package",
+             )
+         )
+@@ -1692,7 +1694,7 @@
+         env.Execute(
+             env.VerboseAction(
+                 (
+-                    '"%s" -m pip install -U ' % python_exe_path
++                    '"%s" -m pip install --no-cache-dir --disable-pip-version-check -U ' % python_exe_path
+                     + " ".join(
+                         ['"%s%s"' % (p, deps[p]) for p in packages_to_install]
+                     )

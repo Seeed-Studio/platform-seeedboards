@@ -38,7 +38,7 @@
 
 /*
  * USB firmware-loader boot-mode retention register, identical to the
- * XIAO nRF54LM20B scheme: the xiao_dfu_reset module raises this bit to ask
+ * XIAO nRF54LM20B scheme: the cdc_touch_dfu module raises this bit to ask
  * MCUboot to chain the slot1 USB MCUmgr loader after the 1200-bps touch.
  */
 &gpregret1 {

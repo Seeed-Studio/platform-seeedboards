@@ -1,0 +1,8 @@
+# Provisioning descriptor for the vendored cdc_touch_dfu module.
+# Generic 1200-bps USB CDC touch -> bootloader (MCUboot boot-mode backend on
+# nRF54LM20A V2/B, TinyUF2 DBL_TAP backend on STM32C5 via the board's
+# zephyr,uf2-dbl-tap-reg chosen node). Kconfig self-gates per board
+# (default y if BOARD_*); this gate keeps the module away from unrelated
+# families.
+gate:
+  boards: [xiao_nrf54lm20a, xiao_nrf54lm20b, xiao_stm32c5]

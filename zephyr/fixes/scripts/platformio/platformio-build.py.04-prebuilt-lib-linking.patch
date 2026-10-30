@@ -1,0 +1,20 @@
+# Zephyr engine patch 4/5: link prebuilt archives via -l
+# Host function: extract_link_args()
+# Why: an absolute-path .a becomes a bare basename + -L<dir>; ld does NOT
+#   search -L for bare filenames, so module prebuilt archives (sdk-edge-ai)
+#   fail to link. lib*.a names now emit -l<name> so -L resolves them.
+# Upstream: none (PlatformIO framework-zephyr package scripts).
+# Exit: upstream emits -l for absolute-path archives.
+--- a/scripts/platformio/platformio-build.py
++++ b/scripts/platformio/platformio-build.py
+@@ -1101,7 +1101,9 @@
+                     link_args["lib_paths"].append(os.path.dirname(fragment))
+                 link_args["project_libs"]["standard_libs"].extend(
+                     [
+-                        os.path.basename(lib)
++                        ("-l" + os.path.basename(lib)[:-2][3:])
++                        if os.path.basename(lib).startswith("lib")
++                        else os.path.basename(lib)
+                         for lib in args
+                         if lib.endswith(".a")
+                     ]

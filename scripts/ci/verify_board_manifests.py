@@ -5,7 +5,7 @@ Mirrors the runtime gates that select packages/tools per board, so a
 forgotten manifest field fails here at PR time instead of surfacing as a
 silent misconfiguration or an obscure build/upload error downstream:
 
-  R1  zephyr in frameworks  -> build.zephyr.{package,variant} required
+  R1  zephyr in frameworks  -> build.zephyr.variant required
   R2  arduino in frameworks and build.mcu startswith "nrf52"
         -> build.bsp.name required, value in {adafruit, mbed}
   R3  upload.protocol == "nrfutil-mcumgr"
@@ -13,10 +13,13 @@ silent misconfiguration or an obscure build/upload error downstream:
            each VID:PID uppercase hex
   R5  R1 boards -> derived Zephyr board.name (first component of
         build.zephyr.variant, before '/' and '@') is non-empty
-  R6  (optional, needs PyYAML) every key under zephyr/fixes.yml `boards:`
-        must equal some manifest's derived board.name
+  R7  build.chip_family required on every board, value must match a
+        registered families.ChipFamily family_id
 
-Stdlib only; R6 degrades gracefully when PyYAML is absent.
+(The fixes/ layout two-way baseline check lives in
+scripts/ci/verify_zephyr_routing.py.)
+
+Stdlib only.
 """
 
 from __future__ import annotations
@@ -30,7 +33,6 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BOARDS_DIR = REPO_ROOT / "boards"
-FIXES_YAML = REPO_ROOT / "zephyr" / "fixes.yml"
 
 _VIDPID_RE = re.compile(r"^[0-9A-F]{4}:[0-9A-F]{4}$")
 _VALID_BSP = ("adafruit", "mbed")
@@ -52,7 +54,19 @@ def _derive_board_name(variant: str) -> str:
     return variant.split("/")[0].split("@")[0] if variant else ""
 
 
-def _check_manifest(path: Path) -> tuple[list[str], str | None]:
+def _valid_chip_families() -> set[str] | None:
+    """Registered ChipFamily ids from the families/ registry (stdlib-only
+    import chain). None -> registry unavailable, degrade to presence check."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    try:
+        from families import ChipFamily  # type: ignore
+    except ImportError:
+        return None
+    return set(ChipFamily.registered_ids())
+
+
+def _check_manifest(path: Path, valid_families: set[str] | None = None) -> tuple[list[str], str | None]:
     """Return (errors, derived_board_name_or_None) for one manifest."""
     errors: list[str] = []
     derived: str | None = None
@@ -73,14 +87,21 @@ def _check_manifest(path: Path) -> tuple[list[str], str | None]:
     if not isinstance(frameworks, list):
         frameworks = []
 
+    # R7: chip_family routing key (single source of truth: the registry)
+    chip_family = _get(data, "build.chip_family", "")
+    if not isinstance(chip_family, str) or not chip_family:
+        errors.append(
+            f"ERROR {rel} [chip-family]: build.chip_family is required "
+            f"(routes the families/ registry; no substring fallback)")
+    elif valid_families is not None and chip_family not in valid_families:
+        errors.append(
+            f"ERROR {rel} [chip-family]: build.chip_family '{chip_family}' "
+            f"matches no registered family; valid: "
+            f"{', '.join(sorted(valid_families))}")
+
     # R1: zephyr
     if "zephyr" in frameworks:
-        package = _get(data, "build.zephyr.package", "")
         variant = _get(data, "build.zephyr.variant", "")
-        if not package:
-            errors.append(
-                f"ERROR {rel} [zephyr-package]: 'zephyr' in frameworks requires "
-                f"build.zephyr.package (see zephyr/README.md)")
         if not variant:
             errors.append(
                 f"ERROR {rel} [zephyr-variant]: 'zephyr' in frameworks requires "
@@ -133,30 +154,6 @@ def _check_manifest(path: Path) -> tuple[list[str], str | None]:
     return (errors, derived)
 
 
-def _check_fixes_keys(derived_names: set[str]) -> list[str]:
-    """R6: every fixes.yml board key must reference a known board name."""
-    errors: list[str] = []
-    if not FIXES_YAML.exists():
-        return errors  # no fixes file -> nothing to cross-check
-    try:
-        import yaml  # type: ignore
-    except ImportError:
-        print(f"note: {FIXES_YAML.relative_to(REPO_ROOT)} exists but PyYAML is "
-              f"not installed; R6 cross-check skipped.", file=sys.stderr)
-        return errors
-    with FIXES_YAML.open(encoding="utf-8") as fh:
-        doc = yaml.safe_load(fh) or {}
-    boards = doc.get("boards", {}) if isinstance(doc, dict) else {}
-    if not isinstance(boards, dict):
-        return [f"ERROR zephyr/fixes.yml: top-level 'boards' is not a mapping"]
-    for key in boards:
-        if key not in derived_names:
-            errors.append(
-                f"ERROR zephyr/fixes.yml [orphan]: boards key '{key}' matches no "
-                f"board manifest's derived name ({sorted(derived_names) or 'none'})")
-    return errors
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else "")
     parser.add_argument("--boards-dir", type=Path, default=DEFAULT_BOARDS_DIR,
@@ -169,16 +166,12 @@ def main() -> int:
         return 2
 
     all_errors: list[str] = []
-    derived_names: set[str] = set()
+    valid_families = _valid_chip_families()
     checked = 0
     for path in sorted(boards_dir.glob("*.json")):
         checked += 1
-        errs, derived = _check_manifest(path)
+        errs, _ = _check_manifest(path, valid_families)
         all_errors.extend(errs)
-        if derived:
-            derived_names.add(derived)
-
-    all_errors.extend(_check_fixes_keys(derived_names))
 
     if all_errors:
         for line in all_errors:

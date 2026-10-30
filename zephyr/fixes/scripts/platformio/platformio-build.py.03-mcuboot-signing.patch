@@ -1,0 +1,59 @@
+# Zephyr engine patch 3/5: MCUboot signing for normal upload builds
+# Host functions: get_boot_signature_key_file(), GenerateMCUbootBinaryCmd()
+# Why: stock MCUbootImage only runs for -t mcuboot-image; boards that declare
+#   full MCUboot image parameters (e.g. xiao_nrf54lm20b) silently upload an
+#   unsigned image. Board-declared keys also resolve against the bundled
+#   MCUboot key dir before the legacy RSA default, and `pure` (IMAGE_TLV_PURE,
+#   BOOT_SIGNATURE_TYPE_PURE) passes through to imgtool.
+# Upstream: none (PlatformIO framework-zephyr package scripts).
+# Exit: upstream signs on plain builds and honors board keys/pure.
+--- a/scripts/platformio/platformio-build.py
++++ b/scripts/platformio/platformio-build.py
+@@ -506,14 +506,19 @@
+     if not os.path.isabs(signature_key_file) and not os.path.isfile(
+         signature_key_file
+     ):
+-        print(
+-            "Warning: MCUboot signature key is not specified! "
+-            "The default `root-rsa-2048.pem` will be used!"
+-        )
+-
+-        signature_key_file = os.path.join(
+-            FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", "root-rsa-2048.pem"
+-        )
++        bundled_key = os.path.join(
++            FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", signature_key_file
++        ) if signature_key_file else ""
++        if bundled_key and os.path.isfile(bundled_key):
++            signature_key_file = bundled_key
++        else:
++            print(
++                "Warning: MCUboot signature key is not specified! "
++                "The default `root-rsa-2048.pem` will be used!"
++            )
++            signature_key_file = os.path.join(
++                FRAMEWORK_DIR, "_pio", "bootloader", "mcuboot", "root-rsa-2048.pem"
++            )
+ 
+     if not os.path.isfile(signature_key_file):
+         print(
+@@ -1804,9 +1809,6 @@
+ 
+ 
+ def GenerateMCUbootBinaryCmd(env, target, source):
+-    if "mcuboot-image" not in COMMAND_LINE_TARGETS:
+-        return None
+-
+     signature_key = get_boot_signature_key_file(project_settings)
+     boot_header_len = board.get("build.zephyr.bootloader.header_len", "")
+     flash_alignment = board.get("build.zephyr.bootloader.flash_alignment", "")
+@@ -1847,6 +1849,9 @@
+         ),
+         "sign",
+     ]
++
++    if board.get("build.zephyr.bootloader.pure", False):
++        cmd.append("--pure")
+ 
+     if signature_key:
+         cmd.extend(["--key", signature_key])

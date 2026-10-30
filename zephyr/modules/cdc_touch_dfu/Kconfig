@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config CDC_TOUCH_DFU
+	bool "XIAO 1200-bps USB CDC bootloader auto-trigger"
+	default y if BOARD_XIAO_NRF54LM20B_NRF54LM20B_CPUAPP
+	default y if BOARD_XIAO_NRF54LM20A_NRF54LM20A_CPUAPP && BOARD_REVISION_2_0_0
+	default y if BOARD_XIAO_STM32C5
+	# UART_LINE_CTRL only when a serial stack exists: samples that turn
+	# SERIAL off (power/MCO builds) have no CDC ACM port for the touch to
+	# ride on, and an unconditional select on its SERIAL dependency is a
+	# Kconfig warning -> error (observed on zephyr-crystal-mco-output CI).
+	select UART_LINE_CTRL if SERIAL
+	select REBOOT
+	# Retention boot-mode backend (nRF54LM20 boards): only when the board
+	# actually describes a zephyr,retention node (RETENTION would not
+	# resolve without one). Boards describing a uf2_dbl_tap node
+	# (STM32C5) use the TinyUF2 backend instead.
+	select RETAINED_MEM if DT_HAS_ZEPHYR_RETENTION_ENABLED
+	select RETENTION if DT_HAS_ZEPHYR_RETENTION_ENABLED
+	select RETENTION_BOOT_MODE if DT_HAS_ZEPHYR_RETENTION_ENABLED
+	help
+	  Generic 1200-bps touch trigger: rides along on whatever USB CDC
+	  ACM contexts the board/sample already brings up (no USB stack of
+	  its own) and watches SET_LINE_CODING. On a 1200-bps DTE rate it
+	  hands over to the board's bootloader backend:
+
+	  - nRF54LM20 (retention boot-mode API available): record
+	    BOOT_MODE_TYPE_BOOTLOADER and cold-reboot into the MCUboot
+	    firmware loader.
+	  - boards describing a uf2_dbl_tap device node (STM32C5): write
+	    the TinyUF2 double-tap magic and NVIC-reset into the UF2
+	    bootloader.
+
+	  USB bring-up and VID/PID are the board's responsibility (board.c /
+	  Kconfig), not this module's. The physical double-tap reset remains
+	  as the hardware fallback either way.
+
+if CDC_TOUCH_DFU
+config CDC_TOUCH_DFU_BOOTLOADER_TIMEOUT_MS
+	int "Delay before the DFU reboot (let the last log line drain)"
+	default 100
+	range 0 1000
+endif

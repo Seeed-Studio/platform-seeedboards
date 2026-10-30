@@ -1,0 +1,5 @@
+# Provisioning descriptor for the vendored cannectivity module.
+# gs_usb USB CAN class implementation (Cortex-M0+ cannectivity core,
+# XIAO STM32C5 dual-CAN bridge samples).
+gate:
+  boards: [xiao_stm32c5]
