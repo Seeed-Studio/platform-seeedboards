@@ -1,0 +1,96 @@
+name: Sourcery review
+
+# AI code review from https://www.sourcery.ai (free for open-source
+# repositories) over the lines a pull request changes:
+#
+#   * Runs for every PR (opened, new commits, reopened) and reviews only
+#     the diff against the PR base, not the whole tree.
+#   * Advisory only: "check: false" reports findings without failing the
+#     job, so this workflow never blocks a merge on its own.
+#   * Requires the SOURCERY_TOKEN repository secret. Sign up at
+#     https://sourcery.ai, copy the token from
+#     https://sourcery.ai/dashboard/profile, and add it under
+#     Settings -> Secrets and variables -> Actions. Until the secret
+#     exists, automatic PR runs skip with a notice (they stay green);
+#     manual workflow_dispatch runs fail with a pointer instead, because
+#     an explicit request should not pass silently.
+#   * workflow_dispatch accepts an open PR number so PRs that predate
+#     this workflow can still be reviewed on demand.
+#
+# Both automatic and manual runs check out the PR merge ref
+# (refs/pull/<n>/merge), so the review always sees the PR as it would
+# land on its current base branch.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Open PR number to review'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sourcery-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Sourcery AI review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Gate on configured token
+        id: gate
+        env:
+          SOURCERY_TOKEN: ${{ secrets.SOURCERY_TOKEN }}
+        run: |
+          if [ -n "$SOURCERY_TOKEN" ]; then
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::SOURCERY_TOKEN is not set. Sign up at https://sourcery.ai, copy the token from https://sourcery.ai/dashboard/profile, and add it as the repository secret SOURCERY_TOKEN."
+            exit 1
+          fi
+          echo "::notice::SOURCERY_TOKEN is not configured; skipping Sourcery review. See the header of sourcery-review.yml for setup."
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve PR base (manual run)
+        id: pr
+        if: github.event_name == 'workflow_dispatch' && steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json baseRefOid --jq '"base_sha=\(.baseRefOid)"' >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          # the merge ref exists for open PRs regardless of fork origin;
+          # full history lets Sourcery diff against the PR base
+          ref: refs/pull/${{ github.event.pull_request.number || inputs.pr_number }}/merge
+          fetch-depth: 0
+
+      - name: Set up Python
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Sourcery
+        if: steps.gate.outputs.skip != 'true'
+        uses: sourcery-ai/action@v1
+        with:
+          token: ${{ secrets.SOURCERY_TOKEN }}
+          diff_ref: ${{ github.event.pull_request.base.sha || steps.pr.outputs.base_sha }}
+          check: false  # advisory: report findings without failing the job
